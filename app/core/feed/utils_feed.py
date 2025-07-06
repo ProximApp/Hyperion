@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.feed import cruds_feed, schemas_feed
+from app.core.feed import cruds_feed, models_feed
 from app.core.feed.types_feed import NewsStatus
 from app.core.groups.groups_type import GroupType
 from app.core.notification.schemas_notification import Message
@@ -11,9 +12,11 @@ from app.utils.communication.notifications import NotificationTool
 
 async def create_feed_news(
     title: str,
-    start: str,
-    end: str | None,
+    start: datetime,
+    end: datetime | None,
     entity: str,
+    location: str | None,
+    action_start: datetime | None,
     module: str,
     module_object_id: uuid.UUID,
     image_folder: str,
@@ -36,12 +39,14 @@ async def create_feed_news(
     require_feed_admin_approval: if the news can be published directly or if it requires approval from a feed administrator
     """
 
-    news = schemas_feed.News(
+    news = models_feed.News(
         id=uuid.uuid4(),
         title=title,
         start=start,
         end=end,
         entity=entity,
+        location=location,
+        action_start=action_start,
         module=module,
         module_object_id=module_object_id,
         image_folder=image_folder,
