@@ -1,3 +1,4 @@
+from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -8,51 +9,38 @@ from app.core.feed.types_feed import NewsStatus
 
 
 async def create_news(
-    news: schemas_feed.News,
+    news: models_feed.News,
     db: AsyncSession,
 ) -> None:
     """
     Create a news
     """
-    news_model = models_feed.News(
-        id=news.id,
-        title=news.title,
-        start=news.start,
-        end=news.end,
-        entity=news.entity,
-        module=news.module,
-        module_object_id=news.module_object_id,
-        image_folder=news.image_folder,
-        image_id=news.image_id,
-        status=news.status,
-    )
-    db.add(news_model)
+
+    db.add(news)
 
 
 async def get_news(
     status: list[NewsStatus],
     db: AsyncSession,
-) -> list[schemas_feed.News]:
+) -> Sequence[models_feed.News]:
     result = await db.execute(
         select(models_feed.News).where(
             models_feed.News.status.in_(status),
         ),
     )
-    return [
-        schemas_feed.News(
-            id=news.id,
-            title=news.title,
-            start=news.start,
-            end=news.end,
-            entity=news.entity,
-            module=news.module,
-            module_object_id=news.module_object_id,
-            image_folder=news.image_folder,
-            image_id=news.image_id,
-            status=news.status,
-        )
-        for news in result.scalars().all()
-    ]
+    return result.scalars().all()
+
+
+async def get_news_by_id(
+    news_id: UUID,
+    db: AsyncSession,
+) -> models_feed.News | None:
+    result = await db.execute(
+        select(models_feed.News).where(
+            models_feed.News.id == news_id,
+        ),
+    )
+    return result.scalars().first()
 
 
 async def change_news_status(

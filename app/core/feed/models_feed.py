@@ -19,11 +19,18 @@ class News(Base):
     # Name of the entity that created the news
     entity: Mapped[str]
 
+    # The news may be related to a specific location
+    location: Mapped[str | None]
+
+    # The news may be related to a specific action
+    # If so, the action button should be displayed at this datetime
+    action_start: Mapped[datetime | None]
+
     module: Mapped[str]
     # UUID of the related object in the module database
     module_object_id: Mapped[UUID]
 
-    image_folder: Mapped[str]
+    image_directory: Mapped[str]
     image_id: Mapped[UUID]
 
     status: Mapped[NewsStatus]
