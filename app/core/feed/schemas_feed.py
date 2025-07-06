@@ -16,11 +16,11 @@ class News(BaseModel):
     entity: str = Field(description="Name of the entity that created the news")
 
     location: str | None = Field(
-        description="The news may be related to a specific location"
+        description="The news may be related to a specific location",
     )
 
     action_start: datetime | None = Field(
-        description="The news may be related to a specific action. If so, the action button should be displayed at this datetime"
+        description="The news may be related to a specific action. If so, the action button should be displayed at this datetime",
     )
 
     module: str

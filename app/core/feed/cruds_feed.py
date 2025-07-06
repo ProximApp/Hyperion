@@ -1,10 +1,10 @@
-from typing import Sequence
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.feed import models_feed, schemas_feed
+from app.core.feed import models_feed
 from app.core.feed.types_feed import NewsStatus
 
 
