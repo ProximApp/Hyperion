@@ -68,15 +68,23 @@ async def send_emails_from_queue(db: "AsyncSession", settings: "Settings") -> No
         limit=200,
     )
 
-    await cruds_core.delete_queued_email(
-        queued_email_ids=[email.id for email in queued_emails],
-        db=db,
-    )
+    send_emails_ids = [email.id for email in queued_emails]
 
     for email in queued_emails:
-        await send_email(
-            recipient=email.email,
-            subject=email.subject,
-            content=email.body,
-            settings=settings,
-        )
+        try:
+            await send_email(
+                recipient=email.email,
+                subject=email.subject,
+                content=email.body,
+                settings=settings,
+            )
+        except Exception:
+            hyperion_error_logger.exception(
+                f"Error while sending queued email to {email.email} with subject {email.subject}",
+            )
+            send_emails_ids.remove(email.id)
+
+    await cruds_core.delete_queued_email(
+        queued_email_ids=send_emails_ids,
+        db=db,
+    )
