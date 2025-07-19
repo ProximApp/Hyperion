@@ -78,7 +78,7 @@ class CoreUserUnconfirmed(Base):
     expire_on: Mapped[datetime]
 
     # Users will be automatically added to this group when they activate their account
-    default_group_id: Mapped[str] = mapped_column(
+    default_group_id: Mapped[str | None] = mapped_column(
         ForeignKey("core_group.id"),
     )
 
