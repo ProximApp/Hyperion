@@ -259,6 +259,18 @@ async def delete_email_migration_code_by_token(
     await db.flush()
 
 
+async def get_user_invitation_by_email(
+    email: str,
+    db: AsyncSession,
+) -> models_users.CoreUserInvitation | None:
+    result = await db.execute(
+        select(models_users.CoreUserInvitation).where(
+            models_users.CoreUserInvitation.email == email,
+        ),
+    )
+    return result.scalars().first()
+
+
 async def delete_recover_request_by_email(db: AsyncSession, email: str):
     """Delete a user from database by id"""
 

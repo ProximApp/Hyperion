@@ -217,6 +217,31 @@ async def create_user_by_user(
         # Fail silently: the user should not be informed that a user with the email address already exist.
         return standard_responses.Result(success=True)
 
+    if not settings.ALLOW_SELF_REGISTRATION:
+        # If self registration is disabled, we want to check if the user was invited
+        db_invitation = await cruds_users.get_user_invitation_by_email(
+            email=user_create.email,
+            db=db,
+        )
+
+        if db_invitation is None:
+            # If the user was not invited, we can not create a new account
+            hyperion_security_logger.warning(
+                f"Create_user: {user_create.email} was not invited ({request_id})",
+            )
+            if settings.SMTP_ACTIVE:
+                mail = mail_templates.get_mail_account_invitation_required()
+                background_tasks.add_task(
+                    send_email,
+                    recipient=user_create.email,
+                    subject="MyECL - you need an invitation to create an account",
+                    content=mail,
+                    settings=settings,
+                )
+
+            # Fail silently: the user should not be informed that a user with the email address already exist.
+            return standard_responses.Result(success=True)
+
     # There might be an unconfirmed user in the database but its not an issue. We will generate a second activation token.
 
     await create_user(
