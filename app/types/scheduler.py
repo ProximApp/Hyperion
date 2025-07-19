@@ -94,7 +94,7 @@ def get_send_emails_from_queue_task(
 ):
     """
     Send emails from the email queue. This function should be called by a cron scheduled task.
-    The task will only send 200 emails per hour to avoid being rate-limited by the email provider.
+    The task will only send a small amount of emails per hour to avoid being rate-limited by the email provider.
     """
 
     # We can not get the db and settings from the scheduler, we will thus get them from the dependency overrides directly
