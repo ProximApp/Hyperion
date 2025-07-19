@@ -31,7 +31,12 @@ def send_email(
     # https://errorsfixing.com/why-do-some-python-smtplib-messages-deliver-to-gmail-spam-folder/
 
     if isinstance(recipient, str):
+        if recipient == "":
+            return
         recipient = [recipient]
+
+    if len(recipient) == 0:
+        return
 
     context = ssl.create_default_context()
 
