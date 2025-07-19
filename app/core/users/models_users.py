@@ -90,10 +90,9 @@ class CoreUserInvitation(Base):
 
     __tablename__ = "core_user_invitation"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(unique=True)
+    email: Mapped[str] = mapped_column(primary_key=True)
 
-    default_group_id: Mapped[str] = mapped_column(
+    default_group_id: Mapped[str | None] = mapped_column(
         ForeignKey("core_group.id"),
     )
 

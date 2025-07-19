@@ -259,6 +259,14 @@ async def delete_email_migration_code_by_token(
     await db.flush()
 
 
+async def create_invitation(
+    invitation: models_users.CoreUserInvitation,
+    db: AsyncSession,
+) -> None:
+    db.add(invitation)
+    await db.flush()
+
+
 async def get_user_invitation_by_email(
     email: str,
     db: AsyncSession,
@@ -269,6 +277,18 @@ async def get_user_invitation_by_email(
         ),
     )
     return result.scalars().first()
+
+
+async def get_user_invitation_by_emails(
+    emails: list[str],
+    db: AsyncSession,
+) -> list[str]:
+    result = await db.execute(
+        select(models_users.CoreUserInvitation.email).where(
+            models_users.CoreUserInvitation.email.in_(emails),
+        ),
+    )
+    return result.scalars().all()
 
 
 async def delete_recover_request_by_email(db: AsyncSession, email: str):
