@@ -318,10 +318,8 @@ async def batch_invite_users(
     user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
 ):
     """
-    Batch user account creation process. All users will be sent an email with a link to activate their account.
-    > The received token needs to be send to `/users/activate` endpoint to activate the account.
-
-    Even for creating **student** or **staff** account a valid ECL email is not required but should preferably be used.
+    Batch user account invitation process. All users will be sent an email encouraging them to create an account.
+    These emails will be whitelisted in Hyperion. If self registration is disabled only whitelisted emails will be able to create an account.
 
     The endpoint return a dictionary of unsuccessful user creation: `{email: error message}`.
 
