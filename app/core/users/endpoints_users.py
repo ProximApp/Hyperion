@@ -343,10 +343,8 @@ async def batch_invite_users(
             continue
         try:
             await cruds_users.create_invitation(
-                invitation=models_users.CoreUserInvitation(
-                    email=user_invite.email,
-                    default_group_id=user_invite.default_group_id,
-                ),
+                email=user_invite.email,
+                default_group_id=user_invite.default_group_id,
                 db=db,
             )
 

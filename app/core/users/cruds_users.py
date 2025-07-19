@@ -260,9 +260,14 @@ async def delete_email_migration_code_by_token(
 
 
 async def create_invitation(
-    invitation: models_users.CoreUserInvitation,
+    email: str,
+    default_group_id: str | None,
     db: AsyncSession,
 ) -> None:
+    invitation = models_users.CoreUserInvitation(
+        email=email,
+        default_group_id=default_group_id,
+    )
     db.add(invitation)
     await db.flush()
 
