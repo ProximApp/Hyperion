@@ -15,7 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import dependencies
 from app.core.utils.config import Settings
 from app.types.exceptions import SchedulerNotStartedError
-from app.utils.mail.mailworker import send_emails_from_queue
+from app.utils.mail.mailworker import (
+    send_emails_from_queue,
+)
 from app.utils.tools import execute_async_or_sync_method
 
 if TYPE_CHECKING:
@@ -87,6 +89,39 @@ async def run_task(
         await execute_async_or_sync_method(job_function, **kwargs)
 
 
+def get_send_emails_from_queue_task(
+    _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]],
+):
+    """
+    Send emails from the email queue. This function should be called by a cron scheduled task.
+    The task will only send 200 emails per hour to avoid being rate-limited by the email provider.
+    """
+
+    # We can not get the db and settings from the scheduler, we will thus get them from the dependency overrides directly
+    _get_db: Callable[[], AsyncGenerator[AsyncSession, None]] = (
+        _dependency_overrides.get(
+            dependencies.get_db,
+            dependencies.get_db,
+        )
+    )
+
+    _get_settings: Callable[[], Settings] = _dependency_overrides.get(
+        dependencies.get_settings,
+        dependencies.get_settings,
+    )
+
+    async def send_emails_from_queue_task():
+        settings = _get_settings()
+
+        async for db in _get_db():
+            await send_emails_from_queue(
+                db=db,
+                settings=settings,
+            )
+
+    return send_emails_from_queue_task
+
+
 class Scheduler:
     """
     An [arq](https://arq-docs.helpmanual.io/) scheduler.
@@ -132,7 +167,15 @@ class Scheduler:
                 password=redis_password or "",
             )
             # Every hours we send some emails in the queue
-            cron_jobs = [cron(send_emails_from_queue, hour=None, minute=10)]
+            cron_jobs = [
+                cron(
+                    get_send_emails_from_queue_task(
+                        _dependency_overrides=_dependency_overrides,
+                    ),
+                    hour=None,
+                    minute=10,
+                ),
+            ]
 
         # We pass handle_signals=False to avoid arq from handling signals
         # See https://github.com/python-arq/arq/issues/182
