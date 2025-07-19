@@ -346,7 +346,15 @@ async def batch_invite_users(
                 ),
                 db=db,
             )
-            # TODO: we may want to send an email
+
+            await cruds_core.add_queued_email(
+                email=user_invite.email,
+                subject="MyECL - you have been invited to create an account on MyECL",
+                body=mail_templates.get_mail_account_invitation(
+                    email=user_invite.email,
+                ),
+                db=db,
+            )
         except Exception as error:
             failed[user_invite.email] = str(error)
 

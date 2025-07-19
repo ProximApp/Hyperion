@@ -5,6 +5,7 @@ from datetime import datetime
 from inspect import signature
 from typing import TYPE_CHECKING, Any
 
+from arq import cron
 from arq.connections import RedisSettings
 from arq.jobs import Job
 from arq.typing import WorkerSettingsBase
@@ -12,7 +13,9 @@ from arq.worker import create_worker
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import dependencies
+from app.core.utils.config import Settings
 from app.types.exceptions import SchedulerNotStartedError
+from app.utils.mail.mailworker import send_emails_from_queue
 from app.utils.tools import execute_async_or_sync_method
 
 if TYPE_CHECKING:
@@ -41,6 +44,7 @@ async def run_task(
     scheduler_logger.debug(f"Job function consumed {job_function}")
 
     require_db_for_kwargs: list[str] = []
+    require_settings_for_kwargs: list[str] = []
     sign = signature(job_function)
     for param in sign.parameters.values():
         # See https://docs.python.org/3/library/inspect.html#inspect.Parameter.annotation
@@ -48,9 +52,20 @@ async def run_task(
             # We iterate over the parameters of the job_function
             # If we find a AsyncSession object, we want to inject the dependency
             require_db_for_kwargs.append(param.name)
+        elif param.annotation is Settings:
+            # If we find a Settings object, we want to inject the dependency
+            require_settings_for_kwargs.append(param.name)
         else:
             # We could support other types of dependencies
             pass
+
+    for name in require_settings_for_kwargs:
+        # We inject the settings object in the kwargs
+        # We use the dependency overrides to get the real dependency
+        kwargs[name] = _dependency_overrides.get(
+            dependencies.get_settings,
+            dependencies.get_settings,
+        )()
 
     # We distinguish between methods requiring a db and those that don't
     # to only open the db connection when needed
@@ -116,6 +131,8 @@ class Scheduler:
                 port=redis_port,
                 password=redis_password or "",
             )
+            # Every hours we send some emails in the queue
+            cron_jobs = [cron(send_emails_from_queue, hour=None, minute=10)]
 
         # We pass handle_signals=False to avoid arq from handling signals
         # See https://github.com/python-arq/arq/issues/182
