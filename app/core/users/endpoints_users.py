@@ -217,6 +217,7 @@ async def create_user_by_user(
         # Fail silently: the user should not be informed that a user with the email address already exist.
         return standard_responses.Result(success=True)
 
+    default_group_id: str | None = None
     if not settings.ALLOW_SELF_REGISTRATION:
         # If self registration is disabled, we want to check if the user was invited
         db_invitation = await cruds_users.get_user_invitation_by_email(
@@ -241,11 +242,14 @@ async def create_user_by_user(
 
             # Fail silently: the user should not be informed that a user with the email address already exist.
             return standard_responses.Result(success=True)
+        else:
+            default_group_id = db_invitation.default_group_id
 
     # There might be an unconfirmed user in the database but its not an issue. We will generate a second activation token.
 
     await create_user(
         email=user_create.email,
+        default_group_id=default_group_id,
         background_tasks=background_tasks,
         db=db,
         settings=settings,
@@ -301,6 +305,7 @@ async def batch_create_users(
 
 async def create_user(
     email: str,
+    default_group_id: str | None,
     background_tasks: BackgroundTasks,
     db: AsyncSession,
     settings: Settings,
@@ -329,6 +334,7 @@ async def create_user(
         created_on=datetime.now(UTC),
         expire_on=datetime.now(UTC)
         + timedelta(hours=settings.USER_ACTIVATION_TOKEN_EXPIRE_HOURS),
+        default_group_id=default_group_id,
     )
 
     await cruds_users.create_unconfirmed_user(user_unconfirmed=user_unconfirmed, db=db)
@@ -450,6 +456,17 @@ async def activate_user(
     )
 
     await db.flush()
+
+    if unconfirmed_user.default_group_id:
+        # If the user was invited, we add him to the group he was invited to
+        await cruds_groups.create_membership(
+            db=db,
+            membership=models_groups.CoreMembership(
+                user_id=confirmed_user.id,
+                group_id=unconfirmed_user.default_group_id,
+                description=None,
+            ),
+        )
 
     hyperion_security_logger.info(
         f"Activate_user: Activated user {confirmed_user.id} (email: {confirmed_user.email}) ({request_id})",
