@@ -303,6 +303,56 @@ async def batch_create_users(
     return standard_responses.BatchResult(failed=failed)
 
 
+@router.post(
+    "/users/batch-invitation",
+    response_model=standard_responses.Result,
+    status_code=201,
+)
+async def batch_invite_users(
+    user_invites: list[schemas_users.CoreBatchUserCreateRequest],
+    db: AsyncSession = Depends(get_db),
+    mail_templates: calypsso.MailTemplates = Depends(get_mail_templates),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+):
+    """
+    Batch user account creation process. All users will be sent an email with a link to activate their account.
+    > The received token needs to be send to `/users/activate` endpoint to activate the account.
+
+    Even for creating **student** or **staff** account a valid ECL email is not required but should preferably be used.
+
+    The endpoint return a dictionary of unsuccessful user creation: `{email: error message}`.
+
+    **This endpoint is only usable by administrators**
+    """
+
+    failed = {}
+
+    already_invited_emails = cruds_users.get_user_invitations_by_emails(
+        db=db,
+        emails=[user_invite.email for user_invite in user_invites],
+    )
+    for email in already_invited_emails:
+        failed[email] = "User already invited"
+
+    for user_invite in user_invites:
+        if user_invite.email in failed:
+            # If the user was already invited, we skip it
+            continue
+        try:
+            cruds_users.create_user_invite(
+                invitation=models_users.CoreUserInvitation(
+                    email=user_invite.email,
+                    default_group_id=user_invite.default_group_id,
+                ),
+                db=db,
+            )
+            # TODO: we may want to send an email
+        except Exception as error:
+            failed[user_invite.email] = str(error)
+
+    return standard_responses.BatchResult(failed=failed)
+
+
 async def create_user(
     email: str,
     default_group_id: str | None,
