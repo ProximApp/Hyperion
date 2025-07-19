@@ -1,14 +1,16 @@
 import logging
 import smtplib
 import ssl
+from collections.abc import AsyncGenerator, Callable
 from email.message import EmailMessage
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app import dependencies
 from app.core.core_endpoints import cruds_core
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.core.utils.config import Settings
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
@@ -52,13 +54,11 @@ def send_email(
             )
 
 
-async def send_emails_from_queue(db: AsyncSession, settings: "Settings"):
+async def send_emails_from_queue(db: "AsyncSession", settings: "Settings") -> None:
     """
-    Send emails from the email queue.
-    This function should be called by a cron scheduled task.
+    Send emails from the email queue. This function should be called by a cron scheduled task only once per hour.
+    The task will only send 200 emails per hour to avoid being rate-limited by the email provider.
     """
-    from app.utils.mail.mailworker import send_email
-
     # We only send 200 emails per hour to avoid being rate-limited by the email provider
     queued_emails = await cruds_core.get_queued_emails(
         db=db,
