@@ -282,7 +282,7 @@ async def get_user_invitation_by_email(
 async def get_user_invitation_by_emails(
     emails: list[str],
     db: AsyncSession,
-) -> list[str]:
+) -> Sequence[str]:
     result = await db.execute(
         select(models_users.CoreUserInvitation.email).where(
             models_users.CoreUserInvitation.email.in_(emails),

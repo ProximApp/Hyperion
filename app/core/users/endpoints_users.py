@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import cruds_auth
+from app.core.core_endpoints import cruds_core
 from app.core.groups import cruds_groups, models_groups
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.notification.utils_notification import get_user_notification_topics
@@ -242,8 +243,8 @@ async def create_user_by_user(
 
             # Fail silently: the user should not be informed that a user with the email address already exist.
             return standard_responses.Result(success=True)
-        else:
-            default_group_id = db_invitation.default_group_id
+
+        default_group_id = db_invitation.default_group_id
 
     # There might be an unconfirmed user in the database but its not an issue. We will generate a second activation token.
 
@@ -281,6 +282,8 @@ async def batch_create_users(
     Even for creating **student** or **staff** account a valid ECL email is not required but should preferably be used.
 
     The endpoint return a dictionary of unsuccessful user creation: `{email: error message}`.
+
+    NOTE: the activation link will only be valid for a limited time. You should probably use `/users/batch-invitation` endpoint instead, which will send an invitation email to the user.
 
     **This endpoint is only usable by administrators**
     """
@@ -339,7 +342,7 @@ async def batch_invite_users(
             # If the user was already invited, we skip it
             continue
         try:
-            cruds_users.create_user_invite(
+            await cruds_users.create_invitation(
                 invitation=models_users.CoreUserInvitation(
                     email=user_invite.email,
                     default_group_id=user_invite.default_group_id,
