@@ -1,11 +1,9 @@
 import logging
 import smtplib
 import ssl
-from collections.abc import AsyncGenerator, Callable
 from email.message import EmailMessage
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from app import dependencies
 from app.core.core_endpoints import cruds_core
 
 if TYPE_CHECKING:
