@@ -4,6 +4,10 @@ import ssl
 from email.message import EmailMessage
 from typing import TYPE_CHECKING
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.core_endpoints import cruds_core
+
 if TYPE_CHECKING:
     from app.core.utils.config import Settings
 
@@ -46,3 +50,30 @@ def send_email(
             hyperion_error_logger.warning(
                 f'Bad email adress: "{", ".join(recipient)}" for mail with subject "{subject}".',
             )
+
+
+async def send_emails_from_queue(db: AsyncSession, settings: "Settings"):
+    """
+    Send emails from the email queue.
+    This function should be called by a cron scheduled task.
+    """
+    from app.utils.mail.mailworker import send_email
+
+    # We only send 200 emails per hour to avoid being rate-limited by the email provider
+    queued_emails = await cruds_core.get_queued_emails(
+        db=db,
+        limit=200,
+    )
+
+    await cruds_core.delete_queued_email(
+        queued_email_ids=[email.id for email in queued_emails],
+        db=db,
+    )
+
+    for email in queued_emails:
+        await send_email(
+            recipient=email.email,
+            subject=email.subject,
+            content=email.body,
+            settings=settings,
+        )
