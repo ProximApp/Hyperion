@@ -4,7 +4,7 @@ Create Date: 2025-07-26 18:06:00.966810
 """
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
@@ -46,7 +46,7 @@ def upgrade() -> None:
         sa.Column("default_group_id", sa.String(), nullable=True),
     )
     op.create_foreign_key(
-        None, "core_user_unconfirmed", "core_group", ["default_group_id"], ["id"]
+        None, "core_user_unconfirmed", "core_group", ["default_group_id"], ["id"],
     )
     # ### end Alembic commands ###s
 
