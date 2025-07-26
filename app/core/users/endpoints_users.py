@@ -330,7 +330,7 @@ async def batch_invite_users(
 
     failed = {}
 
-    already_invited_emails = cruds_users.get_user_invitation_by_emails(
+    already_invited_emails = await cruds_users.get_user_invitation_by_emails(
         db=db,
         emails=[user_invite.email for user_invite in user_invites],
     )
