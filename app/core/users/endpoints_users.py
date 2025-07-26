@@ -299,6 +299,7 @@ async def batch_create_users(
                 settings=settings,
                 request_id=request_id,
                 mail_templates=mail_templates,
+                default_group_id=user_create.default_group_id,
             )
         except Exception as error:
             failed[user_create.email] = str(error)
@@ -316,6 +317,7 @@ async def batch_invite_users(
     db: AsyncSession = Depends(get_db),
     mail_templates: calypsso.MailTemplates = Depends(get_mail_templates),
     user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Batch user account invitation process. All users will be sent an email encouraging them to create an account.
@@ -328,7 +330,7 @@ async def batch_invite_users(
 
     failed = {}
 
-    already_invited_emails = cruds_users.get_user_invitations_by_emails(
+    already_invited_emails = cruds_users.get_user_invitation_by_emails(
         db=db,
         emails=[user_invite.email for user_invite in user_invites],
     )
@@ -346,11 +348,16 @@ async def batch_invite_users(
                 db=db,
             )
 
+            creation_url = settings.CLIENT_URL + calypsso.get_register_relative_url(
+                external=True,
+                email=user_invite.email,
+            )
+
             await cruds_core.add_queued_email(
                 email=user_invite.email,
                 subject="MyECL - you have been invited to create an account on MyECL",
                 body=mail_templates.get_mail_account_invitation(
-                    email=user_invite.email,
+                    creation_url=creation_url,
                 ),
                 db=db,
             )
