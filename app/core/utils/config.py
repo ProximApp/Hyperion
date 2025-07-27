@@ -21,7 +21,20 @@ from app.types.exceptions import (
     DotenvMissingVariableError,
     InvalidRSAKeyInDotenvError,
 )
+from app.types.regex_type import EmailRegex
 from app.utils.auth import providers
+
+
+class School(BaseModel):
+    """
+    Configuration for a school.
+    This class is used to store the configuration of a school.
+    It is used to create an instance of the school.
+    """
+
+    student_email_regex: EmailRegex
+    staff_email_regex: EmailRegex | None = None
+    former_student_email_regex: EmailRegex | None = None
 
 
 class AuthClientConfig(BaseModel):
@@ -184,6 +197,7 @@ class Settings(BaseSettings):
         False  # If True, the database will be populated with fake data
     )
     FACTORIES_DEMO_USERS: list[UserDemoFactoryConfig] = []
+
     #####################################
     # SMTP configuration using starttls #
     #####################################
@@ -217,6 +231,11 @@ class Settings(BaseSettings):
     # To enable Firebase push notification capabilities, a JSON key file named `firebase.json` should be placed at Hyperion root.
     # This file can be created and downloaded from [Google cloud, IAM and administration, Service account](https://console.cloud.google.com/iam-admin/serviceaccounts) page.
     USE_FIREBASE: bool = False
+
+    ########################
+    # School Configuration #
+    ########################
+    school: School
 
     ########################
     # Matrix configuration #
