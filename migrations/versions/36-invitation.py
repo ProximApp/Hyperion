@@ -46,7 +46,11 @@ def upgrade() -> None:
         sa.Column("default_group_id", sa.String(), nullable=True),
     )
     op.create_foreign_key(
-        None, "core_user_unconfirmed", "core_group", ["default_group_id"], ["id"],
+        None,
+        "core_user_unconfirmed",
+        "core_group",
+        ["default_group_id"],
+        ["id"],
     )
     # ### end Alembic commands ###s
 
