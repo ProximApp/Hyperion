@@ -6,22 +6,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.groups.groups_type import AccountType
 from app.core.schools import cruds_schools
 from app.core.schools.schools_type import SchoolType
-
-ECL_STAFF_REGEX = r"^[\w\-.]*@(enise\.)?ec-lyon\.fr$"
-ECL_STUDENT_REGEX = r"^[\w\-.]*@((etu(-enise)?)|(ecl\d{2}))\.ec-lyon\.fr$"
-ECL_FORMER_STUDENT_REGEX = r"^[\w\-.]*@centraliens-lyon\.net$"
+from app.core.utils.config import Settings
 
 
 async def get_account_type_and_school_id_from_email(
     email: str,
     db: AsyncSession,
+    settings: Settings,
 ) -> tuple[AccountType, UUID]:
     """Return the account type from the email"""
-    if re.match(ECL_STAFF_REGEX, email):
+    if settings.school.staff_email_regex is not None and re.match(
+        settings.school.staff_email_regex.value,
+        email,
+    ):
         return AccountType.staff, SchoolType.centrale_lyon.value
-    if re.match(ECL_STUDENT_REGEX, email):
+    if re.match(
+        settings.school.student_email_regex.value,
+        email,
+    ):
         return AccountType.student, SchoolType.centrale_lyon.value
-    if re.match(ECL_FORMER_STUDENT_REGEX, email):
+    if settings.school.former_student_email_regex is not None and re.match(
+        settings.school.former_student_email_regex.value,
+        email,
+    ):
         return AccountType.former_student, SchoolType.centrale_lyon.value
     schools = await cruds_schools.get_schools(db)
 

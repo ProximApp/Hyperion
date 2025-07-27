@@ -411,6 +411,7 @@ async def create_user(
     account_type, school_id = await get_account_type_and_school_id_from_email(
         email=email,
         db=db,
+        settings=settings,
     )
 
     calypsso_activate_url = settings.CLIENT_URL + calypsso.get_activate_relative_url(
@@ -493,6 +494,7 @@ async def activate_user(
     account_type, school_id = await get_account_type_and_school_id_from_email(
         email=unconfirmed_user.email,
         db=db,
+        settings=settings,
     )
     # A password should have been provided
     password_hash = security.get_password_hash(user.password)
@@ -811,6 +813,7 @@ async def migrate_mail(
     _, new_school_id = await get_account_type_and_school_id_from_email(
         email=mail_migration.new_email,
         db=db,
+        settings=settings,
     )
     if user.school_id is not SchoolType.no_school and user.school_id != new_school_id:
         raise HTTPException(
@@ -836,6 +839,7 @@ async def migrate_mail(
 async def migrate_mail_confirm(
     token: str,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ):
     """
     This endpoint will updates the user new email address.
@@ -879,6 +883,7 @@ async def migrate_mail_confirm(
     account, new_school_id = await get_account_type_and_school_id_from_email(
         email=migration_object.new_email,
         db=db,
+        settings=settings,
     )
 
     await cruds_users.update_user(
