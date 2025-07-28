@@ -69,6 +69,15 @@ SMTP_EMAIL: ""
 # To enable Firebase push notification capabilities, a JSON key file named `firebase.json` should be placed at Hyperion root.
 # This file can be created and downloaded from [Google cloud, IAM and administration, Service account](https://console.cloud.google.com/iam-admin/serviceaccounts) page.
 USE_FIREBASE: false
+
+########################
+# School Configuration #
+########################
+school:
+  # Regex for email account type validation
+  student_email_regex_type: ECL_STUDENT_REGEX
+  staff_email_regex_type: ECL_STAFF_REGEX
+  former_student_email_regex_type: ECL_FORMER_STUDENT_REGEX
 ########################
 # Matrix configuration #
 ########################

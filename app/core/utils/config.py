@@ -21,7 +21,7 @@ from app.types.exceptions import (
     DotenvMissingVariableError,
     InvalidRSAKeyInDotenvError,
 )
-from app.types.regex_type import EmailRegex
+from app.types.regex_type import EmailRegex, EmailRegexName
 from app.utils.auth import providers
 
 
@@ -32,9 +32,33 @@ class School(BaseModel):
     It is used to create an instance of the school.
     """
 
-    student_email_regex: EmailRegex
-    staff_email_regex: EmailRegex | None = None
-    former_student_email_regex: EmailRegex | None = None
+    # Regex for email account type validation
+    student_email_regex_type: EmailRegexName
+    staff_email_regex_type: EmailRegexName | None = None
+    former_student_email_regex_type: EmailRegexName | None = None
+
+    ######################################
+    # Automatically generated parameters #
+    ######################################
+
+    @computed_field  # type: ignore[prop-decorator]
+    @cached_property
+    def student_email_regex(cls) -> str:
+        return EmailRegex[cls.student_email_regex_type].value
+
+    @computed_field  # type: ignore[prop-decorator]
+    @cached_property
+    def staff_email_regex(cls) -> str | None:
+        if cls.staff_email_regex_type:
+            return EmailRegex[cls.staff_email_regex_type].value
+        return None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @cached_property
+    def former_student_email_regex(cls) -> str | None:
+        if cls.former_student_email_regex_type:
+            return EmailRegex[cls.former_student_email_regex_type].value
+        return None
 
 
 class AuthClientConfig(BaseModel):
