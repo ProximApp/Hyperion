@@ -72,6 +72,10 @@ SMTP_EMAIL: ""
 USE_FIREBASE: false
 
 school:
+  name: Tests MyECL
+  payment_name: Tests MyECLPay
+  entity_name: ÉCLAIR
+  entity_site_url: "https://myecl.fr/"
 
   student_email_regex_type: ECL_STUDENT_REGEX
   staff_email_regex_type: ECL_STAFF_REGEX
