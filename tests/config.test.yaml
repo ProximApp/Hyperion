@@ -71,6 +71,12 @@ SMTP_EMAIL: ""
 # Push notifications using Firebase Cloud Messaging
 USE_FIREBASE: false
 
+school:
+
+  student_email_regex_type: ECL_STUDENT_REGEX
+  staff_email_regex_type: ECL_STAFF_REGEX
+  former_student_email_regex_type: ECL_FORMER_STUDENT_REGEX
+
 # Payment configuration #
 
 TRUSTED_PAYMENT_REDIRECT_URLS: ["http://localhost:3000/payment_callback"]
