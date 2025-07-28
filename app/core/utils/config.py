@@ -32,6 +32,15 @@ class School(BaseModel):
     It is used to create an instance of the school.
     """
 
+    # Name of the application (ex: MyECL)
+    name: str
+    # Name of the payment solution (ex: MyECLPay)
+    payment_name: str
+    # Name of the entity managing the application (ex: ÉCLAIR)
+    entity_name: str
+    # The entity website url, used for promotion (ex: "https://myecl.fr/")
+    entity_site_url: str
+
     # Regex for email account type validation
     student_email_regex_type: EmailRegexName
     staff_email_regex_type: EmailRegexName | None = None
