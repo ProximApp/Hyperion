@@ -222,7 +222,7 @@ def test_delete_base_school(client: TestClient) -> None:
     token = create_api_access_token(admin_user)
 
     response = client.delete(
-        f"/schools/{SchoolType.this_school.value}",
+        f"/schools/{SchoolType.base_school.value}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
