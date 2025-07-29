@@ -1,7 +1,8 @@
 import tomllib
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar, Pattern
+from re import Pattern
+from typing import Any, ClassVar
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
