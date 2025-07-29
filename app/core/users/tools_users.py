@@ -15,19 +15,22 @@ async def get_account_type_and_school_id_from_email(
     settings: Settings,
 ) -> tuple[AccountType, UUID]:
     """Return the account type from the email"""
-    if settings.school.staff_email_regex is not None and re.match(
-        settings.school.staff_email_regex,
-        email,
+    if (
+        settings.school.staff_email_regex is not None
+        and settings.school.staff_email_regex.match(
+            email,
+        )
     ):
         return AccountType.staff, SchoolType.centrale_lyon.value
-    if re.match(
-        settings.school.student_email_regex,
+    if settings.school.student_email_regex.match(
         email,
     ):
         return AccountType.student, SchoolType.centrale_lyon.value
-    if settings.school.former_student_email_regex is not None and re.match(
-        settings.school.former_student_email_regex,
-        email,
+    if (
+        settings.school.former_student_email_regex is not None
+        and settings.school.former_student_email_regex.match(
+            email,
+        )
     ):
         return AccountType.former_student, SchoolType.centrale_lyon.value
     schools = await cruds_schools.get_schools(db)
