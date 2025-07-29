@@ -43,8 +43,8 @@ class School(BaseModel):
 
     # Regex for email account type validation
     # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
-    # `\` characters should be escaped with `\\` in the yaml file
-    # Ex: `student_email_regex: "^[\\w\\-.]*@domain.fr$"`
+    # Use simple quotes to avoid escaping the regex
+    # Ex: `student_email_regex: '^[\w\-.]*@domain.fr$'`
     student_email_regex: Pattern
     staff_email_regex: Pattern | None = None
     former_student_email_regex: Pattern | None = None
