@@ -77,9 +77,9 @@ school:
   entity_name: ÉCLAIR
   entity_site_url: "https://myecl.fr/"
 
-  student_email_regex_type: ECL_STUDENT_REGEX
-  staff_email_regex_type: ECL_STAFF_REGEX
-  former_student_email_regex_type: ECL_FORMER_STUDENT_REGEX
+  student_email_regex: "^[\\w\\-.]*@((etu(-enise)?)|(ecl\\d{2}))\\.ec-lyon\\.fr$"
+  staff_email_regex: "^[\\w\\-.]*@(enise\\.)?ec-lyon\\.fr$"
+  former_student_email_regex: "^[\\w\\-.]*@centraliens-lyon\\.net$"
 
 # Payment configuration #
 

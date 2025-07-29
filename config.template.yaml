@@ -84,9 +84,14 @@ school:
   entity_site_url: "https://myecl.fr/"
 
   # Regex for email account type validation
-  student_email_regex_type: ECL_STUDENT_REGEX
-  staff_email_regex_type: ECL_STAFF_REGEX
-  former_student_email_regex_type: ECL_FORMER_STUDENT_REGEX
+  # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
+  # `\` characters should be escaped with `\\` in the yaml file
+  # Ex: `student_email_regex: "^[\\w\\-.]*@domain.fr$"`
+  student_email_regex:
+  #staff_email_regex:
+  #former_student_email_regex:
+
+  #
 ########################
 # Matrix configuration #
 ########################

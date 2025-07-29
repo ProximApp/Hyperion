@@ -1,7 +1,7 @@
 import tomllib
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Pattern
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -21,7 +21,6 @@ from app.types.exceptions import (
     DotenvMissingVariableError,
     InvalidRSAKeyInDotenvError,
 )
-from app.types.regex_type import EmailRegex, EmailRegexName
 from app.utils.auth import providers
 
 
@@ -42,32 +41,12 @@ class School(BaseModel):
     entity_site_url: str
 
     # Regex for email account type validation
-    student_email_regex_type: EmailRegexName
-    staff_email_regex_type: EmailRegexName | None = None
-    former_student_email_regex_type: EmailRegexName | None = None
-
-    ######################################
-    # Automatically generated parameters #
-    ######################################
-
-    @computed_field  # type: ignore[prop-decorator]
-    @cached_property
-    def student_email_regex(cls) -> str:
-        return EmailRegex[cls.student_email_regex_type].value
-
-    @computed_field  # type: ignore[prop-decorator]
-    @cached_property
-    def staff_email_regex(cls) -> str | None:
-        if cls.staff_email_regex_type:
-            return EmailRegex[cls.staff_email_regex_type].value
-        return None
-
-    @computed_field  # type: ignore[prop-decorator]
-    @cached_property
-    def former_student_email_regex(cls) -> str | None:
-        if cls.former_student_email_regex_type:
-            return EmailRegex[cls.former_student_email_regex_type].value
-        return None
+    # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
+    # `\` characters should be escaped with `\\` in the yaml file
+    # Ex: `student_email_regex: "^[\\w\\-.]*@domain.fr$"`
+    student_email_regex: Pattern
+    staff_email_regex: Pattern | None = None
+    former_student_email_regex: Pattern | None = None
 
 
 class AuthClientConfig(BaseModel):
