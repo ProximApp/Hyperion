@@ -241,7 +241,7 @@ async def create_user_by_user(
                     settings=settings,
                 )
 
-            # Fail silently: the user should not be informed that a user with the email address already exist.
+            # Fail silently: the user should not be informed if this email was invited
             return standard_responses.Result(success=True)
 
         default_group_id = db_invitation.default_group_id
