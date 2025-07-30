@@ -120,7 +120,7 @@ def test_update_school_with_used_name(client: TestClient) -> None:
 
     response = client.patch(
         f"/schools/{id_test_ens}",
-        json={"name": "ens"},
+        json={"name": "base_school"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
