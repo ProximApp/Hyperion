@@ -46,6 +46,9 @@ LOG_DEBUG_MESSAGES: true
 # It should begin with 'http://' or 'https:// and should never end with a '/'
 CORS_ORIGINS: ["http://localhost"]
 
+# If self registration is disabled, users will need to be invited by an administrator to be able to register
+#ALLOW_SELF_REGISTRATION: true
+
 # If set, the application use a SQLite database instead of PostgreSQL, for testing or development purposes (if possible Postgresql should be used instead)
 SQLITE_DB: "app.db"
 # If True, will print all SQL queries in the console
