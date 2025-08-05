@@ -23,6 +23,7 @@ core_module = CoreModule(
     root="feed",
     tag="Feed",
     router=router,
+    factory=None,
 )
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
