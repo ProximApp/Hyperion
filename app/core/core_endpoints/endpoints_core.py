@@ -140,29 +140,20 @@ async def read_robots_txt():
 
 
 @router.get(
-    "/style/{file}.css",
-    response_class=FileResponse,
+    "/variables",
+    response_model=schemas_core.CoreVariables,
     status_code=200,
 )
-async def get_style_file(
-    file: str,
+async def get_variables(
+    settings: Settings = Depends(get_settings),
 ):
     """
     Return a style file from the assets folder
     """
-    css_dir = "assets/style/"
-    css_path = f"{css_dir}{file}.css"
-
-    # Security check (even if FastAPI parsing of path parameters does not allow path traversal)
-    if path.commonprefix(
-        (path.realpath(css_path), path.realpath(css_dir)),
-    ) != path.realpath(css_dir):
-        raise HTTPException(status_code=404, detail="File not found")
-
-    if not Path(css_path).is_file():
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(css_path)
+    return schemas_core.CoreVariables(
+        name=settings.school.name,
+        primary_color=settings.school.primary_color.as_hsl()[4:-1],
+    )
 
 
 @router.get(

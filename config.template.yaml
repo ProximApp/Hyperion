@@ -86,6 +86,9 @@ school:
   # The entity website url, used for promotion (ex: "https://myecl.fr/")
   entity_site_url: "https://myecl.fr/"
 
+  # Colors used for the application
+  primary_color: Color
+
   # Regex for email account type validation
   # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
   # Use simple quotes to avoid escaping the regex

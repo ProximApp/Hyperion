@@ -25,3 +25,10 @@ class ModuleVisibilityCreate(BaseModel):
     allowed_group_id: str | None = None
     allowed_account_type: AccountType | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class CoreVariables(BaseModel):
+    """Variables used by Hyperion"""
+
+    name: str
+    primary_color: str
