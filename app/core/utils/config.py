@@ -8,6 +8,7 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from pydantic import BaseModel, computed_field, model_validator
+from pydantic_extra_types.color import Color
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -40,6 +41,9 @@ class School(BaseModel):
     entity_name: str
     # The entity website url, used for promotion (ex: "https://myecl.fr/")
     entity_site_url: str
+
+    # Colors used for the application
+    primary_color: Color
 
     # Regex for email account type validation
     # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
