@@ -27,7 +27,7 @@ from app.modules.raid.utils.drive.drive_file_manager import DriveFileManager
 from app.types import core_data
 from app.types.floors_type import FloorsType
 from app.types.scheduler import OfflineScheduler
-from app.types.sqlalchemy import Base
+from app.types.sqlalchemy import Base, SessionLocalType
 from app.utils.communication.notifications import NotificationManager
 from app.utils.state import (
     LifespanState,
@@ -141,7 +141,7 @@ def init_test_engine() -> AsyncEngine:
     return engine
 
 
-def init_test_SessionLocal() -> Callable[[], AsyncSession]:
+def init_test_SessionLocal() -> SessionLocalType:
     return TestingSessionLocal
 
 

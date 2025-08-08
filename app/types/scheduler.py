@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import dependencies
 from app.core.utils.config import Settings
 from app.types.exceptions import SchedulerNotStartedError
+from app.types.sqlalchemy import SessionLocalType
 from app.utils.mail.mailworker import (
     send_emails_from_queue,
 )
@@ -30,6 +31,7 @@ async def run_task(
     ctx: dict[Any, Any] | None,
     job_function: Callable[..., Any],
     _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]],
+    _SessionLocal: SessionLocalType,
     **kwargs,
 ):
     """
@@ -74,14 +76,15 @@ async def run_task(
     if require_db_for_kwargs:
         # `get_db` is the real dependency, defined in dependency.py
         # `_get_db` may be the real dependency or an override
-        _get_db: Callable[[], AsyncGenerator[AsyncSession, None]] = (
-            _dependency_overrides.get(
-                dependencies.get_db,
-                dependencies.get_db,
-            )
+        _get_db_from_session_local: Callable[
+            [SessionLocalType],
+            AsyncGenerator[AsyncSession, None],
+        ] = _dependency_overrides.get(
+            dependencies.get_db_from_session_local,
+            dependencies.get_db_from_session_local,
         )
 
-        async for db in _get_db():
+        async for db in _get_db_from_session_local(_SessionLocal):
             for name in require_db_for_kwargs:
                 kwargs[name] = db
             await execute_async_or_sync_method(job_function, **kwargs)
@@ -91,6 +94,7 @@ async def run_task(
 
 def get_send_emails_from_queue_task(
     _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]],
+    _SessionLocal: SessionLocalType,
 ):
     """
     Send emails from the email queue. This function should be called by a cron scheduled task.
@@ -98,11 +102,12 @@ def get_send_emails_from_queue_task(
     """
 
     # We can not get the db and settings from the scheduler, we will thus get them from the dependency overrides directly
-    _get_db: Callable[[], AsyncGenerator[AsyncSession, None]] = (
-        _dependency_overrides.get(
-            dependencies.get_db,
-            dependencies.get_db,
-        )
+    _get_db_from_session_local: Callable[
+        [SessionLocalType],
+        AsyncGenerator[AsyncSession, None],
+    ] = _dependency_overrides.get(
+        dependencies.get_db_from_session_local,
+        dependencies.get_db_from_session_local,
     )
 
     _get_settings: Callable[[], Settings] = _dependency_overrides.get(
@@ -115,7 +120,7 @@ def get_send_emails_from_queue_task(
     ):
         settings = _get_settings()
 
-        async for db in _get_db():
+        async for db in _get_db_from_session_local(_SessionLocal):
             await send_emails_from_queue(
                 db=db,
                 settings=settings,
@@ -149,6 +154,7 @@ class Scheduler:
         redis_port: int,
         redis_password: str | None,
         _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]],
+        _SessionLocal: SessionLocalType,
         **kwargs,
     ):
         """
@@ -173,6 +179,7 @@ class Scheduler:
                 cron(
                     get_send_emails_from_queue_task(
                         _dependency_overrides=_dependency_overrides,
+                        _SessionLocal=_SessionLocal,
                     ),
                     hour=None,
                     minute=10,
@@ -253,6 +260,7 @@ class OfflineScheduler(Scheduler):
         redis_port: int,
         redis_password: str | None,
         _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]],
+        _SessionLocal: SessionLocalType,
         **kwargs,
     ):
         """
@@ -262,7 +270,6 @@ class OfflineScheduler(Scheduler):
         - redis_password: str
         - _dependency_overrides: dict[Callable[..., Any], Callable[..., Any]] a pointer to the app dependency overrides dict
         """
-        self._dependency_overrides = _dependency_overrides
 
         scheduler_logger.info("OfflineScheduler started")
 

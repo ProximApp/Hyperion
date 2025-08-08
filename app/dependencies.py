@@ -35,6 +35,7 @@ from app.types.exceptions import (
 )
 from app.types.scheduler import Scheduler
 from app.types.scopes_type import ScopeType
+from app.types.sqlalchemy import SessionLocalType
 from app.types.websocket import WebsocketConnectionManager
 from app.utils.auth import auth_utils
 from app.utils.communication.notifications import NotificationManager, NotificationTool
@@ -95,6 +96,7 @@ async def init_app_state(
     scheduler = await init_scheduler(
         settings=settings,
         app=app,
+        _SessionLocal=SessionLocal,
     )
 
     ws_manager = await init_websocket_connection_manager(
@@ -202,7 +204,38 @@ async def get_db(state: AppState) -> AsyncGenerator[AsyncSession, None]:
         # Add objects that may be rolled back in case of an error here
     ```
     """
-    async with state["SessionLocal"]() as db:
+    session_local: SessionLocalType = state["SessionLocal"]
+
+    async for db in get_db_from_session_local(session_local):
+        yield db
+
+
+async def get_db_from_session_local(
+    session_local: SessionLocalType,
+) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Return a database session that will be automatically committed and closed after usage.
+
+    If an HTTPException is raised during the request, we consider that the error was expected and managed by the endpoint. We commit the session.
+    If an other exception is raised, we rollback the session to avoid.
+
+    Cruds and endpoints should never call `db.commit()` or `db.rollback()` directly.
+    After adding an object to the session, calling `await db.flush()` will integrate the changes in the transaction without committing them.
+
+    If an endpoint needs to add objects to the sessions that should be committed even in case of an unexpected error,
+    it should start a SAVEPOINT after adding the object.
+
+    ```python
+    # Add here the object that should always be committed, even in case of an unexpected error
+    await db.add(object)
+    await db.flush()
+
+    # Start a SAVEPOINT. If the code in the following context manager raises an exception, the changes will be rolled back to this point.
+    async with db.begin_nested():
+        # Add objects that may be rolled back in case of an error here
+    ```
+    """
+    async with session_local() as db:
         try:
             yield db
         except HTTPException:
