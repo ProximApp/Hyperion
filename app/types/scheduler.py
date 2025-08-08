@@ -110,7 +110,9 @@ def get_send_emails_from_queue_task(
         dependencies.get_settings,
     )
 
-    async def send_emails_from_queue_task():
+    async def send_emails_from_queue_task(
+        ctx: dict[Any, Any] | None,
+    ):
         settings = _get_settings()
 
         async for db in _get_db():
