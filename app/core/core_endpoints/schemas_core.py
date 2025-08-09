@@ -1,6 +1,6 @@
 """Common schemas file for endpoint /users et /groups because it would cause circular import"""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.groups.groups_type import AccountType
 
@@ -32,4 +32,4 @@ class CoreVariables(BaseModel):
 
     name: str
     entity_name: str
-    primary_color: str
+    primary_color: str = Field(description="Returned as an HSL triplet (ex: `24.6 95% 53.1%`)")
