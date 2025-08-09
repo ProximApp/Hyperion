@@ -371,7 +371,7 @@ def is_user(
 
     To check if the user is not external, use is_user_a_member dependency
     To check if the user is not external and is the member of a group, use is_user_in generator
-    To check if the user has an ecl account type, use is_user_an_ecl_member dependency
+    To check if the user has an ecl account type, use is_user_a_school_member dependency
     """
 
     excluded_groups = excluded_groups or []
@@ -436,7 +436,7 @@ def is_user_a_member(
     return user
 
 
-def is_user_an_ecl_member(
+def is_user_a_school_member(
     user: models_users.CoreUser = Depends(
         is_user(included_account_types=get_ecl_account_types()),
     ),
