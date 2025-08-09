@@ -37,7 +37,7 @@ from app.dependencies import (
     get_request_id,
     get_settings,
     is_user,
-    is_user_an_ecl_member,
+    is_user_a_school_member,
     is_user_in,
 )
 from app.types import standard_responses
@@ -121,7 +121,7 @@ async def search_users(
     includedGroups: list[str] = Query(default=[]),
     excludedGroups: list[str] = Query(default=[]),
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
 ):
     """
     Search for a user using Jaro_Winkler distance algorithm.
