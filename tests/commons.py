@@ -30,7 +30,7 @@ from app.types.scheduler import OfflineScheduler
 from app.types.sqlalchemy import Base, SessionLocalType
 from app.utils.communication.notifications import NotificationManager
 from app.utils.state import (
-    LifespanState,
+    GlobalState,
     init_mail_templates,
     init_redis_client,
     init_websocket_connection_manager,
@@ -45,14 +45,19 @@ class FailedToAddObjectToDB(Exception):
     """Exception raised when an object cannot be added to the database."""
 
 
-async def override_init_app_state(
+GLOBAL_STATE: GlobalState
+
+
+async def override_init_state(
     app: FastAPI,
     settings: Settings,
     hyperion_error_logger: logging.Logger,
-) -> LifespanState:
+) -> None:
     """
     Initialize the state of the application. This dependency should be used at the start of the application lifespan.
     """
+    global GLOBAL_STATE
+
     engine = init_test_engine()
 
     SessionLocal = init_test_SessionLocal()
@@ -79,7 +84,7 @@ async def override_init_app_state(
 
     mail_templates = init_mail_templates(settings=settings)
 
-    return LifespanState(
+    GLOBAL_STATE = GlobalState(
         engine=engine,
         SessionLocal=SessionLocal,
         redis_client=redis_client,

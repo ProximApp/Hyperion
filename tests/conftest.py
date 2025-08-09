@@ -6,11 +6,11 @@ from fastapi.testclient import TestClient
 from app.app import get_application
 from app.dependencies import (
     get_settings,
-    init_app_state,
+    init_state,
 )
 from tests.commons import (
     get_override_get_settings,
-    override_init_app_state,
+    override_init_state,
     settings,
 )
 
@@ -19,7 +19,7 @@ from tests.commons import (
 def client() -> Generator[TestClient, None, None]:
     test_app = get_application(settings=settings, drop_db=True)  # Create the test's app
 
-    test_app.dependency_overrides[init_app_state] = override_init_app_state
+    test_app.dependency_overrides[init_state] = override_init_state
     test_app.dependency_overrides[get_settings] = get_override_get_settings()
 
     # The TestClient should be used as a context manager in order for the lifespan to be called
@@ -41,7 +41,7 @@ def factory_running_client() -> Generator[TestClient, None]:
         settings=override_get_settings(),
         drop_db=True,
     )
-    test_app.dependency_overrides[init_app_state] = override_init_app_state
+    test_app.dependency_overrides[init_state] = override_init_state
     test_app.dependency_overrides[get_settings] = override_get_settings
 
     with TestClient(test_app) as client:
