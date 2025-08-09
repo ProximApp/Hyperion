@@ -31,4 +31,5 @@ class CoreVariables(BaseModel):
     """Variables used by Hyperion"""
 
     name: str
+    entity_name: str
     primary_color: str

@@ -152,6 +152,7 @@ async def get_variables(
     """
     return schemas_core.CoreVariables(
         name=settings.school.name,
+        entity_name=settings.school.entity_name,
         primary_color=settings.school.primary_color.as_hsl()[4:-1],
     )
 
