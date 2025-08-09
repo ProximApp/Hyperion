@@ -619,7 +619,6 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             disconnect_state,
             disconnect_state,
         )(
-            state=state,
             hyperion_error_logger=hyperion_error_logger,
         )
 
