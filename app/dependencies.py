@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.auth import schemas_auth
-from app.core.groups.groups_type import AccountType, GroupType, get_ecl_account_types
+from app.core.groups.groups_type import AccountType, GroupType, get_school_account_types
 from app.core.payment.payment_tool import PaymentTool
 from app.core.payment.types_payment import HelloAssoConfigName
 from app.core.users import models_users
@@ -438,7 +438,7 @@ def is_user_a_member(
 
 def is_user_a_school_member(
     user: models_users.CoreUser = Depends(
-        is_user(included_account_types=get_ecl_account_types()),
+        is_user(included_account_types=get_school_account_types()),
     ),
     request_id: str = Depends(get_request_id),
 ) -> models_users.CoreUser:
