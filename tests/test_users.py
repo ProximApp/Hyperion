@@ -188,7 +188,7 @@ def test_create_user_by_user_with_email(
         ),
         ("fab4@test.fr", 201, AccountType.external, SchoolType.no_school),
         (
-            "fab5@ecl22.ec-lyon.fr",
+            "fab5@etu.ec-lyon.fr",
             201,
             AccountType.student,
             SchoolType.base_school,
