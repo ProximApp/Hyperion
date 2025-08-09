@@ -178,7 +178,6 @@ class Scheduler:
                 cron(
                     get_send_emails_from_queue_task(
                         _dependency_overrides=_dependency_overrides,
-                        _SessionLocal=_SessionLocal,
                     ),
                     hour=None,
                     minute=10,
