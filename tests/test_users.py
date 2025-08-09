@@ -295,7 +295,7 @@ def test_update_batch_invite_users(client: TestClient) -> None:
     response = client.post(
         "/users/batch-invitation",
         json=[
-            {"email": "1@1.fr", "default_group_id": GroupType.BDE.value},
+            {"email": "1@1.net", "default_group_id": GroupType.BDE.value},
             {"email": "2@1.fr"},
             {"email": "3@b.fr"},
         ],
