@@ -1,6 +1,3 @@
-from os import path
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
