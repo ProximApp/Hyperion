@@ -32,4 +32,6 @@ class CoreVariables(BaseModel):
 
     name: str
     entity_name: str
-    primary_color: str = Field(description="Returned as an HSL triplet (ex: `24.6 95% 53.1%`)")
+    primary_color: str = Field(
+        description="Returned as an HSL triplet (ex: `24.6 95% 53.1%`)",
+    )
