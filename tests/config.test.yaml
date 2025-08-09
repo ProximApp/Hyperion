@@ -76,6 +76,7 @@ school:
   payment_name: Tests MyECLPay
   entity_name: ÉCLAIR
   entity_site_url: "https://myecl.fr/"
+  primary_color: "#F97315"
 
   student_email_regex: '^[\w\-.]*@((etu(-enise)?)|(ecl\d{2}))\.ec-lyon\.fr$'
   staff_email_regex: '^[\w\-.]*@(enise\.)?ec-lyon\.fr$'
