@@ -300,8 +300,8 @@ def get_file_path_from_data(
 
 def get_file_from_data(
     directory: str,
-    filename: str,
-    default_asset: str,
+    filename: str | UUID,
+    default_asset: str | None = None,
     raise_http_exception: bool = False,
 ) -> FileResponse:
     """

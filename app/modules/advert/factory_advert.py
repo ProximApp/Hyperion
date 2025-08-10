@@ -30,6 +30,7 @@ class AdvertFactory(Factory):
                 date=datetime.now(UTC),
                 advertiser_id=advertiser.id,
                 advertiser=advertiser,
+                post_to_feed=False,
             ),
         )
 
@@ -42,6 +43,7 @@ class AdvertFactory(Factory):
                 date=datetime.now(UTC) - timedelta(days=1),
                 advertiser_id=advertiser.id,
                 advertiser=advertiser,
+                post_to_feed=False,
             ),
         )
 
@@ -61,6 +63,7 @@ class AdvertFactory(Factory):
                 date=datetime.now(UTC) - timedelta(days=2),
                 advertiser_id=advertiser2.id,
                 advertiser=advertiser2,
+                post_to_feed=False,
             ),
         )
 
