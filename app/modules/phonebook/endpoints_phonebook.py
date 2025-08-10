@@ -71,7 +71,7 @@ async def get_all_role_tags(
     status_code=200,
 )
 async def get_all_groupements(
-    user: models_users.CoreUser = Depends(is_user_an_school_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -87,7 +87,7 @@ async def get_all_groupements(
 )
 async def create_groupement(
     groupement_base: schemas_phonebook.AssociationGroupementBase,
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
     db: AsyncSession = Depends(get_db),
 ):
     if not is_user_member_of_any_group(
@@ -127,7 +127,7 @@ async def create_groupement(
 async def update_groupement(
     groupement_id: uuid.UUID,
     groupement_edit: schemas_phonebook.AssociationGroupementBase,
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -176,7 +176,7 @@ async def update_groupement(
 )
 async def delete_groupement(
     groupement_id: uuid.UUID,
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
     db: AsyncSession = Depends(get_db),
 ):
     """
