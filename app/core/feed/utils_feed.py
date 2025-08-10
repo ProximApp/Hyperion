@@ -19,7 +19,7 @@ async def create_feed_news(
     action_start: datetime | None,
     module: str,
     module_object_id: uuid.UUID,
-    image_folder: str,
+    image_directory: str,
     image_id: uuid.UUID,
     require_feed_admin_approval: bool,
     db: AsyncSession,
@@ -34,7 +34,7 @@ async def create_feed_news(
     entity: name of the entity that created the news, usually the name of an association or a group
     module: identifier of the module that created the news, may be used to open the right page in the app
     module_object_id: identifier of the object that is linked to the news in the module, may be used to open the right page in the app
-    image_folder: folder where the image is stored, used to display the image in the news
+    image_directory: folder where the image is stored, used to display the image in the news
     image_id: uuid of the image is stored, used to display the image in the news,
     require_feed_admin_approval: if the news can be published directly or if it requires approval from a feed administrator
     """
@@ -49,7 +49,7 @@ async def create_feed_news(
         action_start=action_start,
         module=module,
         module_object_id=module_object_id,
-        image_folder=image_folder,
+        image_directory=image_directory,
         image_id=image_id,
         status=NewsStatus.WAITING_APPROVAL
         if require_feed_admin_approval
