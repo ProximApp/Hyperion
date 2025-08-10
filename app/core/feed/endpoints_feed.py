@@ -11,7 +11,7 @@ from app.core.groups.groups_type import GroupType
 from app.core.users import models_users
 from app.dependencies import (
     get_db,
-    is_user_an_ecl_member,
+    is_user_a_school_member,
     is_user_in,
 )
 from app.types.module import CoreModule
@@ -36,7 +36,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 )
 async def get_published_news(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
 ):
     """
     Return published news from the feed
@@ -53,7 +53,7 @@ async def get_published_news(
 async def get_news_image(
     news_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
 ):
     """
     Return the image of a news
