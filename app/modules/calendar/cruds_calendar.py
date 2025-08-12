@@ -1,23 +1,20 @@
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from uuid import UUID
 
-import aiofiles
-from icalendar import Calendar, Event, vRecur
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.modules.calendar import models_calendar, schemas_calendar
 from app.modules.calendar.types_calendar import Decision
-
-calendar_file_path = "data/ics/ae_calendar.ics"
+from app.modules.calendar.utils_calendar import create_icalendar_file
 
 
 async def get_all_events(db: AsyncSession) -> Sequence[models_calendar.Event]:
     """Retriveve all the events in the database."""
     result = await db.execute(
         select(models_calendar.Event).options(
-            selectinload(models_calendar.Event.applicant),
+            selectinload(models_calendar.Event.association),
         ),
     )
     return result.scalars().all()
@@ -27,31 +24,39 @@ async def get_confirmed_events(
     db: AsyncSession,
 ) -> Sequence[models_calendar.Event]:
     result = await db.execute(
-        select(models_calendar.Event).where(
+        select(models_calendar.Event)
+        .where(
             models_calendar.Event.decision == Decision.approved,
+        )
+        .options(
+            selectinload(models_calendar.Event.association),
         ),
     )
     return result.scalars().all()
 
 
-async def get_event(db: AsyncSession, event_id: str) -> models_calendar.Event | None:
+async def get_event(db: AsyncSession, event_id: UUID) -> models_calendar.Event | None:
     """Retrieve the event corresponding to `event_id` from the database."""
     result = await db.execute(
         select(models_calendar.Event)
         .where(models_calendar.Event.id == event_id)
-        .options(selectinload(models_calendar.Event.applicant)),
+        .options(selectinload(models_calendar.Event.association)),
     )
     return result.scalars().first()
 
 
-async def get_applicant_events(
+async def get_events_by_association(
+    association_id: UUID,
     db: AsyncSession,
-    applicant_id: str,
 ) -> Sequence[models_calendar.Event]:
     result = await db.execute(
         select(models_calendar.Event)
-        .where(models_calendar.Event.applicant_id == applicant_id)
-        .options(selectinload(models_calendar.Event.applicant)),
+        .where(
+            models_calendar.Event.association_id == association_id,
+        )
+        .options(
+            selectinload(models_calendar.Event.association),
+        ),
     )
     return result.scalars().all()
 
@@ -68,14 +73,18 @@ async def add_event(
 
 
 async def edit_event(
-    db: AsyncSession,
-    event_id: str,
+    event_id: UUID,
     event: schemas_calendar.EventEdit,
+    decision: Decision,
+    db: AsyncSession,
 ):
     await db.execute(
         update(models_calendar.Event)
         .where(models_calendar.Event.id == event_id)
-        .values(**event.model_dump(exclude_none=True)),
+        .values(
+            decision=decision,
+            **event.model_dump(exclude_unset=True),
+        ),
     )
     await db.flush()
 
@@ -86,10 +95,11 @@ async def delete_event(db: AsyncSession, event_id: str) -> None:
         delete(models_calendar.Event).where(models_calendar.Event.id == event_id),
     )
     await db.flush()
-    await create_icalendar_file(db)
+    events = await get_all_events(db)
+    await create_icalendar_file(events)
 
 
-async def confirm_event(db: AsyncSession, decision: Decision, event_id: str):
+async def confirm_event(db: AsyncSession, decision: Decision, event_id: UUID):
     await db.execute(
         update(models_calendar.Event)
         .where(models_calendar.Event.id == event_id)
@@ -97,33 +107,41 @@ async def confirm_event(db: AsyncSession, decision: Decision, event_id: str):
     )
     await db.flush()
     if decision == Decision.approved:
-        await create_icalendar_file(db)
+        events = await get_all_events(db)
+        await create_icalendar_file(events)
 
 
-async def create_icalendar_file(db: AsyncSession) -> None:
-    """Create the ics file corresponding to the database. The calendar is entirely recreated each time an event is added or deleted in the db."""
-    events = await get_all_events(db)
+async def get_ical_secret_by_user_id(
+    user_id: str,
+    db: AsyncSession,
+) -> models_calendar.IcalSecret | None:
+    result = await db.execute(
+        select(models_calendar.IcalSecret).where(
+            models_calendar.IcalSecret.user_id == user_id,
+        ),
+    )
+    return result.scalars().first()
 
-    calendar = Calendar()
-    calendar.add("version", "2.0")  # Required field
-    calendar.add("proid", "myecl.fr")  # Required field
 
-    for event in events:
-        if event.decision == Decision.approved:
-            ical_event = Event()
-            ical_event.add("uid", f"{event.id}@myecl.fr")
-            ical_event.add("summary", event.name)
-            ical_event.add("description", event.description)
-            ical_event.add("dtstart", event.start)
-            ical_event.add("dtend", event.end)
-            ical_event.add("dtstamp", datetime.now(UTC))
-            ical_event.add("class", "public")
-            ical_event.add("organizer", event.organizer)
-            ical_event.add("location", event.location)
-            if event.recurrence_rule:
-                ical_event.add("rrule", vRecur.from_ical(event.recurrence_rule))
+async def get_ical_secret_by_secret(
+    secret: str,
+    db: AsyncSession,
+) -> models_calendar.IcalSecret | None:
+    result = await db.execute(
+        select(models_calendar.IcalSecret).where(
+            models_calendar.IcalSecret.secret == secret,
+        ),
+    )
+    return result.scalars().first()
 
-            calendar.add_component(ical_event)
 
-    async with aiofiles.open(calendar_file_path, mode="wb") as calendar_file:
-        await calendar_file.write(calendar.to_ical())
+async def add_ical_secret(
+    user_id: str,
+    secret: str,
+    db: AsyncSession,
+) -> None:
+    ical_secret = models_calendar.IcalSecret(
+        user_id=user_id,
+        secret=secret,
+    )
+    db.add(ical_secret)

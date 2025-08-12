@@ -1,11 +1,12 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.users.models_users import CoreUser
-from app.modules.calendar.types_calendar import CalendarEventType
-from app.types.sqlalchemy import Base
+from app.core.associations.models_associations import CoreAssociation
+from app.modules.calendar.types_calendar import Decision
+from app.types.sqlalchemy import Base, PrimaryKey
 
 
 class Event(Base):
@@ -13,19 +14,29 @@ class Event(Base):
 
     __tablename__ = "calendar_events"
 
-    id: Mapped[str] = mapped_column(primary_key=True, index=True)
+    id: Mapped[PrimaryKey]
     name: Mapped[str]
-    organizer: Mapped[str]
+
+    association_id: Mapped[UUID] = mapped_column(
+        ForeignKey("associations_associations.id"),
+    )
     applicant_id: Mapped[str] = mapped_column(
         ForeignKey("core_user.id"),
     )
+
     start: Mapped[datetime]
     end: Mapped[datetime]
     all_day: Mapped[bool]
     location: Mapped[str]
-    type: Mapped[CalendarEventType]
     description: Mapped[str]
-    decision: Mapped[str]
+    decision: Mapped[Decision]
     recurrence_rule: Mapped[str | None]
 
-    applicant: Mapped[CoreUser] = relationship("CoreUser", init=False)
+    association: Mapped[CoreAssociation] = relationship("CoreAssociation", init=False)
+
+
+class IcalSecret(Base):
+    __tablename__ = "calendar_ical_secret"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"), primary_key=True)
+    secret: Mapped[str]
