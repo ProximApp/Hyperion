@@ -446,7 +446,7 @@ async def init_objects() -> None:
 
 async def test_get_structures(client: TestClient):
     response = client.get(
-        "/myeclpay/structures",
+        "/mypayment/structures",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -455,7 +455,7 @@ async def test_get_structures(client: TestClient):
 
 async def test_create_structure(client: TestClient):
     response = client.post(
-        "/myeclpay/structures",
+        "/mypayment/structures",
         headers={"Authorization": f"Bearer {admin_user_token}"},
         json={
             "name": "Test Structure USEECL",
@@ -469,7 +469,7 @@ async def test_create_structure(client: TestClient):
 
 async def test_patch_structure_as_lambda(client: TestClient):
     response = client.patch(
-        f"/myeclpay/structures/{structure.id}",
+        f"/mypayment/structures/{structure.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "name": "Test Structure Updated",
@@ -480,7 +480,7 @@ async def test_patch_structure_as_lambda(client: TestClient):
 
 async def test_patch_structure_as_admin(client: TestClient):
     response = client.patch(
-        f"/myeclpay/structures/{structure.id}",
+        f"/mypayment/structures/{structure.id}",
         headers={"Authorization": f"Bearer {admin_user_token}"},
         json={
             "name": "Test Structure Updated",
@@ -491,7 +491,7 @@ async def test_patch_structure_as_admin(client: TestClient):
 
 async def test_patch_non_existing_structure(client: TestClient):
     response = client.patch(
-        f"/myeclpay/structures/{uuid4()}",
+        f"/mypayment/structures/{uuid4()}",
         headers={"Authorization": f"Bearer {admin_user_token}"},
         json={
             "name": "Test Structure Updated",
@@ -503,7 +503,7 @@ async def test_patch_non_existing_structure(client: TestClient):
 
 async def test_delete_structure_as_lambda(client: TestClient):
     response = client.delete(
-        f"/myeclpay/structures/{structure.id}",
+        f"/mypayment/structures/{structure.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 403
@@ -511,7 +511,7 @@ async def test_delete_structure_as_lambda(client: TestClient):
 
 async def test_delete_structure_as_admin_with_stores(client: TestClient):
     response = client.delete(
-        f"/myeclpay/structures/{structure.id}",
+        f"/mypayment/structures/{structure.id}",
         headers={"Authorization": f"Bearer {admin_user_token}"},
     )
     assert response.status_code == 400
@@ -526,7 +526,7 @@ async def test_delete_structure_as_admin(client: TestClient):
     )
     await add_object_to_db(new_structure)
     response = client.delete(
-        f"/myeclpay/structures/{new_structure.id}",
+        f"/mypayment/structures/{new_structure.id}",
         headers={"Authorization": f"Bearer {admin_user_token}"},
     )
     assert response.status_code == 204
@@ -534,7 +534,7 @@ async def test_delete_structure_as_admin(client: TestClient):
 
 async def test_transfer_non_existing_structure_manager(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{uuid4()}/init-manager-transfer",
+        f"/mypayment/structures/{uuid4()}/init-manager-transfer",
         headers={"Authorization": f"Bearer {admin_user_token}"},
         json={
             "new_manager_user_id": ecl_user2.id,
@@ -546,7 +546,7 @@ async def test_transfer_non_existing_structure_manager(client: TestClient):
 
 async def test_transfer_structure_manager_as_admin(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{structure.id}/init-manager-transfer",
+        f"/mypayment/structures/{structure.id}/init-manager-transfer",
         headers={"Authorization": f"Bearer {admin_user_token}"},
         json={
             "new_manager_user_id": ecl_user2.id,
@@ -566,14 +566,14 @@ async def test_transfer_structure_manager_with_wrong_token(client: TestClient):
     await add_object_to_db(tranfert)
 
     response = client.get(
-        "/myeclpay/structures/confirm-manager-transfer",
+        "/mypayment/structures/confirm-manager-transfer",
         params={"token": "WRONG_TOKEN"},
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "Request does not exist"
 
     response = client.get(
-        "/myeclpay/structures/confirm-manager-transfer",
+        "/mypayment/structures/confirm-manager-transfer",
         params={"token": "RANDOM_TOKEN"},
     )
     assert response.status_code == 400
@@ -584,7 +584,7 @@ async def test_transfer_structure_manager_as_manager_but_invalid_new_manager_id(
     client: TestClient,
 ):
     response = client.post(
-        f"/myeclpay/structures/{structure.id}/init-manager-transfer",
+        f"/mypayment/structures/{structure.id}/init-manager-transfer",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "new_manager_user_id": str(uuid4()),
@@ -646,7 +646,7 @@ async def test_transfer_structure_manager_as_manager(
         return_value=UNIQUE_TOKEN,
     )
     response = client.post(
-        f"/myeclpay/structures/{new_structure.id}/init-manager-transfer",
+        f"/mypayment/structures/{new_structure.id}/init-manager-transfer",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "new_manager_user_id": ecl_user2.id,
@@ -655,13 +655,13 @@ async def test_transfer_structure_manager_as_manager(
     assert response.status_code == 201
 
     response = client.get(
-        "/myeclpay/structures/confirm-manager-transfer",
+        "/mypayment/structures/confirm-manager-transfer",
         params={"token": UNIQUE_TOKEN},
     )
     assert response.status_code == 200
 
     result = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {ecl_user2_access_token}"},
     )
     stores = result.json()
@@ -682,7 +682,7 @@ async def test_transfer_structure_manager_as_manager(
 
 async def test_create_store_for_non_existing_structure(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{uuid4()}/stores",
+        f"/mypayment/structures/{uuid4()}/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "test_create_store Test Store",
@@ -694,7 +694,7 @@ async def test_create_store_for_non_existing_structure(client: TestClient):
 
 async def test_create_store(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{structure.id}/stores",
+        f"/mypayment/structures/{structure.id}/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "test_create_store Test Store",
@@ -704,7 +704,7 @@ async def test_create_store(client: TestClient):
     assert response.json()["id"] is not None
 
     stores = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     stores_ids = [store["id"] for store in stores.json()]
@@ -713,7 +713,7 @@ async def test_create_store(client: TestClient):
 
 async def test_create_store_when_user_not_manager_of_structure(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{structure.id}/stores",
+        f"/mypayment/structures/{structure.id}/stores",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "name": "test_create_store Test Store",
@@ -725,7 +725,7 @@ async def test_create_store_when_user_not_manager_of_structure(client: TestClien
 
 async def test_create_store_with_name_already_exist(client: TestClient):
     response = client.post(
-        f"/myeclpay/structures/{structure.id}/stores",
+        f"/mypayment/structures/{structure.id}/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "Test Store",
@@ -740,7 +740,7 @@ async def test_create_store_with_name_already_exist(client: TestClient):
 
 async def test_get_store_history_for_non_existing_store(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{uuid4()}/history",
+        f"/mypayment/stores/{uuid4()}/history",
         headers={"Authorization": f"Bearer {ecl_user2_access_token}"},
     )
 
@@ -750,7 +750,7 @@ async def test_get_store_history_for_non_existing_store(client: TestClient):
 
 async def test_get_store_history_when_not_seller_can_see_history(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/history",
+        f"/mypayment/stores/{store.id}/history",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
     )
 
@@ -762,7 +762,7 @@ async def test_get_store_history_when_not_seller_can_see_history(client: TestCli
 
 async def test_get_store_history(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/history",
+        f"/mypayment/stores/{store.id}/history",
         headers={
             "Authorization": f"Bearer {store_seller_can_see_history_user_access_token}",
         },
@@ -781,7 +781,7 @@ async def test_get_store_history(client: TestClient):
 
 async def test_get_store_history_with_date(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/history",
+        f"/mypayment/stores/{store.id}/history",
         params={
             "start_date": "2025-05-18T00:00:00Z",
             "end_date": "2025-05-19T00:00:00Z",
@@ -802,7 +802,7 @@ async def test_get_store_history_with_date(client: TestClient):
 
 async def test_get_stores_as_lambda(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -811,7 +811,7 @@ async def test_get_stores_as_lambda(client: TestClient):
 
 async def test_get_stores_as_seller(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
     )
     assert response.status_code == 200
@@ -820,7 +820,7 @@ async def test_get_stores_as_seller(client: TestClient):
 
 async def test_get_stores_as_manager(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     assert response.status_code == 200
@@ -829,7 +829,7 @@ async def test_get_stores_as_manager(client: TestClient):
 
 async def test_update_store_non_existing(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{uuid4()}",
+        f"/mypayment/stores/{uuid4()}",
         headers={
             "Authorization": f"Bearer {store_seller_can_bank_user_access_token}",
         },
@@ -843,7 +843,7 @@ async def test_update_store_non_existing(client: TestClient):
 
 async def test_update_store_non_store_admin(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{store.id}",
+        f"/mypayment/stores/{store.id}",
         headers={
             "Authorization": f"Bearer {store_seller_can_bank_user_access_token}",
         },
@@ -857,7 +857,7 @@ async def test_update_store_non_store_admin(client: TestClient):
 
 async def test_delete_store_does_not_exist(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{uuid4()}",
+        f"/mypayment/stores/{uuid4()}",
         headers={
             "Authorization": f"Bearer {structure_manager_user_token}",
         },
@@ -868,7 +868,7 @@ async def test_delete_store_does_not_exist(client: TestClient):
 
 async def test_delete_store_by_non_manager(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}",
+        f"/mypayment/stores/{store.id}",
         headers={
             "Authorization": f"Bearer {ecl_user2_access_token}",
         },
@@ -879,7 +879,7 @@ async def test_delete_store_by_non_manager(client: TestClient):
 
 async def test_delete_store_with_history(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}",
+        f"/mypayment/stores/{store.id}",
         headers={
             "Authorization": f"Bearer {structure_manager_user_token}",
         },
@@ -917,7 +917,7 @@ async def test_delete_store(client: TestClient):
     await add_object_to_db(sellet)
 
     response = client.delete(
-        f"/myeclpay/stores/{store_id}",
+        f"/mypayment/stores/{store_id}",
         headers={
             "Authorization": f"Bearer {structure_manager_user_token}",
         },
@@ -940,7 +940,7 @@ async def test_update_store(client: TestClient):
     )
     await add_object_to_db(new_store)
     response = client.patch(
-        f"/myeclpay/stores/{new_store.id}",
+        f"/mypayment/stores/{new_store.id}",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "Test Store 2 Updated",
@@ -951,7 +951,7 @@ async def test_update_store(client: TestClient):
 
 async def test_get_user_stores(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/stores",
+        "/mypayment/users/me/stores",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
     )
     assert response.status_code == 200
@@ -962,7 +962,7 @@ async def test_get_user_stores(client: TestClient):
 
 async def test_add_seller_for_non_existing_store(client: TestClient):
     response = client.post(
-        f"/myeclpay/stores/{uuid4()}/sellers",
+        f"/mypayment/stores/{uuid4()}/sellers",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "user_id": ecl_user2.id,
@@ -978,7 +978,7 @@ async def test_add_seller_for_non_existing_store(client: TestClient):
 
 async def test_add_seller_as_lambda(client: TestClient):
     response = client.post(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "user_id": ecl_user2.id,
@@ -1000,7 +1000,7 @@ async def test_add_seller_as_seller_with_permission(client: TestClient):
         groups=[],
     )
     response = client.post(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1020,7 +1020,7 @@ async def test_add_seller_as_seller_without_permission(client: TestClient):
         groups=[],
     )
     response = client.post(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_no_permission_user_access_token}",
         },
@@ -1054,7 +1054,7 @@ async def test_add_already_existing_seller(client: TestClient):
     await add_object_to_db(seller)
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1072,7 +1072,7 @@ async def test_add_already_existing_seller(client: TestClient):
 
 async def test_get_sellers_for_non_existing_store(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{uuid4()}/sellers",
+        f"/mypayment/stores/{uuid4()}/sellers",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 404
@@ -1081,7 +1081,7 @@ async def test_get_sellers_for_non_existing_store(client: TestClient):
 
 async def test_get_sellers_as_lambda(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 403
@@ -1093,7 +1093,7 @@ async def test_get_sellers_as_lambda(client: TestClient):
 
 async def test_get_sellers_as_seller_with_permission(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1104,7 +1104,7 @@ async def test_get_sellers_as_seller_with_permission(client: TestClient):
 
 async def test_get_sellers_as_seller_without_permission(client: TestClient):
     response = client.get(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_no_permission_user_access_token}",
         },
@@ -1118,7 +1118,7 @@ async def test_get_sellers_as_seller_without_permission(client: TestClient):
 
 async def test_update_seller_of_non_existing_store(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{uuid4()}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{uuid4()}/sellers/{store_seller_can_bank_user.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "can_bank": False,
@@ -1133,7 +1133,7 @@ async def test_update_seller_of_non_existing_store(client: TestClient):
 
 async def test_update_seller_as_lambda(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "can_bank": False,
@@ -1151,7 +1151,7 @@ async def test_update_seller_as_lambda(client: TestClient):
 
 async def test_update_seller_as_seller_without_permission(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_no_permission_user_access_token}",
         },
@@ -1183,7 +1183,7 @@ async def test_update_non_existing_seller(client: TestClient):
     )
     await add_object_to_db(seller)
     response = client.patch(
-        f"/myeclpay/stores/{store.id}/sellers/{uuid4()}",
+        f"/mypayment/stores/{store.id}/sellers/{uuid4()}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1210,7 +1210,7 @@ async def test_update_seller_as_seller_with_permission(client: TestClient):
     )
     await add_object_to_db(seller)
     response = client.patch(
-        f"/myeclpay/stores/{store.id}/sellers/{user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1222,7 +1222,7 @@ async def test_update_seller_as_seller_with_permission(client: TestClient):
     assert response.status_code == 204
 
     response = client.get(
-        f"/myeclpay/stores/{store.id}/sellers",
+        f"/mypayment/stores/{store.id}/sellers",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1240,7 +1240,7 @@ async def test_update_seller_as_seller_with_permission(client: TestClient):
 
 async def test_update_manager_seller(client: TestClient):
     response = client.patch(
-        f"/myeclpay/stores/{store.id}/sellers/{structure_manager_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{structure_manager_user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1260,7 +1260,7 @@ async def test_update_manager_seller(client: TestClient):
 
 async def test_delete_seller_of_non_existing_store(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{uuid4()}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{uuid4()}/sellers/{store_seller_can_bank_user.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 404
@@ -1269,7 +1269,7 @@ async def test_delete_seller_of_non_existing_store(client: TestClient):
 
 async def test_delete_seller_as_lambda(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 403
@@ -1281,7 +1281,7 @@ async def test_delete_seller_as_lambda(client: TestClient):
 
 async def test_delete_seller_as_seller_without_permission(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{store_seller_can_bank_user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_no_permission_user_access_token}",
         },
@@ -1295,7 +1295,7 @@ async def test_delete_seller_as_seller_without_permission(client: TestClient):
 
 async def test_delete_non_existing_seller(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}/sellers/{uuid4()}",
+        f"/mypayment/stores/{store.id}/sellers/{uuid4()}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1318,7 +1318,7 @@ async def test_delete_seller_as_seller_with_permission(client: TestClient):
     )
     await add_object_to_db(seller)
     response = client.delete(
-        f"/myeclpay/stores/{store.id}/sellers/{user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1328,7 +1328,7 @@ async def test_delete_seller_as_seller_with_permission(client: TestClient):
 
 async def test_delete_manager_seller(client: TestClient):
     response = client.delete(
-        f"/myeclpay/stores/{store.id}/sellers/{structure_manager_user.id}",
+        f"/mypayment/stores/{store.id}/sellers/{structure_manager_user.id}",
         headers={
             "Authorization": f"Bearer {store_seller_can_manage_sellers_user_access_token}",
         },
@@ -1342,7 +1342,7 @@ async def test_delete_manager_seller(client: TestClient):
 
 async def test_get_tos_for_unregistered_user(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/tos",
+        "/mypayment/users/me/tos",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1351,7 +1351,7 @@ async def test_get_tos_for_unregistered_user(client: TestClient):
 
 async def test_get_user_tos(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/tos",
+        "/mypayment/users/me/tos",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1366,13 +1366,13 @@ async def test_register_new_user(client: TestClient):
     user_to_register_token = create_api_access_token(user_to_register)
 
     response = client.post(
-        "/myeclpay/users/me/register",
+        "/mypayment/users/me/register",
         headers={"Authorization": f"Bearer {user_to_register_token}"},
     )
     assert response.status_code == 204
 
     response = client.post(
-        "/myeclpay/users/me/register",
+        "/mypayment/users/me/register",
         headers={"Authorization": f"Bearer {user_to_register_token}"},
     )
     assert response.status_code == 400
@@ -1381,7 +1381,7 @@ async def test_register_new_user(client: TestClient):
 
 async def test_sign_tos_for_old_tos_version(client: TestClient):
     response = client.post(
-        "/myeclpay/users/me/tos",
+        "/mypayment/users/me/tos",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
         json={"accepted_tos_version": 0},
     )
@@ -1391,7 +1391,7 @@ async def test_sign_tos_for_old_tos_version(client: TestClient):
 
 async def test_sign_tos_for_unregistered_user(client: TestClient):
     response = client.post(
-        "/myeclpay/users/me/tos",
+        "/mypayment/users/me/tos",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
         json={"accepted_tos_version": LATEST_TOS},
     )
@@ -1406,13 +1406,13 @@ async def test_sign_tos(client: TestClient):
     unregistered_user_token = create_api_access_token(unregistered_user)
 
     response = client.post(
-        "/myeclpay/users/me/register",
+        "/mypayment/users/me/register",
         headers={"Authorization": f"Bearer {unregistered_user_token}"},
     )
     assert response.status_code == 204
 
     response = client.post(
-        "/myeclpay/users/me/tos",
+        "/mypayment/users/me/tos",
         headers={"Authorization": f"Bearer {unregistered_user_token}"},
         json={"accepted_tos_version": LATEST_TOS},
     )
@@ -1421,7 +1421,7 @@ async def test_sign_tos(client: TestClient):
 
 async def test_get_user_devices_with_unregistred_user(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet/devices",
+        "/mypayment/users/me/wallet/devices",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1430,7 +1430,7 @@ async def test_get_user_devices_with_unregistred_user(client: TestClient):
 
 async def test_get_user_devices(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet/devices",
+        "/mypayment/users/me/wallet/devices",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1439,7 +1439,7 @@ async def test_get_user_devices(client: TestClient):
 
 async def test_get_user_wallet_unregistred_user(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet",
+        "/mypayment/users/me/wallet",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1448,7 +1448,7 @@ async def test_get_user_wallet_unregistred_user(client: TestClient):
 
 async def test_get_user_wallet(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet",
+        "/mypayment/users/me/wallet",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1457,7 +1457,7 @@ async def test_get_user_wallet(client: TestClient):
 
 async def test_get_user_device_non_existing_user(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet/devices/f33a6034-0420-4c08-8afd-46ef662d0b28",
+        "/mypayment/users/me/wallet/devices/f33a6034-0420-4c08-8afd-46ef662d0b28",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1466,7 +1466,7 @@ async def test_get_user_device_non_existing_user(client: TestClient):
 
 async def test_get_user_device_non_existing_device(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet/devices/f33a6034-0420-4c08-8afd-46ef662d0b28",
+        "/mypayment/users/me/wallet/devices/f33a6034-0420-4c08-8afd-46ef662d0b28",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 404
@@ -1475,7 +1475,7 @@ async def test_get_user_device_non_existing_device(client: TestClient):
 
 async def test_get_user_device_with_device_from_an_other_user(client: TestClient):
     response = client.get(
-        f"/myeclpay/users/me/wallet/devices/{store_wallet_device.id}",
+        f"/mypayment/users/me/wallet/devices/{store_wallet_device.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1484,7 +1484,7 @@ async def test_get_user_device_with_device_from_an_other_user(client: TestClient
 
 async def test_get_user_device(client: TestClient):
     response = client.get(
-        f"/myeclpay/users/me/wallet/devices/{ecl_user_wallet_device.id}",
+        f"/mypayment/users/me/wallet/devices/{ecl_user_wallet_device.id}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1493,7 +1493,7 @@ async def test_get_user_device(client: TestClient):
 
 async def test_create_user_device_unregistred_user(client: TestClient):
     response = client.post(
-        "/myeclpay/users/me/wallet/devices",
+        "/mypayment/users/me/wallet/devices",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
         json={
             "name": "MyDevice",
@@ -1524,7 +1524,7 @@ async def test_create_and_activate_user_device(
     public_key = private_key.public_key()
 
     response = client.post(
-        "/myeclpay/users/me/wallet/devices",
+        "/mypayment/users/me/wallet/devices",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "name": "MySuperDevice",
@@ -1551,7 +1551,7 @@ async def test_create_and_activate_user_device(
         )
 
     response = client.get(
-        f"/myeclpay/devices/activate?token={UNIQUE_TOKEN}",
+        f"/mypayment/devices/activate?token={UNIQUE_TOKEN}",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         follow_redirects=False,
     )
@@ -1566,7 +1566,7 @@ async def test_activate_non_existing_device(
     client: TestClient,
 ) -> None:
     response = client.get(
-        "/myeclpay/devices/activate?token=invalid_token",
+        "/mypayment/devices/activate?token=invalid_token",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 404
@@ -1577,7 +1577,7 @@ async def test_activate_already_activated_device(
     client: TestClient,
 ) -> None:
     response = client.get(
-        "/myeclpay/devices/activate?token=activation_token_ecl_user_wallet_device",
+        "/mypayment/devices/activate?token=activation_token_ecl_user_wallet_device",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         follow_redirects=False,
     )
@@ -1593,7 +1593,7 @@ async def test_revoke_user_device_unregistered_user(
 ) -> None:
     wallet_device_id = uuid4()
     response = client.post(
-        f"/myeclpay/users/me/wallet/devices/{wallet_device_id}/revoke",
+        f"/mypayment/users/me/wallet/devices/{wallet_device_id}/revoke",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
@@ -1605,7 +1605,7 @@ async def test_revoke_user_device_device_does_not_exist(
 ) -> None:
     wallet_device_id = uuid4()
     response = client.post(
-        f"/myeclpay/users/me/wallet/devices/{wallet_device_id}/revoke",
+        f"/mypayment/users/me/wallet/devices/{wallet_device_id}/revoke",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 404
@@ -1616,7 +1616,7 @@ async def test_revoke_user_device_device_does_not_belong_to_user(
     client: TestClient,
 ) -> None:
     response = client.post(
-        f"/myeclpay/users/me/wallet/devices/{ecl_user_wallet_device.id}/revoke",
+        f"/mypayment/users/me/wallet/devices/{ecl_user_wallet_device.id}/revoke",
         headers={"Authorization": f"Bearer {ecl_user2_access_token}"},
     )
     assert response.status_code == 400
@@ -1637,14 +1637,14 @@ async def test_revoke_user_device(
     )
     await add_object_to_db(wallet_device)
     response = client.post(
-        f"/myeclpay/users/me/wallet/devices/{wallet_device.id}/revoke",
+        f"/mypayment/users/me/wallet/devices/{wallet_device.id}/revoke",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 204
 
     # We want to verify the device is now revoked
     response = client.get(
-        "/myeclpay/users/me/wallet/devices/",
+        "/mypayment/users/me/wallet/devices/",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1656,7 +1656,7 @@ async def test_revoke_user_device(
 
 async def test_get_transactions_unregistered(client: TestClient):
     response = client.get(
-        "/myeclpay/users/me/wallet/history",
+        "/mypayment/users/me/wallet/history",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
 
@@ -1667,7 +1667,7 @@ async def test_get_transactions_unregistered(client: TestClient):
 def test_get_transactions_success(client: TestClient):
     """Test successfully getting user transactions"""
     response = client.get(
-        "/myeclpay/users/me/wallet/history",
+        "/mypayment/users/me/wallet/history",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
     )
     assert response.status_code == 200
@@ -1735,7 +1735,7 @@ def test_get_transactions_success(client: TestClient):
 def test_get_transactions_success_with_date(client: TestClient):
     """Test successfully getting user transactions"""
     response = client.get(
-        "/myeclpay/users/me/wallet/history",
+        "/mypayment/users/me/wallet/history",
         params={
             "start_date": "2025-05-18T00:00:00Z",
             "end_date": "2025-05-19T23:59:59Z",
@@ -1780,7 +1780,7 @@ def test_get_transactions_success_with_date(client: TestClient):
 def test_transfer_with_redirect_url_not_trusted(client: TestClient):
     """Test transferring with an unregistered user"""
     response = client.post(
-        "/myeclpay/transfer/init",
+        "/mypayment/transfer/init",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
         json={
             "amount": 1000,
@@ -1795,7 +1795,7 @@ def test_transfer_with_redirect_url_not_trusted(client: TestClient):
 def test_transfer_with_unregistered_user(client: TestClient):
     """Test transferring with an unregistered user"""
     response = client.post(
-        "/myeclpay/transfer/init",
+        "/mypayment/transfer/init",
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
         json={
             "amount": 1000,
@@ -1810,7 +1810,7 @@ def test_transfer_with_unregistered_user(client: TestClient):
 def test_transfer_with_too_small_amount(client: TestClient):
     """Test transferring with an amount that is too small"""
     response = client.post(
-        "/myeclpay/transfer/init",
+        "/mypayment/transfer/init",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "amount": 99,
@@ -1826,7 +1826,7 @@ def test_transfer_with_too_small_amount(client: TestClient):
 def test_transfer_with_too_big_amount(client: TestClient):
     """Test transferring with an amount that is too big"""
     response = client.post(
-        "/myeclpay/transfer/init",
+        "/mypayment/transfer/init",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "amount": 8001,
@@ -1846,7 +1846,7 @@ def test_hello_asso_transfer(
 ):
     """Test transferring with the hello_asso transfer type"""
     response = client.post(
-        "/myeclpay/transfer/init",
+        "/mypayment/transfer/init",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "amount": 1000,
@@ -1857,7 +1857,7 @@ def test_hello_asso_transfer(
     assert response.json()["url"] == "https://some.url.fr/checkout"
 
     response = client.post(
-        "/payment/helloasso/webhook",
+        "/checkout/helloasso/webhook",
         json={
             "eventType": "Payment",
             "data": {"amount": 1000, "id": 123},
@@ -1874,7 +1874,7 @@ def test_redirect_from_ha_transfer_non_trusted_url(
     client: TestClient,
 ):
     response = client.get(
-        "/myeclpay/transfer/redirect?url=http://localhost:3000/nottrusted",
+        "/mypayment/transfer/redirect?url=http://localhost:3000/nottrusted",
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Redirect URL is not trusted by hyperion"
@@ -1884,7 +1884,7 @@ def test_redirect_from_ha_transfer_trusted_url(
     client: TestClient,
 ):
     response = client.get(
-        "/myeclpay/transfer/redirect?url=http://localhost:3000/payment_callback",
+        "/mypayment/transfer/redirect?url=http://localhost:3000/payment_callback",
         follow_redirects=False,
     )
     assert response.status_code == 307
@@ -1894,7 +1894,7 @@ def test_redirect_from_ha_transfer_trusted_url(
 
 def ensure_qr_code_id_is_already_used(qr_code_id: str | UUID, client: TestClient):
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "id": str(qr_code_id),
@@ -1918,7 +1918,7 @@ def test_store_scan_invalid_store_id(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{uuid4()}/scan",
+        f"/mypayment/stores/{uuid4()}/scan",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "id": qr_code_id,
@@ -1939,7 +1939,7 @@ def test_store_scan_store_when_not_seller(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "id": qr_code_id,
@@ -1963,7 +1963,7 @@ def test_store_scan_store_when_seller_but_can_not_bank(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={
             "Authorization": f"Bearer {store_seller_no_permission_user_access_token}",
         },
@@ -1989,7 +1989,7 @@ def test_store_scan_store_invalid_wallet_device_id(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": qr_code_id,
@@ -2010,7 +2010,7 @@ def test_store_scan_store_non_active_wallet_device_id(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": qr_code_id,
@@ -2031,7 +2031,7 @@ def test_store_scan_store_invalid_signature(client: TestClient):
     qr_code_id = str(uuid4())
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": qr_code_id,
@@ -2064,7 +2064,7 @@ def test_store_scan_store_with_non_store_qr_code(client: TestClient):
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2099,7 +2099,7 @@ def test_store_scan_store_negative_total(client: TestClient):
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2141,7 +2141,7 @@ def test_store_scan_store_missing_wallet(
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2177,7 +2177,7 @@ def test_store_scan_store_from_store_wallet(client: TestClient):
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2247,7 +2247,7 @@ async def test_store_scan_store_from_wallet_with_old_tos_version(client: TestCli
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2280,7 +2280,7 @@ def test_store_scan_store_insufficient_ballance(client: TestClient):
     )
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2325,7 +2325,7 @@ async def test_store_scan_store_successful_scan(client: TestClient):
     assert user_wallet_before_scan is not None
 
     response = client.post(
-        f"/myeclpay/stores/{store.id}/scan",
+        f"/mypayment/stores/{store.id}/scan",
         headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
         json={
             "id": str(qr_code_content.id),
@@ -2368,7 +2368,7 @@ async def test_store_scan_store_successful_scan(client: TestClient):
 
 async def test_unknown_transaction_refund(client: TestClient):
     response = client.post(
-        f"/myeclpay/transactions/{uuid4()}/refund",
+        f"/mypayment/transactions/{uuid4()}/refund",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={"complete_refund": True},
     )
@@ -2393,7 +2393,7 @@ async def test_transaction_refund_unconfirmed_transaction(client: TestClient):
     await add_object_to_db(transaction_canceled)
 
     response = client.post(
-        f"/myeclpay/transactions/{transaction_canceled.id}/refund",
+        f"/mypayment/transactions/{transaction_canceled.id}/refund",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={"complete_refund": True},
     )
@@ -2403,7 +2403,7 @@ async def test_transaction_refund_unconfirmed_transaction(client: TestClient):
 
 async def test_transaction_refund_unauthorized_user(client: TestClient):
     response = client.post(
-        f"/myeclpay/transactions/{transaction_from_ecl_user_to_store.id}/refund",
+        f"/mypayment/transactions/{transaction_from_ecl_user_to_store.id}/refund",
         headers={"Authorization": f"Bearer {ecl_user2_access_token}"},
         json={"complete_refund": True},
     )
@@ -2442,7 +2442,7 @@ async def test_transaction_refund_complete(client: TestClient):
     )
     await add_object_to_db(transaction)
     response = client.post(
-        f"/myeclpay/transactions/{transaction.id}/refund",
+        f"/mypayment/transactions/{transaction.id}/refund",
         headers={
             "Authorization": f"Bearer {store_seller_can_cancel_user_access_token}",
         },
@@ -2488,7 +2488,7 @@ async def test_transaction_refund_complete(client: TestClient):
 
 async def test_transaction_refund_partial_incomplete_amount(client: TestClient):
     response = client.post(
-        f"/myeclpay/transactions/{transaction_from_ecl_user_to_store.id}/refund",
+        f"/mypayment/transactions/{transaction_from_ecl_user_to_store.id}/refund",
         headers={
             "Authorization": f"Bearer {store_seller_can_cancel_user_access_token}",
         },
@@ -2505,7 +2505,7 @@ async def test_transaction_refund_partial_incomplete_amount(client: TestClient):
 
 async def test_transaction_refund_partial_invalid_amount(client: TestClient):
     response = client.post(
-        f"/myeclpay/transactions/{transaction_from_ecl_user_to_store.id}/refund",
+        f"/mypayment/transactions/{transaction_from_ecl_user_to_store.id}/refund",
         headers={
             "Authorization": f"Bearer {store_seller_can_cancel_user_access_token}",
         },
@@ -2521,7 +2521,7 @@ async def test_transaction_refund_partial_invalid_amount(client: TestClient):
     )
 
     response = client.post(
-        f"/myeclpay/transactions/{transaction_from_ecl_user_to_store.id}/refund",
+        f"/mypayment/transactions/{transaction_from_ecl_user_to_store.id}/refund",
         headers={
             "Authorization": f"Bearer {store_seller_can_cancel_user_access_token}",
         },
@@ -2562,7 +2562,7 @@ async def test_transaction_refund_partial(client: TestClient):
     )
     await add_object_to_db(transaction)
     response = client.post(
-        f"/myeclpay/transactions/{transaction.id}/refund",
+        f"/mypayment/transactions/{transaction.id}/refund",
         headers={
             "Authorization": f"Bearer {store_seller_can_cancel_user_access_token}",
         },

@@ -20,7 +20,7 @@ from app.core.mypayment.types_mypayment import (
 )
 
 hyperion_security_logger = logging.getLogger("hyperion.security")
-hyperion_myeclpay_logger = logging.getLogger("hyperion.myeclpay")
+hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 hyperion_error_logger = logging.getLogger("hyperion.error")
 
 LATEST_TOS = 2
@@ -109,7 +109,7 @@ async def validate_transfer_callback(
         amount=paid_amount,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         format_transfer_log(transfer),
         extra={
             "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,

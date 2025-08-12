@@ -17,11 +17,11 @@ from app.dependencies import get_db
 from app.module import all_modules
 from app.types.module import CoreModule
 
-router = APIRouter(tags=["Payments"])
+router = APIRouter(tags=["Checkout"])
 
 core_module = CoreModule(
-    root="payment",
-    tag="Payments",
+    root="checkout",
+    tag="Checkout",
     router=router,
     factory=None,
 )
@@ -30,7 +30,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @router.post(
-    "/payment/helloasso/webhook",
+    "/checkout/helloasso/webhook",
     status_code=204,
 )
 async def webhook(

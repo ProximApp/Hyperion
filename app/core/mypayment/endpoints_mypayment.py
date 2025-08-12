@@ -72,11 +72,11 @@ from app.types.module import CoreModule
 from app.utils.communication.notifications import NotificationTool
 from app.utils.mail.mailworker import send_email
 
-router = APIRouter(tags=["MyECLPay"])
+router = APIRouter(tags=["MyPayment"])
 
 core_module = CoreModule(
-    root="myeclpay",
-    tag="MyECLPay",
+    root="mypayment",
+    tag="MyPayment",
     router=router,
     payment_callback=validate_transfer_callback,
     factory=None,
@@ -87,7 +87,7 @@ templates = Jinja2Templates(directory="assets/templates")
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
-hyperion_myeclpay_logger = logging.getLogger("hyperion.myeclpay")
+hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 
 MYECLPAY_STRUCTURE_S3_SUBFOLDER = "structures"
 MYECLPAY_STORES_S3_SUBFOLDER = "stores"
@@ -98,7 +98,7 @@ RETENTION_DURATION = 10 * 365  # 10 years in days
 
 
 @router.get(
-    "/myeclpay/structures",
+    "/mypayment/structures",
     status_code=200,
     response_model=list[schemas_mypayment.Structure],
 )
@@ -115,7 +115,7 @@ async def get_structures(
 
 
 @router.post(
-    "/myeclpay/structures",
+    "/mypayment/structures",
     status_code=201,
     response_model=schemas_mypayment.Structure,
 )
@@ -164,7 +164,7 @@ async def create_structure(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         structure_db.name,
         extra={
             "s3_subfolder": MYECLPAY_STRUCTURE_S3_SUBFOLDER,
@@ -176,7 +176,7 @@ async def create_structure(
 
 
 @router.patch(
-    "/myeclpay/structures/{structure_id}",
+    "/mypayment/structures/{structure_id}",
     status_code=204,
 )
 async def update_structure(
@@ -206,7 +206,7 @@ async def update_structure(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         structure.name,
         extra={
             "s3_subfolder": MYECLPAY_STRUCTURE_S3_SUBFOLDER,
@@ -216,7 +216,7 @@ async def update_structure(
 
 
 @router.delete(
-    "/myeclpay/structures/{structure_id}",
+    "/mypayment/structures/{structure_id}",
     status_code=204,
 )
 async def delete_structure(
@@ -246,7 +246,7 @@ async def delete_structure(
 
 
 @router.post(
-    "/myeclpay/structures/{structure_id}/init-manager-transfer",
+    "/mypayment/structures/{structure_id}/init-manager-transfer",
     status_code=201,
 )
 async def init_transfer_structure_manager(
@@ -306,7 +306,7 @@ async def init_transfer_structure_manager(
         db=db,
     )
 
-    confirmation_url = f"{settings.CLIENT_URL}myeclpay/structures/confirm-manager-transfer?token={confirmation_token}"
+    confirmation_url = f"{settings.CLIENT_URL}mypayment/structures/confirm-manager-transfer?token={confirmation_token}"
 
     if settings.SMTP_ACTIVE:
         mail = mail_templates.get_mail_myeclpay_structure_transfer(
@@ -327,7 +327,7 @@ async def init_transfer_structure_manager(
 
 
 @router.get(
-    "/myeclpay/structures/confirm-manager-transfer",
+    "/mypayment/structures/confirm-manager-transfer",
     status_code=200,
 )
 async def confirm_structure_manager_transfer(
@@ -406,7 +406,7 @@ async def confirm_structure_manager_transfer(
 
 
 @router.post(
-    "/myeclpay/structures/{structure_id}/stores",
+    "/mypayment/structures/{structure_id}/stores",
     status_code=201,
     response_model=schemas_mypayment.Store,
 )
@@ -480,7 +480,7 @@ async def create_store(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         f"store.name: {store_db.name}, structure_id: {store_db.structure_id}",
         extra={
             "s3_subfolder": MYECLPAY_STORES_S3_SUBFOLDER,
@@ -498,7 +498,7 @@ async def create_store(
 
 
 @router.get(
-    "/myeclpay/stores/{store_id}/history",
+    "/mypayment/stores/{store_id}/history",
     status_code=200,
     response_model=list[schemas_mypayment.History],
 )
@@ -622,7 +622,7 @@ async def get_store_history(
 
 
 @router.get(
-    "/myeclpay/users/me/stores",
+    "/mypayment/users/me/stores",
     status_code=200,
     response_model=list[schemas_mypayment.UserStore],
 )
@@ -685,7 +685,7 @@ async def get_user_stores(
 
 
 @router.patch(
-    "/myeclpay/stores/{store_id}",
+    "/mypayment/stores/{store_id}",
     status_code=204,
 )
 async def update_store(
@@ -725,7 +725,7 @@ async def update_store(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         f"store.name: {store.name}, structure_id: {store.structure_id}",
         extra={
             "s3_subfolder": MYECLPAY_STORES_S3_SUBFOLDER,
@@ -735,7 +735,7 @@ async def update_store(
 
 
 @router.delete(
-    "/myeclpay/stores/{store_id}",
+    "/mypayment/stores/{store_id}",
     status_code=204,
 )
 async def delete_store(
@@ -804,7 +804,7 @@ async def delete_store(
 
 
 @router.post(
-    "/myeclpay/stores/{store_id}/sellers",
+    "/mypayment/stores/{store_id}/sellers",
     status_code=201,
     response_model=schemas_mypayment.Seller,
 )
@@ -875,7 +875,7 @@ async def create_store_seller(
 
 
 @router.get(
-    "/myeclpay/stores/{store_id}/sellers",
+    "/mypayment/stores/{store_id}/sellers",
     status_code=200,
     response_model=list[schemas_mypayment.Seller],
 )
@@ -917,7 +917,7 @@ async def get_store_sellers(
 
 
 @router.patch(
-    "/myeclpay/stores/{store_id}/sellers/{seller_user_id}",
+    "/mypayment/stores/{store_id}/sellers/{seller_user_id}",
     status_code=204,
 )
 async def update_store_seller(
@@ -986,7 +986,7 @@ async def update_store_seller(
 
 
 @router.delete(
-    "/myeclpay/stores/{store_id}/sellers/{seller_user_id}",
+    "/mypayment/stores/{store_id}/sellers/{seller_user_id}",
     status_code=204,
 )
 async def delete_store_seller(
@@ -1052,7 +1052,7 @@ async def delete_store_seller(
 
 
 @router.post(
-    "/myeclpay/users/me/register",
+    "/mypayment/users/me/register",
     status_code=204,
 )
 async def register_user(
@@ -1098,7 +1098,7 @@ async def register_user(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         wallet_id,
         extra={
             "s3_subfolder": MYECLPAY_USERS_S3_SUBFOLDER,
@@ -1108,7 +1108,7 @@ async def register_user(
 
 
 @router.get(
-    "/myeclpay/users/me/tos",
+    "/mypayment/users/me/tos",
     status_code=200,
     response_model=schemas_mypayment.TOSSignatureResponse,
 )
@@ -1136,13 +1136,13 @@ async def get_user_tos(
     return schemas_mypayment.TOSSignatureResponse(
         accepted_tos_version=existing_user_payment.accepted_tos_version,
         latest_tos_version=LATEST_TOS,
-        tos_content=Path("assets/myeclpay-terms-of-service.txt").read_text(),
+        tos_content=Path("assets/mypayment-terms-of-service.txt").read_text(),
         max_wallet_balance=settings.MYECLPAY_MAXIMUM_WALLET_BALANCE,
     )
 
 
 @router.post(
-    "/myeclpay/users/me/tos",
+    "/mypayment/users/me/tos",
     status_code=204,
 )
 async def sign_tos(
@@ -1205,7 +1205,7 @@ async def sign_tos(
 
 
 @router.get(
-    "/myeclpay/users/me/wallet/devices",
+    "/mypayment/users/me/wallet/devices",
     status_code=200,
     response_model=list[schemas_mypayment.WalletDevice],
 )
@@ -1236,7 +1236,7 @@ async def get_user_devices(
 
 
 @router.get(
-    "/myeclpay/users/me/wallet/devices/{wallet_device_id}",
+    "/mypayment/users/me/wallet/devices/{wallet_device_id}",
     status_code=200,
     response_model=schemas_mypayment.WalletDevice,
 )
@@ -1282,7 +1282,7 @@ async def get_user_device(
 
 
 @router.get(
-    "/myeclpay/users/me/wallet",
+    "/mypayment/users/me/wallet",
     status_code=200,
     response_model=schemas_mypayment.Wallet,
 )
@@ -1321,7 +1321,7 @@ async def get_user_wallet(
 
 
 @router.post(
-    "/myeclpay/users/me/wallet/devices",
+    "/mypayment/users/me/wallet/devices",
     status_code=201,
     response_model=schemas_mypayment.WalletDevice,
 )
@@ -1371,7 +1371,7 @@ async def create_user_devices(
 
     if settings.SMTP_ACTIVE:
         mail = mail_templates.get_mail_myeclpay_device_activation(
-            activation_url=f"{settings.CLIENT_URL}myeclpay/devices/activate?token={activation_token}",
+            activation_url=f"{settings.CLIENT_URL}mypayment/devices/activate?token={activation_token}",
         )
 
         background_tasks.add_task(
@@ -1385,7 +1385,7 @@ async def create_user_devices(
         hyperion_error_logger.warning(
             f"MyECLPay: activate your device using the token: {activation_token}",
         )
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         wallet_device_creation.ed25519_public_key,
         extra={
             "s3_subfolder": f"{MYECLPAY_DEVICES_S3_SUBFOLDER}/{user.id}",
@@ -1397,7 +1397,7 @@ async def create_user_devices(
 
 
 @router.get(
-    "/myeclpay/devices/activate",
+    "/mypayment/devices/activate",
     status_code=200,
 )
 async def activate_user_device(
@@ -1472,7 +1472,7 @@ async def activate_user_device(
 
 
 @router.post(
-    "/myeclpay/users/me/wallet/devices/{wallet_device_id}/revoke",
+    "/mypayment/users/me/wallet/devices/{wallet_device_id}/revoke",
     status_code=204,
 )
 async def revoke_user_devices(
@@ -1536,7 +1536,7 @@ async def revoke_user_devices(
 
 
 @router.get(
-    "/myeclpay/users/me/wallet/history",
+    "/mypayment/users/me/wallet/history",
     response_model=list[schemas_mypayment.History],
 )
 async def get_user_wallet_history(
@@ -1664,7 +1664,7 @@ async def get_user_wallet_history(
 
 
 @router.post(
-    "/myeclpay/transfer/init",
+    "/mypayment/transfer/init",
     response_model=schemas_checkout.PaymentUrl,
     status_code=201,
 )
@@ -1741,10 +1741,10 @@ async def init_ha_transfer(
         nickname=user.nickname,
     )
     checkout = await payment_tool.init_checkout(
-        module="myeclpay",
+        module="mypayment",
         checkout_amount=transfer_info.amount,
         checkout_name="Recharge MyECL Pay",
-        redirection_uri=f"{settings.CLIENT_URL}myeclpay/transfer/redirect?url={transfer_info.redirect_url}",
+        redirection_uri=f"{settings.CLIENT_URL}mypayment/transfer/redirect?url={transfer_info.redirect_url}",
         payer_user=user_schema,
         db=db,
     )
@@ -1769,7 +1769,7 @@ async def init_ha_transfer(
 
 
 @router.get(
-    "/myeclpay/transfer/redirect",
+    "/mypayment/transfer/redirect",
     response_model=schemas_checkout.PaymentUrl,
     status_code=201,
 )
@@ -1783,7 +1783,7 @@ async def redirect_from_ha_transfer(
 ):
     """
     HelloAsso checkout should be configured to redirect the user to:
-     - f"{settings.CLIENT_URL}myeclpay/transfer/redirect?url={redirect_url}"
+     - f"{settings.CLIENT_URL}mypayment/transfer/redirect?url={redirect_url}"
     Redirect the user to the provided redirect `url`. The parameters `checkoutIntentId`, `code`, `orderId` and `error` passed by HelloAsso will be added to the redirect URL.
     The redirect `url` must be trusted by Hyperion in the dotenv.
     """
@@ -1813,7 +1813,7 @@ async def redirect_from_ha_transfer(
 
 
 @router.post(
-    "/myeclpay/stores/{store_id}/scan/check",
+    "/mypayment/stores/{store_id}/scan/check",
     response_model=standard_responses.Result,
     status_code=200,
 )
@@ -1901,7 +1901,7 @@ async def validate_can_scan_qrcode(
 
 
 @router.post(
-    "/myeclpay/stores/{store_id}/scan",
+    "/mypayment/stores/{store_id}/scan",
     status_code=201,
 )
 async def store_scan_qrcode(
@@ -2120,7 +2120,7 @@ async def store_scan_qrcode(
             db=db,
         )
 
-        hyperion_myeclpay_logger.info(
+        hyperion_mypayment_logger.info(
             format_transaction_log(transaction),
             extra={
                 "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
@@ -2140,7 +2140,7 @@ async def store_scan_qrcode(
 
 
 @router.post(
-    "/myeclpay/transactions/{transaction_id}/refund",
+    "/mypayment/transactions/{transaction_id}/refund",
     status_code=204,
 )
 async def refund_transaction(
@@ -2155,7 +2155,7 @@ async def refund_transaction(
 
     Currently transactions between users are forbidden and can thus not be refunded.
 
-    To cancel a transaction made in the last 30 seconds, the endpoint `/myeclpay/transactions/{transaction_id}/cancel` should be used.
+    To cancel a transaction made in the last 30 seconds, the endpoint `/mypayment/transactions/{transaction_id}/cancel` should be used.
 
     **The user must either be the credited user or a seller with cancel permissions of the credited store of the transaction**
     """
@@ -2296,7 +2296,7 @@ async def refund_transaction(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         format_refund_log(refund),
         extra={
             "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
@@ -2332,7 +2332,7 @@ async def refund_transaction(
 
 
 @router.post(
-    "/myeclpay/transactions/{transaction_id}/cancel",
+    "/mypayment/transactions/{transaction_id}/cancel",
     status_code=204,
 )
 async def cancel_transaction(
@@ -2346,7 +2346,7 @@ async def cancel_transaction(
     Cancel a transaction.
     A transaction can be canceled in the first 30 seconds after it has been created.
 
-    To refund an older transaction, use the `/myeclpay/transactions/{transaction_id}/refund` endpoint.
+    To refund an older transaction, use the `/mypayment/transactions/{transaction_id}/refund` endpoint.
 
     **The user must either be the credited user or the seller of the transaction**
     """
@@ -2446,7 +2446,7 @@ async def cancel_transaction(
         db=db,
     )
 
-    hyperion_myeclpay_logger.info(
+    hyperion_mypayment_logger.info(
         format_cancel_log(transaction_id),
         extra={
             "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
@@ -2467,7 +2467,7 @@ async def cancel_transaction(
 
 
 @router.get(
-    "/myeclpay/integrity-check",
+    "/mypayment/integrity-check",
     status_code=200,
     response_model=schemas_mypayment.IntegrityCheckData,
 )
@@ -2495,7 +2495,7 @@ async def get_data_for_integrity_check(
 
     if headers.x_data_verifier_token != settings.MYECLPAY_DATA_VERIFIER_ACCESS_TOKEN:
         hyperion_security_logger.warning(
-            f"A request to /myeclpay/integrity-check has been made with an invalid token, request_content: {headers}",
+            f"A request to /mypayment/integrity-check has been made with an invalid token, request_content: {headers}",
         )
         raise HTTPException(
             status_code=403,
