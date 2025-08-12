@@ -60,6 +60,9 @@ class School(BaseModel):
     staff_email_regex: Pattern | None = None
     former_student_email_regex: Pattern | None = None
 
+    # If event should be confirmed by a moderator before being added to the calendar
+    require_event_confirmation: bool = True
+
 
 class AuthClientConfig(BaseModel):
     """

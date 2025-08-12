@@ -210,3 +210,10 @@ class InvalidS3FolderError(Exception):
         super().__init__(
             f"Invalid S3 subfolder: {subfolder} - it should not contain '/'",
         )
+
+
+class NewlyAddedObjectInDbNotFoundError(Exception):
+    def __init__(self, object_name: str):
+        super().__init__(
+            f"Newly added object {object_name} not found in the database",
+        )

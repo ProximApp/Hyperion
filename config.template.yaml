@@ -113,6 +113,9 @@ school:
   #staff_email_regex:
   #former_student_email_regex:
 
+  # If event should be confirmed by a moderator before being added to the calendar
+  #require_event_confirmation: bool = False
+
   #
 ########################
 # Matrix configuration #
