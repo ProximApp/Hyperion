@@ -118,6 +118,9 @@ school:
   # If event should be confirmed by a moderator before being added to the calendar
   #require_event_confirmation: bool = False
 
+  # If event should be confirmed by a moderator before being added to the calendar
+  #require_event_confirmation: bool = False
+
   #
 ########################
 # Matrix configuration #
