@@ -11,7 +11,6 @@ from app.dependencies import (
 from tests.commons import (
     get_override_get_settings,
     override_init_state,
-    settings,
 )
 
 
