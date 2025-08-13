@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from arq import cron
 from arq.connections import RedisSettings
-from arq.jobs import Job
+from arq.jobs import Job, JobStatus
 from arq.typing import WorkerSettingsBase
 from arq.worker import create_worker
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -164,7 +164,10 @@ class Scheduler:
         class ArqWorkerSettings(WorkerSettingsBase):
             functions = [run_task]
             allow_abort_jobs = True
-            keep_result_forever = True
+            # After a job is completed or aborted, we want arq to remove its result
+            # to be able to queue a new task with the same id
+            keep_result = 0
+            keep_result_forever = False
             redis_settings = RedisSettings(
                 host=redis_host,
                 port=redis_port,
@@ -232,8 +235,13 @@ class Scheduler:
         if self.worker is None:
             raise SchedulerNotStartedError
         job = Job(job_id, redis=self.worker.pool)
-        scheduler_logger.debug(f"Job aborted {job}")
-        await job.abort()
+        # We only want to abort the job if it exist
+        # otherwise if we try to plan a job with the same id just after, we may get
+        # a job aborted before being queued
+        status = await job.status()
+        if status != JobStatus.not_found:
+            scheduler_logger.debug(f"Job being aborted {job}")
+            await job.abort()
 
 
 class OfflineScheduler(Scheduler):
