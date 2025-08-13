@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-import app.dependencies as dependencies
+from app import dependencies
 from app.core.auth import schemas_auth
 from app.core.checkout import cruds_checkout, models_checkout, schemas_checkout
 from app.core.checkout.payment_tool import PaymentTool
