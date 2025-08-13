@@ -111,7 +111,7 @@ TestingSessionLocal: SessionLocalType
 
 @lru_cache
 def override_get_settings() -> Settings:
-    return SETTINGS
+    return SETTINGS  # noqa: F821
 
 
 def get_TestingSessionLocal() -> SessionLocalType:
@@ -119,9 +119,10 @@ def get_TestingSessionLocal() -> SessionLocalType:
 
 
 def get_database_sync_url() -> str:
-    if SETTINGS.SQLITE_DB:
-        return f"sqlite:///./{SETTINGS.SQLITE_DB}"
-    return f"postgresql+psycopg://{SETTINGS.POSTGRES_USER}:{SETTINGS.POSTGRES_PASSWORD}@{SETTINGS.POSTGRES_HOST}/{SETTINGS.POSTGRES_DB}"
+    settings = override_get_settings()
+    if settings.SQLITE_DB:
+        return f"sqlite:///./{settings.SQLITE_DB}"
+    return f"postgresql+psycopg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}/{settings.POSTGRES_DB}"
 
 
 def init_test_engine(settings: Settings) -> AsyncEngine:
@@ -134,15 +135,13 @@ def init_test_engine(settings: Settings) -> AsyncEngine:
     else:
         SQLALCHEMY_DATABASE_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}/{settings.POSTGRES_DB}"
 
-    engine = create_async_engine(
+    return create_async_engine(
         SQLALCHEMY_DATABASE_URL,
-        echo=SETTINGS.DATABASE_DEBUG,
+        echo=settings.DATABASE_DEBUG,
         # We need to use NullPool to run tests with Postgresql
         # See https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-multiple-asyncio-event-loops
         poolclass=NullPool,
     )
-
-    return engine
 
 
 def init_test_SessionLocal(engine: AsyncEngine) -> SessionLocalType:
@@ -246,7 +245,7 @@ def create_api_access_token(
     access_token_data = schemas_auth.TokenData(sub=user.id, scopes="API")
     return security.create_access_token(
         data=access_token_data,
-        settings=SETTINGS,
+        settings=override_get_settings(),
         expires_delta=expires_delta,
     )
 
