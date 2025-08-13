@@ -90,8 +90,8 @@ school:
   # The entity email, used for contact
   entity_email: "eclair@myecl.fr"
 
-  # Year of the end of support for the application (ex: 2025)
-  end_of_support: int
+  # Date of the end of support for the application (ex: 2025-08-25)
+  end_of_support: "2025-08-25"
 
   # Colors used for the application
   primary_color: Color
