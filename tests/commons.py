@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+import app.dependencies as dependencies
 from app.core.auth import schemas_auth
 from app.core.checkout import cruds_checkout, models_checkout, schemas_checkout
 from app.core.checkout.payment_tool import PaymentTool
@@ -45,9 +46,6 @@ class FailedToAddObjectToDB(Exception):
     """Exception raised when an object cannot be added to the database."""
 
 
-GLOBAL_STATE: GlobalState
-
-
 async def override_init_state(
     app: FastAPI,
     settings: Settings,
@@ -56,7 +54,6 @@ async def override_init_state(
     """
     Initialize the state of the application. This dependency should be used at the start of the application lifespan.
     """
-    global GLOBAL_STATE
 
     engine = init_test_engine()
 
@@ -84,7 +81,7 @@ async def override_init_state(
 
     mail_templates = init_mail_templates(settings=settings)
 
-    GLOBAL_STATE = GlobalState(
+    dependencies.GLOBAL_STATE = GlobalState(
         engine=engine,
         SessionLocal=SessionLocal,
         redis_client=redis_client,
