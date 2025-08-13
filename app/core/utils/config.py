@@ -45,6 +45,8 @@ class School(BaseModel):
     entity_site_url: str
     # The entity email, used for contact
     entity_email: str
+    # Date of the end of support for the application (ex: 2025-08-25)
+    end_of_support: str
 
     # Colors used for the application
     primary_color: Color
