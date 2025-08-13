@@ -8,8 +8,10 @@ from app.dependencies import (
     get_settings,
     init_state,
 )
+from tests import commons
 from tests.commons import (
-    get_override_get_settings,
+    create_test_settings,
+    override_get_settings,
     override_init_state,
 )
 
@@ -31,12 +33,12 @@ def client(request) -> Generator[TestClient, None, None]:
     except AttributeError:
         use_factory = False
 
-    override_get_settings = get_override_get_settings(
+    commons.SETTINGS = create_test_settings(
         USE_FACTORIES=use_factory,
     )
 
     test_app = get_application(
-        settings=override_get_settings(),
+        settings=commons.SETTINGS,
         drop_db=True,
     )  # Create the test's app
 
