@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Callable
 from typing import TypedDict
 
 import calypsso
@@ -17,6 +16,7 @@ from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.utils.config import Settings
 from app.modules.raid.utils.drive.drive_file_manager import DriveFileManager
 from app.types.scheduler import OfflineScheduler, Scheduler
+from app.types.sqlalchemy import SessionLocalType
 from app.types.websocket import WebsocketConnectionManager
 from app.utils.communication.notifications import NotificationManager
 
@@ -25,7 +25,7 @@ class LifespanState(TypedDict):
     # Database engine
     engine: AsyncEngine
     # Database session creator
-    SessionLocal: Callable[[], AsyncSession]
+    SessionLocal: SessionLocalType
     # We may not have a Redis Client if it was not configured
     redis_client: redis.Redis | None
     scheduler: Scheduler
@@ -56,7 +56,7 @@ def init_engine(settings: Settings) -> AsyncEngine:
     )
 
 
-def init_SessionLocal(engine: AsyncEngine) -> Callable[[], AsyncSession]:
+def init_SessionLocal(engine: AsyncEngine) -> SessionLocalType:
     return async_sessionmaker(
         engine,
         class_=AsyncSession,
@@ -97,6 +97,7 @@ def disconnect_redis_client(redis_client: redis.Redis | None) -> None:
 async def init_scheduler(
     settings: Settings,
     app: FastAPI,
+    _SessionLocal: SessionLocalType,
 ) -> Scheduler:
     if settings.REDIS_HOST:
         scheduler = Scheduler()
@@ -106,6 +107,7 @@ async def init_scheduler(
             redis_port=settings.REDIS_PORT,
             redis_password=settings.REDIS_PASSWORD,
             _dependency_overrides=app.dependency_overrides,
+            _SessionLocal=_SessionLocal,
         )
     else:
         scheduler = OfflineScheduler()
