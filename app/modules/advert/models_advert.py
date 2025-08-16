@@ -18,5 +18,3 @@ class Advert(Base):
     content: Mapped[str]
     date: Mapped[datetime]
     post_to_feed: Mapped[bool]
-
-    # association: Mapped["CoreAssociation"] = relationship()
