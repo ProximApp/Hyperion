@@ -83,6 +83,8 @@ school:
   application_name: MyECL
   # Name of the payment solution (ex: MyECLPay)
   payment_name: MyECLPay
+  # Domain name of the application (ex: myecl.fr)
+  application_domain_name: myecl.fr
   # Name of the entity managing the application (ex: ÉCLAIR)
   entity_name: ÉCLAIR
   # The entity website url, used for promotion (ex: "https://myecl.fr/")

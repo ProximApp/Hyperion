@@ -7,6 +7,7 @@ from icalendar import Calendar, Event, vRecur
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed.utils_feed import create_feed_news
+from app.core.utils.config import Settings
 from app.modules.calendar import models_calendar
 from app.modules.calendar.types_calendar import Decision
 from app.utils.communication.notifications import NotificationTool
@@ -40,12 +41,13 @@ async def add_event_to_feed(
 
 async def create_icalendar_file(
     all_events: Sequence[models_calendar.Event],
+    settings: Settings,
 ) -> None:
     """Create the ics file corresponding to the database. The calendar is entirely recreated each time an event is added or deleted in the db."""
 
     calendar = Calendar()
     calendar.add("version", "2.0")  # Required field
-    calendar.add("proid", "myecl.fr")  # Required field
+    calendar.add("proid", settings.school.application_domain_name)  # Required field
 
     for event in all_events:
         if event.decision == Decision.approved:
@@ -56,7 +58,10 @@ async def create_icalendar_file(
                 start = event.start
                 end = event.end
             ical_event = Event()
-            ical_event.add("uid", f"{event.id}@myecl.fr")
+            ical_event.add(
+                "uid",
+                f"{event.id}@{settings.school.application_domain_name}",
+            )
             ical_event.add("summary", event.name)
             ical_event.add("description", event.description)
             ical_event.add("dtstart", start)

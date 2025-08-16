@@ -75,6 +75,7 @@ school:
   school_name: "École Centrale Lyon"
   application_name: Tests MyECL
   payment_name: Tests MyECLPay
+  application_domain_name: myecl.fr
   entity_name: ÉCLAIR
   entity_site_url: "https://myecl.fr/"
   entity_email: "eclair@myecl.fr"
