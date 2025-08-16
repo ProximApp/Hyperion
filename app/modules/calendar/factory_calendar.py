@@ -31,6 +31,21 @@ class CalendarFactory(Factory):
         )
         await cruds_calendar.add_event(db, event)
 
+        day_long_event = models_calendar.Event(
+            id=uuid.uuid4(),
+            name="Test day long event",
+            association_id=AssociationsFactory.association_ids[0],
+            applicant_id=CoreUsersFactory.demo_users_id[0],
+            start=datetime.now(UTC),
+            end=datetime.now(UTC) + timedelta(days=3),
+            all_day=True,
+            location="Test location",
+            description="Test description",
+            decision=Decision.approved,
+            recurrence_rule=None,
+        )
+        await cruds_calendar.add_event(db, day_long_event)
+
     @classmethod
     async def should_run(cls, db: AsyncSession):
         return len(await cruds_calendar.get_all_events(db)) == 0
