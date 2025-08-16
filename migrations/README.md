@@ -77,3 +77,32 @@ You need to use:
 ```python
 postgresql.ENUM(name="availableassociationmembership", create_type=False),
 ```
+
+### Convert str id to uuid
+
+You need to use `postgresql_using="id::uuid"`
+
+For upgrade:
+
+```bash
+op.alter_column(
+    "calendar_events",
+    "id",
+    existing_type=sa.VARCHAR(),
+    type_=sa.Uuid(),
+    existing_nullable=False,
+    postgresql_using="id::uuid",
+)
+op.drop_index("ix_calendar_events_id", table_name="calendar_events")
+```
+
+For downgrade:
+
+```bash
+op.create_index("ix_calendar_events_id", "calendar_events", ["id"], unique=False)
+op.alter_column(
+    "calendar_events",
+    "id",
+    type_=sa.String(),
+)
+```
