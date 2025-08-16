@@ -36,4 +36,4 @@ class AssociationsFactory(Factory):
 
     @classmethod
     async def should_run(cls, db: AsyncSession):
-        return len(await cruds_associations.get_associations(db=db)) > 0
+        return len(await cruds_associations.get_associations(db=db)) == 0
