@@ -49,12 +49,18 @@ async def create_icalendar_file(
 
     for event in all_events:
         if event.decision == Decision.approved:
+            if event.all_day:
+                start = event.start.date()
+                end = event.end.date()
+            else:
+                start = event.start
+                end = event.end
             ical_event = Event()
             ical_event.add("uid", f"{event.id}@myecl.fr")
             ical_event.add("summary", event.name)
             ical_event.add("description", event.description)
-            ical_event.add("dtstart", event.start)
-            ical_event.add("dtend", event.end)
+            ical_event.add("dtstart", start)
+            ical_event.add("dtend", end)
             ical_event.add("dtstamp", datetime.now(UTC))
             ical_event.add("class", "public")
             ical_event.add("organizer", event.association.name)
