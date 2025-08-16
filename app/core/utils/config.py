@@ -37,6 +37,8 @@ class School(BaseModel):
     name: str
     # Name of the payment solution (ex: MyECLPay)
     payment_name: str
+    # Domain name of the application (ex: myecl.fr)
+    application_domain_name: str
     # Name of the entity managing the application (ex: ÉCLAIR)
     entity_name: str
     # The entity website url, used for promotion (ex: "https://myecl.fr/")

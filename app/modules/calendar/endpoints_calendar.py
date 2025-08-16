@@ -253,6 +253,7 @@ async def confirm_booking(
     db: AsyncSession = Depends(get_db),
     notification_tool: NotificationTool = Depends(get_notification_tool),
     user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Give a decision to an event.
@@ -264,7 +265,12 @@ async def confirm_booking(
     if event is None:
         raise HTTPException(status_code=404)
 
-    await cruds_calendar.confirm_event(event_id=event_id, decision=decision, db=db)
+    await cruds_calendar.confirm_event(
+        event_id=event_id,
+        decision=decision,
+        db=db,
+        settings=settings,
+    )
 
     await utils_calendar.add_event_to_feed(
         event=event,
@@ -280,6 +286,7 @@ async def confirm_booking(
 async def delete_bookings_id(
     event_id,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     user: models_users.CoreUser = Depends(is_user_a_school_member),
 ):
     """
@@ -301,7 +308,11 @@ async def delete_bookings_id(
     if is_user_member_of_BDE or (
         is_user_member_of_the_event_association and event.decision == Decision.pending
     ):
-        await cruds_calendar.delete_event(event_id=event_id, db=db)
+        await cruds_calendar.delete_event(
+            event_id=event_id,
+            db=db,
+            settings=settings,
+        )
     else:
         raise HTTPException(
             status_code=403,
@@ -343,6 +354,7 @@ async def get_ical_url(
 async def recreate_ical_file(
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Create manually the icalendar file
@@ -351,7 +363,7 @@ async def recreate_ical_file(
     """
 
     events = await cruds_calendar.get_all_events(db)
-    await utils_calendar.create_icalendar_file(all_events=events)
+    await utils_calendar.create_icalendar_file(all_events=events, settings=settings)
 
 
 @module.router.get(

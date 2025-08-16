@@ -5,6 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.utils.config import Settings
 from app.modules.calendar import models_calendar, schemas_calendar
 from app.modules.calendar.types_calendar import Decision
 from app.modules.calendar.utils_calendar import create_icalendar_file
@@ -89,17 +90,26 @@ async def edit_event(
     await db.flush()
 
 
-async def delete_event(db: AsyncSession, event_id: str) -> None:
+async def delete_event(
+    db: AsyncSession,
+    event_id: str,
+    settings: Settings,
+) -> None:
     """Delete the event given in the database."""
     await db.execute(
         delete(models_calendar.Event).where(models_calendar.Event.id == event_id),
     )
     await db.flush()
     events = await get_all_events(db)
-    await create_icalendar_file(events)
+    await create_icalendar_file(events, settings=settings)
 
 
-async def confirm_event(db: AsyncSession, decision: Decision, event_id: UUID):
+async def confirm_event(
+    db: AsyncSession,
+    decision: Decision,
+    event_id: UUID,
+    settings: Settings,
+):
     await db.execute(
         update(models_calendar.Event)
         .where(models_calendar.Event.id == event_id)
@@ -108,7 +118,7 @@ async def confirm_event(db: AsyncSession, decision: Decision, event_id: UUID):
     await db.flush()
     if decision == Decision.approved:
         events = await get_all_events(db)
-        await create_icalendar_file(events)
+        await create_icalendar_file(events, settings=settings)
 
 
 async def get_ical_secret_by_user_id(
