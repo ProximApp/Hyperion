@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from weasyprint import CSS, HTML
 
-from app.core.associations import models_associations
+from app.core.associations import cruds_associations, models_associations
 from app.core.core_endpoints import cruds_core, models_core
 from app.core.groups import cruds_groups
 from app.core.groups.groups_type import AccountType, GroupType
@@ -124,6 +124,24 @@ def is_user_member_of_an_association(
         user=user,
         allowed_groups=[association.group_id],
     )
+
+
+async def is_user_member_of_an_association_id(
+    user: models_users.CoreUser,
+    association_id: UUID,
+    db: AsyncSession,
+) -> bool:
+    """
+    Check if the user is a member of the association
+    """
+
+    association = await cruds_associations.get_association_by_id(
+        db=db,
+        association_id=association_id,
+    )
+    if association is None:
+        return False
+    return is_user_member_of_an_association(user=user, association=association)
 
 
 async def is_group_id_valid(group_id: str, db: AsyncSession) -> bool:
