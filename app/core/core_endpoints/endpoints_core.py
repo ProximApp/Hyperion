@@ -152,6 +152,21 @@ async def read_robots_txt(settings: Settings = Depends(get_settings)):
 
 
 @router.get(
+    "/account-deletion",
+    status_code=200,
+)
+async def read_account_deletion(settings: Settings = Depends(get_settings)):
+    """
+    Return Hyperion account deletion information
+    """
+
+    return patch_identity_in_text(
+        Path("assets/account-deletion.md").read_text(encoding="utf-8"),
+        settings,
+    )
+
+
+@router.get(
     "/variables",
     response_model=schemas_core.CoreVariables,
     status_code=200,
