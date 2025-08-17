@@ -1,13 +1,13 @@
 **Privacy Policy**
 
-This privacy policy is applicable to the {application_name} app (hereinafter referred to as "Application") for mobile devices, which was developed by {entity_name} (hereinafter referred to as "Service Provider") as a Free service.
+This privacy policy is applicable to the {application_name} app (hereinafter referred to as "Application"), which was developed by {entity_name} (hereinafter referred to as "Service Provider") as a Free service.
 
 This service is provided "AS IS".
 
 **What information does the Application obtain and how is it used?**
 **User Provided Information**
 
-The Application acquires the information you supply when you download and register the Application.Registration with the Service Provider is not mandatory. However, bear in mind that you might not be able to utilize some of the features offered by the Application unless you register with them.
+The Application acquires the information you supply when you download and register the Application. Registration with the Service Provider is not mandatory. However, bear in mind that you might not be able to utilize some of the features offered by the Application unless you register with them.
 
 The Service Provider may also use the information you provided them to contact you from time to time to provide you with important information, required notices and marketing promotions.
 
