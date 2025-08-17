@@ -129,10 +129,12 @@ def upgrade() -> None:
     op.drop_column("calendar_events", "organizer")
 
     op.add_column(
-        "calendar_events", sa.Column("ticket_url", sa.String(), nullable=True),
+        "calendar_events",
+        sa.Column("ticket_url", sa.String(), nullable=True),
     )
     op.add_column(
-        "calendar_events", sa.Column("ticket_url_opening", TZDateTime(), nullable=True),
+        "calendar_events",
+        sa.Column("ticket_url_opening", TZDateTime(), nullable=True),
     )
 
 
