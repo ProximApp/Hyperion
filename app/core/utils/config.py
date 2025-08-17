@@ -47,9 +47,10 @@ class School(BaseModel):
     entity_email: str
     # Date of the end of support for the application (ex: 2025-08-25)
     end_of_support: str
-
     # Colors used for the application
     primary_color: Color
+    # Email placeholder
+    email_placeholder: str
 
     # Regex for email account type validation
     # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
