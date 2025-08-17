@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from app.core.groups.groups_type import GroupType
+from app.types.sqlalchemy import TZDateTime
 
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
@@ -127,8 +128,18 @@ def upgrade() -> None:
 
     op.drop_column("calendar_events", "organizer")
 
+    op.add_column(
+        "calendar_events", sa.Column("ticket_url", sa.String(), nullable=True),
+    )
+    op.add_column(
+        "calendar_events", sa.Column("ticket_url_opening", TZDateTime(), nullable=True),
+    )
+
 
 def downgrade() -> None:
+    op.drop_column("calendar_events", "ticket_url")
+    op.drop_column("calendar_events", "ticket_url_opening")
+
     op.add_column(
         "calendar_events",
         sa.Column("organizer", sa.String(), nullable=False),

@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -96,7 +97,7 @@ async def get_association_booking(
 
 @module.router.get(
     "/calendar/events/{event_id}",
-    response_model=schemas_calendar.EventComplete,
+    response_model=schemas_calendar.EventCompleteTicketUrl,
     status_code=200,
 )
 async def get_event_by_id(
@@ -128,13 +129,37 @@ async def get_event_by_id(
     return event
 
 
+@module.router.get(
+    "/calendar/events/{event_id}/ticket-url",
+    response_model=schemas_calendar.EventTicketUrl,
+    status_code=200,
+)
+async def get_event_ticket_url(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
+):
+    event = await cruds_calendar.get_event(db=db, event_id=event_id)
+
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event does not exist")
+
+    if event.ticket_url_opening is None or event.ticket_url_opening > datetime.now(UTC):
+        raise HTTPException(status_code=400, detail="Event ticket is not open")
+
+    if event.ticket_url is None:
+        raise HTTPException(status_code=400, detail="Event does not have a ticket url")
+
+    return schemas_calendar.EventTicketUrl(ticket_url=event.ticket_url)
+
+
 @module.router.post(
     "/calendar/events/",
-    response_model=schemas_calendar.EventComplete,
+    response_model=schemas_calendar.EventCompleteTicketUrl,
     status_code=201,
 )
 async def add_event(
-    event: schemas_calendar.EventBase,
+    event: schemas_calendar.EventBaseCreation,
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(is_user_a_school_member),
     settings: Settings = Depends(get_settings),
@@ -176,6 +201,8 @@ async def add_event(
         description=event.description,
         decision=decision,
         recurrence_rule=event.recurrence_rule,
+        ticket_url=event.ticket_url,
+        ticket_url_opening=event.ticket_url_opening,
     )
 
     await cruds_calendar.add_event(event=db_event, db=db)

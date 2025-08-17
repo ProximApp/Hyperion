@@ -27,7 +27,7 @@ async def add_event_to_feed(
         end=event.end,
         entity=event.association.name,
         location=event.location,
-        action_start=None,
+        action_start=event.ticket_url_opening,
         module=root,
         module_object_id=event.id,
         # TODO

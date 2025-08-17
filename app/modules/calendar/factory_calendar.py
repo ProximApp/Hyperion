@@ -28,6 +28,8 @@ class CalendarFactory(Factory):
             description="Test description",
             decision=Decision.approved,
             recurrence_rule=None,
+            ticket_url_opening=None,
+            ticket_url=None,
         )
         await cruds_calendar.add_event(db, event)
 
@@ -43,6 +45,8 @@ class CalendarFactory(Factory):
             description="Test description",
             decision=Decision.approved,
             recurrence_rule=None,
+            ticket_url_opening=None,
+            ticket_url=None,
         )
         await cruds_calendar.add_event(db, day_long_event)
 

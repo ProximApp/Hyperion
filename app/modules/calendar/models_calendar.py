@@ -32,6 +32,9 @@ class Event(Base):
     decision: Mapped[Decision]
     recurrence_rule: Mapped[str | None]
 
+    ticket_url: Mapped[str | None]
+    ticket_url_opening: Mapped[datetime | None]
+
     association: Mapped[CoreAssociation] = relationship("CoreAssociation", init=False)
 
 

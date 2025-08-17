@@ -69,6 +69,9 @@ async def init_objects() -> None:
         description="Apprendre à coder !",
         decision=Decision.pending,
         recurrence_rule=None,
+        ticket_url_opening=datetime.datetime.now(datetime.UTC)
+        + datetime.timedelta(days=6),
+        ticket_url="url",
     )
     await add_object_to_db(calendar_event)
 
@@ -85,6 +88,9 @@ async def init_objects() -> None:
         description="Apprendre à coder !",
         decision=Decision.approved,
         recurrence_rule=None,
+        ticket_url_opening=datetime.datetime.now(datetime.UTC)
+        - datetime.timedelta(days=6),
+        ticket_url="url",
     )
     await add_object_to_db(confirmed_calendar_event)
 
@@ -101,6 +107,8 @@ async def init_objects() -> None:
         description="Apprendre à coder !",
         decision=Decision.pending,
         recurrence_rule=None,
+        ticket_url_opening=None,
+        ticket_url=None,
     )
     await add_object_to_db(calendar_event_to_delete)
 
@@ -173,6 +181,24 @@ def test_get_nonexistent_event(client: TestClient) -> None:
         headers={"Authorization": f"Bearer {token_bde}"},
     )
     assert response.status_code == 404
+
+
+def test_get_ticket_url_before(client: TestClient) -> None:
+    response = client.get(
+        f"/calendar/events/{calendar_event.id}/ticket-url",
+        headers={"Authorization": f"Bearer {token_simple}"},
+    )
+    assert response.status_code == 400
+
+
+def test_get_ticket_url_after(client: TestClient) -> None:
+    response = client.get(
+        f"/calendar/events/{confirmed_calendar_event.id}/ticket-url",
+        headers={"Authorization": f"Bearer {token_simple}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ticket_url"] == "url"
 
 
 def test_add_event(client: TestClient) -> None:

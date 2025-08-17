@@ -17,13 +17,27 @@ class EventBase(BaseModel):
     description: str
     recurrence_rule: str | None = None
 
+    ticket_url_opening: datetime | None = None
+
     association_id: UUID
+
+
+class EventBaseCreation(EventBase):
+    ticket_url: str | None = None
 
 
 class EventComplete(EventBase):
     id: UUID
     association: Association
     decision: Decision
+
+
+class EventCompleteTicketUrl(EventComplete):
+    ticket_url: str | None = None
+
+
+class EventTicketUrl(BaseModel):
+    ticket_url: str
 
 
 class EventEdit(BaseModel):
@@ -34,6 +48,8 @@ class EventEdit(BaseModel):
     location: str | None = None
     description: str | None = None
     recurrence_rule: str | None = None
+    ticket_url_opening: datetime | None = None
+    ticket_url: str | None = None
 
 
 class IcalSecret(BaseModel):
