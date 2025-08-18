@@ -388,14 +388,14 @@ def is_user(
             get_user_from_token_with_scopes([[ScopeType.API]]),
         ),
     ) -> models_users.CoreUser:
-        groups_id: list[str] = [group.id for group in user.groups]
-        if only_super_admin and not user.is_super_admin:
-            raise HTTPException(
-                status_code=403,
-                detail="Unauthorized, user is not a super admin",
-            )
-        if GroupType.admin in groups_id or user.is_super_admin:
+        if only_super_admin:
+            if not user.is_super_admin:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Unauthorized, user is not a super admin",
+                )
             return user
+
         if user.account_type in excluded_account_types:
             raise HTTPException(
                 status_code=403,
