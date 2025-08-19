@@ -14,7 +14,7 @@ class EventBase(BaseModel):
     end: datetime
     all_day: bool
     location: str
-    description: str
+    description: str | None = None
     recurrence_rule: str | None = None
 
     ticket_url_opening: datetime | None = None

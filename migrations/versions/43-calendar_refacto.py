@@ -126,6 +126,13 @@ def upgrade() -> None:
         postgresql_using="decision::decision",
     )
 
+    op.alter_column(
+        "calendar_events",
+        "description",
+        existing_type=sa.VARCHAR(),
+        nullable=True,
+    )
+
     op.drop_column("calendar_events", "organizer")
 
     op.add_column(

@@ -28,7 +28,7 @@ class Event(Base):
     end: Mapped[datetime]
     all_day: Mapped[bool]
     location: Mapped[str]
-    description: Mapped[str]
+    description: Mapped[str | None]
     decision: Mapped[Decision]
     recurrence_rule: Mapped[str | None]
 
