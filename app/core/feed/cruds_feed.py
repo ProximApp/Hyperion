@@ -60,3 +60,15 @@ async def change_news_status(
         .where(models_feed.News.id == news_id)
         .values(status=status),
     )
+
+
+async def set_news_image_directory(
+    news_id: UUID,
+    image_directory: str,
+    db: AsyncSession,
+) -> None:
+    await db.execute(
+        update(models_feed.News)
+        .where(models_feed.News.id == news_id)
+        .values(image_directory=image_directory),
+    )

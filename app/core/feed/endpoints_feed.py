@@ -79,14 +79,14 @@ async def get_news_image(
     response_model=standard_responses.Result,
     status_code=201,
 )
-async def create_advert_image(
+async def create_news_image(
     news_id: UUID,
     image: UploadFile = File(...),
     user: models_users.CoreUser = Depends(is_user_a_school_member),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Add an image to an advert
+    Add an image to an news
 
     **The user must be authenticated to use this endpoint**
     """
@@ -97,6 +97,11 @@ async def create_advert_image(
             detail="The news does not exist",
         )
 
+    await cruds_feed.set_news_image_directory(
+        news_id=news_id,
+        image_directory=f"feed",
+        db=db,
+    )
     await save_file_as_data(
         upload_file=image,
         directory=news.image_directory,
