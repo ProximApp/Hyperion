@@ -99,13 +99,13 @@ async def create_news_image(
 
     await cruds_feed.set_news_image_directory(
         news_id=news_id,
-        image_directory=f"feed",
+        image_directory="feed",
         db=db,
     )
     await save_file_as_data(
         upload_file=image,
         directory=news.image_directory,
-        filename=str(news_id),
+        filename=str(news.image_id),
         max_file_size=4 * 1024 * 1024,
         accepted_content_types=[
             ContentType.jpg,
