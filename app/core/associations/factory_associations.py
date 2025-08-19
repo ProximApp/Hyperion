@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.associations import cruds_associations
 from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.factory_groups import CoreGroupsFactory
+from app.core.groups.groups_type import GroupType
 from app.core.utils.config import Settings
 from app.types.factory import Factory
 
@@ -34,7 +35,7 @@ class AssociationsFactory(Factory):
             association=CoreAssociation(
                 id=uuid.uuid4(),
                 name="Admin",
-                group_id="0a25cb76-4b63-4fd3-b939-da6d9feabf28",
+                group_id=GroupType.admin.value,
             ),
         )
 
