@@ -77,20 +77,20 @@ USE_FIREBASE: false
 # School Configuration #
 ########################
 school:
-    # Name of the school (ex: École Centrale Lyon)
-    school_name: "École Centrale Lyon"
-    # Name of the application (ex: MyECL)
-    application_name: MyECL
-    # Name of the payment solution (ex: MyECLPay)
-    payment_name: MyECLPay
-    # Name of the entity managing the application (ex: ÉCLAIR)
-    entity_name: ÉCLAIR
-    # The entity website url, used for promotion (ex: "https://myecl.fr/")
-    entity_site_url: "https://myecl.fr/"
-    # The entity email, used for contact
-    entity_email: "eclair@myecl.fr"
-    # Email placeholder
-    email_placeholder: "prenom.nom@etu.ec-lyon.fr"
+  # Name of the school (ex: École Centrale Lyon)
+  school_name: "École Centrale Lyon"
+  # Name of the application (ex: MyECL)
+  application_name: MyECL
+  # Name of the payment solution (ex: MyECLPay)
+  payment_name: MyECLPay
+  # Name of the entity managing the application (ex: ÉCLAIR)
+  entity_name: ÉCLAIR
+  # The entity website url, used for promotion (ex: "https://myecl.fr/")
+  entity_site_url: "https://myecl.fr/"
+  # The entity email, used for contact
+  entity_email: "eclair@myecl.fr"
+  # Email placeholder
+  email_placeholder: "prenom.nom@etu.ec-lyon.fr"
 
   # Date of the end of support for the application (ex: 2025-08-25)
   end_of_support: "2025-08-25"
