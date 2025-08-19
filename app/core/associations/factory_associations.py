@@ -29,6 +29,14 @@ class AssociationsFactory(Factory):
                     group_id=CoreGroupsFactory.groups_ids[i],
                 ),
             )
+        await cruds_associations.create_association(
+            db=db,
+            association=CoreAssociation(
+                id=uuid.uuid4(),
+                name="Admin",
+                group_id="0a25cb76-4b63-4fd3-b939-da6d9feabf28",
+            ),
+        )
 
     @classmethod
     async def run(cls, db: AsyncSession, settings: Settings) -> None:
