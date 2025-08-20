@@ -158,6 +158,50 @@ async def get_event_ticket_url(
 
 
 @module.router.post(
+    "/calendar/event/{event_id}/image",
+    response_model=standard_responses.Result,
+    status_code=204,
+)
+async def create_event_image(
+    event_id: uuid.UUID,
+    image: UploadFile = File(...),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Add an image to an event
+
+    **The user must be authenticated to use this endpoint**
+    """
+    event = await cruds_calendar.get_event(db=db, event_id=event_id)
+    if event is None:
+        raise HTTPException(
+            status_code=404,
+            detail="The event does not exist",
+        )
+    if not is_user_member_of_an_association(
+        user=user,
+        association=event.association,
+    ) and not is_user_member_of_any_group(user, [GroupType.BDE]):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to access this event",
+        )
+
+    await save_file_as_data(
+        upload_file=image,
+        directory="event",
+        filename=event_id,
+        max_file_size=4 * 1024 * 1024,
+        accepted_content_types=[
+            ContentType.jpg,
+            ContentType.png,
+            ContentType.webp,
+        ],
+    )
+
+
+@module.router.post(
     "/calendar/events/",
     response_model=schemas_calendar.EventCompleteTicketUrl,
     status_code=201,
@@ -416,49 +460,3 @@ async def get_icalendar_file(
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     return FileResponse(utils_calendar.calendar_file_path)
-
-
-@module.router.post(
-    "/calendar/event/{event_id}/image",
-    response_model=standard_responses.Result,
-    status_code=201,
-)
-async def create_event_image(
-    event_id: uuid.UUID,
-    image: UploadFile = File(...),
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Add an image to an event
-
-    **The user must be authenticated to use this endpoint**
-    """
-    event = await cruds_calendar.get_event(db=db, event_id=event_id)
-    if event is None:
-        raise HTTPException(
-            status_code=404,
-            detail="The event does not exist",
-        )
-    if not is_user_member_of_an_association(
-        user=user,
-        association=event.association,
-    ) and not is_user_member_of_any_group(user, [GroupType.BDE]):
-        raise HTTPException(
-            status_code=403,
-            detail="You are not allowed to access this event",
-        )
-
-    await save_file_as_data(
-        upload_file=image,
-        directory="event",
-        filename=str(event_id),
-        max_file_size=4 * 1024 * 1024,
-        accepted_content_types=[
-            ContentType.jpg,
-            ContentType.png,
-            ContentType.webp,
-        ],
-    )
-
-    return standard_responses.Result(success=True)

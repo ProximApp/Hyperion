@@ -31,7 +31,7 @@ async def add_event_to_feed(
         module=root,
         module_object_id=event.id,
         image_directory="event",
-        image_id=uuid.uuid4(),
+        image_id=event.id,
         require_feed_admin_approval=False,
         db=db,
         notification_tool=notification_tool,
