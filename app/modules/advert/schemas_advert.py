@@ -1,29 +1,13 @@
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class AdvertiserBase(BaseModel):
-    name: str
-    group_manager_id: str = Field(
-        description="The group manager id should be a group identifier",
-    )
-
-
-class AdvertiserComplete(AdvertiserBase):
-    id: str
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AdvertiserUpdate(BaseModel):
-    name: str | None = None
-    group_manager_id: str | None = None
+from pydantic import BaseModel, Field
 
 
 class AdvertBase(BaseModel):
     title: str
     content: str
-    advertiser_id: str
+    advertiser_id: UUID
     post_to_feed: bool = Field(
         default=False,
         description="If the advert should be posted in the feed. It will be pending validation be admin",
@@ -31,16 +15,8 @@ class AdvertBase(BaseModel):
 
 
 class AdvertComplete(AdvertBase):
-    id: str
+    id: UUID
     date: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AdvertReturnComplete(AdvertBase):
-    id: str
-    advertiser: AdvertiserComplete
-    date: datetime | None = None
-    model_config = ConfigDict(from_attributes=True)
 
 
 class AdvertUpdate(BaseModel):
