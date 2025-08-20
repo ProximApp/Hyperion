@@ -156,7 +156,7 @@ async def get_event_ticket_url(
 
 
 @module.router.post(
-    "/calendar/event/{event_id}/image",
+    "/calendar/events/{event_id}/image",
     status_code=204,
 )
 async def create_event_image(
