@@ -27,7 +27,6 @@ from app.modules.calendar import (
 )
 from app.modules.calendar.factory_calendar import CalendarFactory
 from app.modules.calendar.types_calendar import Decision
-from app.types import standard_responses
 from app.types.content_type import ContentType
 from app.types.exceptions import NewlyAddedObjectInDbNotFoundError
 from app.types.module import Module
@@ -158,7 +157,6 @@ async def get_event_ticket_url(
 
 @module.router.post(
     "/calendar/event/{event_id}/image",
-    response_model=standard_responses.Result,
     status_code=204,
 )
 async def create_event_image(

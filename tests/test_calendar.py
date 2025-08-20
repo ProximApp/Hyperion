@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from pathlib import Path
 
 import pytest_asyncio
 from fastapi.testclient import TestClient
@@ -199,6 +200,17 @@ def test_get_ticket_url_after(client: TestClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["ticket_url"] == "url"
+
+
+def test_create_picture(client: TestClient) -> None:
+    with Path("assets/images/default_advert.png").open("rb") as image:
+        response = client.post(
+            f"/calendar/events/{calendar_event.id}/image",
+            files={"image": ("advert.png", image, "image/png")},
+            headers={"Authorization": f"Bearer {token_eclair}"},
+        )
+
+    assert response.status_code == 204
 
 
 def test_add_event(client: TestClient) -> None:
