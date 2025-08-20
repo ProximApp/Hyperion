@@ -205,7 +205,7 @@ def test_get_ticket_url_after(client: TestClient) -> None:
 def test_create_picture(client: TestClient) -> None:
     with Path("assets/images/default_advert.png").open("rb") as image:
         response = client.post(
-            f"/calendar/events/{calendar_event.id}/image",
+            f"/calendar/event/{calendar_event.id}/image",
             files={"image": ("advert.png", image, "image/png")},
             headers={"Authorization": f"Bearer {token_eclair}"},
         )
