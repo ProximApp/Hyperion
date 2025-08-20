@@ -72,10 +72,15 @@ SMTP_EMAIL: ""
 USE_FIREBASE: false
 
 school:
-  name: Tests MyECL
+  school_name: "École Centrale Lyon"
+  application_name: Tests MyECL
   payment_name: Tests MyECLPay
   entity_name: ÉCLAIR
   entity_site_url: "https://myecl.fr/"
+  entity_email: "eclair@myecl.fr"
+  end_of_support: "2025-08-25"
+  email_placeholder: prenom.nom@etu.ec-lyon.fr
+
   primary_color: "#F97315"
 
   student_email_regex: '^[\w\-.]*@etu(-enise)?\.ec-lyon\.fr$'

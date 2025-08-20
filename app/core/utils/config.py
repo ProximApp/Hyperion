@@ -33,19 +33,24 @@ class School(BaseModel):
     It is used to create an instance of the school.
     """
 
+    # Name of the school (ex: École Centrale Lyon)
+    school_name: str
     # Name of the application (ex: MyECL)
-    name: str
+    application_name: str
     # Name of the payment solution (ex: MyECLPay)
     payment_name: str
     # Name of the entity managing the application (ex: ÉCLAIR)
     entity_name: str
     # The entity website url, used for promotion (ex: "https://myecl.fr/")
     entity_site_url: str
-    # Email placeholder
-    email_placeholder: str = "prenom.nom@ecole.fr"
-
+    # The entity email, used for contact
+    entity_email: str
+    # Date of the end of support for the application (ex: 2025-08-25)
+    end_of_support: str
     # Colors used for the application
     primary_color: Color
+    # Email placeholder
+    email_placeholder: str
 
     # Regex for email account type validation
     # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
@@ -111,6 +116,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         yaml_file="config.yaml",
+        yaml_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
