@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,10 +14,8 @@ from app.dependencies import (
     is_user_a_school_member,
     is_user_in,
 )
-from app.types import standard_responses
-from app.types.content_type import ContentType
 from app.types.module import CoreModule
-from app.utils.tools import get_file_from_data, save_file_as_data
+from app.utils.tools import get_file_from_data
 
 router = APIRouter(tags=["Feed"])
 
@@ -72,49 +70,6 @@ async def get_news_image(
         directory=news.image_directory,
         filename=news.image_id,
     )
-
-
-@router.post(
-    "/feed/news/{news_id}/image",
-    response_model=standard_responses.Result,
-    status_code=201,
-)
-async def create_news_image(
-    news_id: UUID,
-    image: UploadFile = File(...),
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Add an image to an news
-
-    **The user must be authenticated to use this endpoint**
-    """
-    news = await cruds_feed.get_news_by_id(db=db, news_id=news_id)
-    if news is None:
-        raise HTTPException(
-            status_code=404,
-            detail="The news does not exist",
-        )
-
-    await cruds_feed.set_news_image_directory(
-        news_id=news_id,
-        image_directory="feed",
-        db=db,
-    )
-    await save_file_as_data(
-        upload_file=image,
-        directory=news.image_directory,
-        filename=str(news.image_id),
-        max_file_size=4 * 1024 * 1024,
-        accepted_content_types=[
-            ContentType.jpg,
-            ContentType.png,
-            ContentType.webp,
-        ],
-    )
-
-    return standard_responses.Result(success=True)
 
 
 @router.get(

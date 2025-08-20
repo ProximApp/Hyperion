@@ -1,11 +1,12 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import cruds_associations
+from app.core.feed import cruds_feed
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.users import models_users
 from app.core.utils.config import Settings
@@ -27,12 +28,15 @@ from app.modules.calendar import (
 )
 from app.modules.calendar.factory_calendar import CalendarFactory
 from app.modules.calendar.types_calendar import Decision
+from app.types import standard_responses
+from app.types.content_type import ContentType
 from app.types.exceptions import NewlyAddedObjectInDbNotFoundError
 from app.types.module import Module
 from app.utils.communication.notifications import NotificationTool
 from app.utils.tools import (
     is_user_member_of_an_association,
     is_user_member_of_any_group,
+    save_file_as_data,
 )
 
 module = Module(
@@ -412,3 +416,49 @@ async def get_icalendar_file(
         raise HTTPException(status_code=403, detail="Invalid secret")
 
     return FileResponse(utils_calendar.calendar_file_path)
+
+
+@module.router.post(
+    "/calendar/event/{event_id}/image",
+    response_model=standard_responses.Result,
+    status_code=201,
+)
+async def create_event_image(
+    event_id: uuid.UUID,
+    image: UploadFile = File(...),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Add an image to an event
+
+    **The user must be authenticated to use this endpoint**
+    """
+    event = await cruds_calendar.get_event(db=db, event_id=event_id)
+    if event is None:
+        raise HTTPException(
+            status_code=404,
+            detail="The event does not exist",
+        )
+    if not is_user_member_of_an_association(
+        user=user,
+        association=event.association,
+    ) and not is_user_member_of_any_group(user, [GroupType.BDE]):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to access this event",
+        )
+
+    await save_file_as_data(
+        upload_file=image,
+        directory="event",
+        filename=str(event_id),
+        max_file_size=4 * 1024 * 1024,
+        accepted_content_types=[
+            ContentType.jpg,
+            ContentType.png,
+            ContentType.webp,
+        ],
+    )
+
+    return standard_responses.Result(success=True)

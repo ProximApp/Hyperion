@@ -30,8 +30,7 @@ async def add_event_to_feed(
         action_start=event.ticket_url_opening,
         module=root,
         module_object_id=event.id,
-        # TODO
-        image_directory="None",
+        image_directory="event",
         image_id=uuid.uuid4(),
         require_feed_admin_approval=False,
         db=db,
