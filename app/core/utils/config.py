@@ -39,6 +39,8 @@ class School(BaseModel):
     application_name: str
     # Name of the payment solution (ex: MyECLPay)
     payment_name: str
+    # Domain name of the application (ex: myecl.fr)
+    application_domain_name: str
     # Name of the entity managing the application (ex: ÉCLAIR)
     entity_name: str
     # The entity website url, used for promotion (ex: "https://myecl.fr/")
@@ -59,6 +61,9 @@ class School(BaseModel):
     student_email_regex: Pattern
     staff_email_regex: Pattern | None = None
     former_student_email_regex: Pattern | None = None
+
+    # If event should be confirmed by a moderator before being added to the calendar
+    require_event_confirmation: bool = True
 
 
 class AuthClientConfig(BaseModel):

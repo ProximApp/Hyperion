@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.associations import cruds_associations
 from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.factory_groups import CoreGroupsFactory
+from app.core.groups.groups_type import GroupType
 from app.core.utils.config import Settings
 from app.types.factory import Factory
 
@@ -29,6 +30,14 @@ class AssociationsFactory(Factory):
                     group_id=CoreGroupsFactory.groups_ids[i],
                 ),
             )
+        await cruds_associations.create_association(
+            db=db,
+            association=CoreAssociation(
+                id=uuid.uuid4(),
+                name="Admin",
+                group_id=GroupType.admin.value,
+            ),
+        )
 
     @classmethod
     async def run(cls, db: AsyncSession, settings: Settings) -> None:
@@ -36,4 +45,4 @@ class AssociationsFactory(Factory):
 
     @classmethod
     async def should_run(cls, db: AsyncSession):
-        return len(await cruds_associations.get_associations(db=db)) > 0
+        return len(await cruds_associations.get_associations(db=db)) == 0
