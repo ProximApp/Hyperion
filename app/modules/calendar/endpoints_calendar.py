@@ -6,7 +6,6 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import cruds_associations
-from app.core.feed import cruds_feed
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.users import models_users
 from app.core.utils.config import Settings
