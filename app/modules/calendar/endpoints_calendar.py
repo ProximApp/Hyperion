@@ -288,6 +288,19 @@ async def edit_bookings_id(
     if event is None:
         raise HTTPException(status_code=404)
 
+    if event_edit.ticket_url_opening and not event_edit.ticket_url:
+        if not event_edit.ticket_url_opening:
+            raise HTTPException(
+                status_code=400,
+                detail="Ticket URL and opening time must be provided together",
+            )
+    if event_edit.ticket_url and not event_edit.ticket_url_opening:
+        if not event_edit.ticket_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Ticket URL and opening time must be provided together",
+            )
+
     is_user_member_of_BDE = is_user_member_of_any_group(user, [GroupType.BDE])
 
     if (
