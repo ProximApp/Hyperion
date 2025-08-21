@@ -104,8 +104,9 @@ school:
   student_email_regex: '^[\w\-.]*@etu(-enise)?\.ec-lyon\.fr$'
   #staff_email_regex:
   #former_student_email_regex:
+
   # Colors used for the application
-  primary_color: Color
+  primary_color: "#ED0000"
 
   # Regex for email account type validation
   # On registration, user whose email match these regex will be automatically assigned to the corresponding account type

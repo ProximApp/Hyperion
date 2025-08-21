@@ -51,6 +51,7 @@ from app.types.sqlalchemy import Base
 from app.utils import initialization
 from app.utils.communication.notifications import NotificationManager
 from app.utils.redis import limiter
+from app.utils.screenshots.factory_screenshots import create_data
 from app.utils.state import LifespanState
 
 if TYPE_CHECKING:
@@ -234,6 +235,8 @@ async def run_factories(
     hyperion_error_logger: logging.Logger,
 ) -> None:
     """Run the factories to create default data in the database"""
+    await create_data(db=db)
+
     if not settings.USE_FACTORIES:
         return
 
@@ -609,7 +612,7 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             app=app,
             settings=settings,
             hyperion_error_logger=hyperion_error_logger,
-            drop_db=drop_db,
+            drop_db=True,
         )
 
         yield state
