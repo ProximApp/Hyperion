@@ -71,6 +71,7 @@ from app.types import standard_responses
 from app.types.module import CoreModule
 from app.utils.communication.notifications import NotificationTool
 from app.utils.mail.mailworker import send_email
+from app.utils.tools import patch_identity_in_text
 
 router = APIRouter(tags=["MyPayment"])
 
@@ -1136,7 +1137,10 @@ async def get_user_tos(
     return schemas_mypayment.TOSSignatureResponse(
         accepted_tos_version=existing_user_payment.accepted_tos_version,
         latest_tos_version=LATEST_TOS,
-        tos_content=Path("assets/mypayment-terms-of-service.txt").read_text(),
+        tos_content=patch_identity_in_text(
+            Path("assets/mypayment-terms-of-service.txt").read_text(),
+            settings=settings,
+        ),
         max_wallet_balance=settings.MYECLPAY_MAXIMUM_WALLET_BALANCE,
     )
 
