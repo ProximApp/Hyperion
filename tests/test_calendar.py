@@ -230,6 +230,40 @@ def test_add_event(client: TestClient) -> None:
     assert response.status_code == 201
 
 
+def test_add_event_with_missing_ticket_field(client: TestClient) -> None:
+    response = client.post(
+        "/calendar/events/",
+        json={
+            "name": "Dojo",
+            "association_id": str(association.id),
+            "start": "2019-08-24T14:15:22Z",
+            "end": "2019-08-24T14:15:22Z",
+            "all_day": False,
+            "location": "Skylab",
+            "description": "Apprendre à coder !",
+            "ticket_url_opening": "2019-08-24T14:15:22Z",
+        },
+        headers={"Authorization": f"Bearer {token_eclair}"},
+    )
+    assert response.status_code == 422
+
+    response = client.post(
+        "/calendar/events/",
+        json={
+            "name": "Dojo",
+            "association_id": str(association.id),
+            "start": "2019-08-24T14:15:22Z",
+            "end": "2019-08-24T14:15:22Z",
+            "all_day": False,
+            "location": "Skylab",
+            "description": "Apprendre à coder !",
+            "ticket_url": "https://example.com/ticket",
+        },
+        headers={"Authorization": f"Bearer {token_eclair}"},
+    )
+    assert response.status_code == 422
+
+
 def test_add_event_non_member_of_association(client: TestClient) -> None:
     response = client.post(
         "/calendar/events/",
@@ -271,6 +305,26 @@ def test_edit_event(client: TestClient) -> None:
         headers={"Authorization": f"Bearer {token_eclair}"},
     )
     assert response.status_code == 204
+
+
+def test_edit_event_with_missing_ticket_field(client: TestClient) -> None:
+    response = client.patch(
+        f"/calendar/events/{calendar_event_to_delete.id}",
+        json={
+            "ticket_url_opening": "2019-08-24T14:15:22Z",
+        },
+        headers={"Authorization": f"Bearer {token_eclair}"},
+    )
+    assert response.status_code == 400
+
+    response = client.patch(
+        f"/calendar/events/{calendar_event_to_delete.id}",
+        json={
+            "ticket_url": "https://example.com/ticket",
+        },
+        headers={"Authorization": f"Bearer {token_eclair}"},
+    )
+    assert response.status_code == 400
 
 
 def test_edit_event_not_member(client: TestClient) -> None:

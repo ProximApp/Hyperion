@@ -2,7 +2,6 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
-from pydantic_core import ValidationError
 
 from app.core.associations.schemas_associations import Association
 from app.modules.calendar.types_calendar import Decision
@@ -31,7 +30,7 @@ class EventBaseCreation(EventBase):
         if (self.ticket_url_opening and not self.ticket_url) or (
             self.ticket_url and not self.ticket_url_opening
         ):
-            raise ValidationError
+            raise ValueError
 
         return self
 
