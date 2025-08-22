@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.module import all_modules
+from app.module import get_all_modules
 from tests.commons import get_TestingSessionLocal
 
 
@@ -9,7 +9,7 @@ from tests.commons import get_TestingSessionLocal
 async def test_factories(client: TestClient) -> None:
     async with get_TestingSessionLocal()() as db:
         factories = [
-            module.factory for module in all_modules if module.factory is not None
+            module.factory for module in get_all_modules() if module.factory is not None
         ]
         for factory in factories:
             assert not await factory.should_run(
