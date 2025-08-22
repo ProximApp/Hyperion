@@ -54,6 +54,10 @@ SQLITE_DB: "app.db"
 # If True, will print all SQL queries in the console
 DATABASE_DEBUG: False
 
+# Restrict to a list of module roots
+# CoreModules can not be disabled
+#RESTRICT_TO_MODULES: []
+
 #####################################
 # SMTP configuration using starttls #
 #####################################
