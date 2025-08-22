@@ -20,7 +20,7 @@ from app.modules.calendar.types_calendar import Decision
 
 
 async def create_data(db: AsyncSession):
-    viewer_user_id = str(uuid.uuid4())
+    viewer_user_id = "31b17469-f7ca-4d89-9db5-3e568df69256"
     user = CoreUser(
         id=viewer_user_id,
         password_hash=security.get_password_hash(password="password"),
@@ -69,6 +69,10 @@ async def create_data(db: AsyncSession):
             group_id=GroupType.admin.value,
         ),
     )
+    shutil.copyfile(
+        "app/utils/screenshots/cheerup.png",
+        f"{logo_folder}{cheerup_association_id}.png",
+    )
 
     ouverture_des_castings_advert_id = uuid.uuid4()
     ouverture_des_castings_advert = models_advert.Advert(
@@ -83,7 +87,7 @@ async def create_data(db: AsyncSession):
         db=db,
         db_advert=ouverture_des_castings_advert,
     )
-    advert_directory = "advert"
+    advert_directory = "adverts"
     Path(f"data/{advert_directory}").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(
         "app/utils/screenshots/commuz.png",
