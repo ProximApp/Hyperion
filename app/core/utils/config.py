@@ -213,6 +213,10 @@ class Settings(BaseSettings):
     # If self registration is disabled, users will need to be invited by an administrator to be able to register
     ALLOW_SELF_REGISTRATION: bool = True
 
+    # Restrict to a list of module roots
+    # CoreModules can not be disabled
+    RESTRICT_TO_MODULES: list[str] | None = None
+
     ############################
     # PostgreSQL configuration #
     ############################
