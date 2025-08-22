@@ -32,6 +32,11 @@ class GoogleAPIMissingConfigInDotenvError(Exception):
         super().__init__("Google API is not configured in dotenv")
 
 
+class InvalidModuleRootInDotenvError(Exception):
+    def __init__(self, root: str):
+        super().__init__(f"Module root {root} does not exist")
+
+
 class ContentHTTPException(HTTPException):
     """
     A custom HTTPException allowing to return custom content.

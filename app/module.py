@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 from app.core.utils.config import Settings
+from app.types.exceptions import InvalidModuleRootInDotenvError
 from app.types.module import CoreModule, Module
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
@@ -12,6 +13,9 @@ _core_module_list: list[CoreModule] = []
 
 
 def init_module_list(settings: Settings):
+    _module_list.clear()
+    _core_module_list.clear()
+
     module_list = []
     for endpoints_file in Path().glob("app/modules/*/endpoints_*.py"):
         endpoint_module = importlib.import_module(
@@ -29,7 +33,7 @@ def init_module_list(settings: Settings):
         existing_module_roots = [module.root for module in module_list]
         for root in settings.RESTRICT_TO_MODULES:
             if root not in existing_module_roots:
-                raise ValueError()
+                raise InvalidModuleRootInDotenvError(root)
     for module in module_list:
         if (
             settings.RESTRICT_TO_MODULES
