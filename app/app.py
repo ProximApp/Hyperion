@@ -301,6 +301,7 @@ def initialize_module_visibility(
             coredata_core.ModuleVisibilityAwareness,
             db,
         )
+        known_roots = module_awareness.roots
 
         new_modules = [
             module
@@ -313,6 +314,7 @@ def initialize_module_visibility(
                 f"Startup: Some modules visibility settings are empty, initializing them ({[module.root for module in new_modules]})",
             )
             for module in new_modules:
+                known_roots.append(module.root)
                 if module.default_allowed_groups_ids is not None:
                     for group_id in module.default_allowed_groups_ids:
                         module_group_visibility = models_core.ModuleGroupVisibility(
@@ -346,9 +348,7 @@ def initialize_module_visibility(
                                 f"Startup: Could not add module visibility {module.root} in the database: {error}",
                             )
             initialization.set_core_data_sync(
-                coredata_core.ModuleVisibilityAwareness(
-                    roots=[module.root for module in get_module_list()],
-                ),
+                coredata_core.ModuleVisibilityAwareness(roots=known_roots),
                 db,
             )
             hyperion_error_logger.info(
