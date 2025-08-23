@@ -69,6 +69,7 @@ async def get_news_image(
     return get_file_from_data(
         directory=news.image_directory,
         filename=news.image_id,
+        raise_http_exception=True,
     )
 
 
