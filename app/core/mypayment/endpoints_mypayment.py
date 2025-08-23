@@ -4,7 +4,7 @@ import urllib
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import calypsso
 from fastapi import (
@@ -24,13 +24,14 @@ from app.core.checkout import schemas_checkout
 from app.core.checkout.payment_tool import PaymentTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.core_endpoints import cruds_core
-from app.core.groups.groups_type import AccountType, GroupType
+from app.core.groups.groups_type import GroupType
 from app.core.memberships.utils_memberships import (
     get_user_active_membership_to_association_membership,
 )
 from app.core.mypayment import cruds_mypayment, schemas_mypayment
 from app.core.mypayment.coredata_mypayment import (
-    MyPaymentBankAccountInformation,
+    MyPaymentBankAccountHolder,
+    MyPaymentBankAccountInformationComplete,
     is_user_bank_account_holder,
 )
 from app.core.mypayment.integrity_mypayment import (
@@ -114,7 +115,7 @@ RETENTION_DURATION = 10 * 365  # 10 years in days
 
 @router.get(
     "/mypayment/bank-account-information",
-    response_model=schemas_users.CoreUserSimple,
+    response_model=MyPaymentBankAccountInformationComplete,
     status_code=200,
 )
 async def get_bank_account_holder(
@@ -125,62 +126,41 @@ async def get_bank_account_holder(
     Get the current bank account holder information.
     """
     bank_account_holder = await get_core_data(
-        MyPaymentBankAccountInformation,
+        MyPaymentBankAccountHolder,
         db=db,
     )
-    user_simple = schemas_users.CoreUserSimple(
-        id="",
-        name="",
-        firstname="",
-        account_type=AccountType.external,
-        school_id=uuid4(),
+    structure = await cruds_mypayment.get_structure_by_id(
+        db=db,
+        structure_id=bank_account_holder.holder_structure_id,
     )
-    if bank_account_holder.holder_user_id != "":
-        user_db = await cruds_users.get_user_by_id(
-            user_id=bank_account_holder.holder_user_id,
-            db=db,
-        )
-        if user_db is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Bank account holder user does not exist",
-            )
-        user_simple = schemas_users.CoreUserSimple(
-            id=user_db.id,
-            name=user_db.name,
-            firstname=user_db.firstname,
-            nickname=user_db.nickname,
-            account_type=user_db.account_type,
-            school_id=user_db.school_id,
-        )
-    return user_simple
+    if structure is None:
+        raise ValueError
+    return MyPaymentBankAccountInformationComplete(
+        holder_structure_id=bank_account_holder.holder_structure_id,
+        holder_structure=structure,
+    )
 
 
 @router.post(
     "/mypayment/bank-account-holder",
-    response_model=schemas_users.CoreUserSimple,
+    response_model=MyPaymentBankAccountInformationComplete,
     status_code=201,
 )
 async def set_bank_account_holder(
-    bank_account_info: MyPaymentBankAccountInformation,
+    bank_account_info: MyPaymentBankAccountHolder,
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user_in(GroupType.admin)),
 ):
     """Set the bank account holder information."""
-    if bank_account_info.holder_user_id == "":
-        raise HTTPException(
-            status_code=400,
-            detail="User ID cannot be empty",
-        )
 
-    user_db = await cruds_users.get_user_by_id(
-        user_id=bank_account_info.holder_user_id,
+    structure = await cruds_mypayment.get_structure_by_id(
+        structure_id=bank_account_info.holder_structure_id,
         db=db,
     )
-    if user_db is None:
+    if structure is None:
         raise HTTPException(
             status_code=404,
-            detail="User does not exist",
+            detail="Structure does not exist",
         )
 
     await set_core_data(
@@ -188,13 +168,9 @@ async def set_bank_account_holder(
         db=db,
     )
 
-    return schemas_users.CoreUserSimple(
-        id=user_db.id,
-        name=user_db.name,
-        firstname=user_db.firstname,
-        nickname=user_db.nickname,
-        account_type=user_db.account_type,
-        school_id=user_db.school_id,
+    return MyPaymentBankAccountInformationComplete(
+        holder_structure_id=bank_account_info.holder_structure_id,
+        holder_structure=structure,
     )
 
 
@@ -2647,11 +2623,14 @@ async def download_invoice(
             status_code=404,
             detail="Structure does not exist",
         )
-    bank_account_info = await get_core_data(
-        MyPaymentBankAccountInformation,
-        db,
+    bank_account_info = await get_bank_account_holder(
+        user=user,
+        db=db,
     )
-    if user.id not in (structure.manager_user_id, bank_account_info.holder_user_id):
+    if user.id not in (
+        structure.manager_user_id,
+        bank_account_info.holder_structure.manager_user_id,
+    ):
         raise HTTPException(
             status_code=403,
             detail="User is not allowed to access this invoice",
@@ -2687,11 +2666,11 @@ async def create_structure_invoice(
         db=db,
         token_data=token_data,
     )
-    bank_account_info = await get_core_data(
-        MyPaymentBankAccountInformation,
-        db,
+    bank_account_info = await get_bank_account_holder(
+        user=user,
+        db=db,
     )
-    if bank_account_info.holder_user_id != user.id:
+    if bank_account_info.holder_structure.manager_user_id != user.id:
         raise HTTPException(
             status_code=403,
             detail="User is not the bank account holder",

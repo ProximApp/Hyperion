@@ -15,8 +15,7 @@ from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import cruds_mypayment, models_mypayment
 from app.core.mypayment.coredata_mypayment import (
-    MyPaymentBankAccountInformation,
-    MyPaymentInvoiceCoordinates,
+    MyPaymentBankAccountHolder,
 )
 from app.core.mypayment.schemas_mypayment import QRCodeContentData
 from app.core.mypayment.types_mypayment import (
@@ -40,8 +39,6 @@ admin_user: models_users.CoreUser
 admin_user_token: str
 structure_manager_user: models_users.CoreUser
 structure_manager_user_token: str
-bank_account_holder_user: models_users.CoreUser
-bank_account_holder_user_token: str
 
 ecl_user: models_users.CoreUser
 ecl_user_access_token: str
@@ -104,27 +101,6 @@ async def init_objects() -> None:
     admin_user = await create_user_with_groups(groups=[GroupType.admin])
     admin_user_token = create_api_access_token(admin_user)
 
-    global bank_account_holder_user, bank_account_holder_user_token
-    bank_account_holder_user = await create_user_with_groups(
-        groups=[],
-    )
-    bank_account_holder_user_token = create_api_access_token(
-        bank_account_holder_user,
-    )
-    await add_coredata_to_db(
-        MyPaymentBankAccountInformation(
-            holder_user_id=bank_account_holder_user.id,
-            holder_coordinates=MyPaymentInvoiceCoordinates(
-                name="Test Bank Account Holder",
-                address_street="123 Test Street",
-                address_city="Test City",
-                address_zipcode="12345",
-                address_country="Test Country",
-                siret="12345678901234",
-            ),
-        ),
-    )
-
     global association_membership
     association_membership = models_memberships.CoreAssociationMembership(
         id=uuid4(),
@@ -154,6 +130,12 @@ async def init_objects() -> None:
         bic="AZERTYUIOP",
     )
     await add_object_to_db(structure)
+
+    await add_coredata_to_db(
+        MyPaymentBankAccountHolder(
+            holder_structure_id=structure.id,
+        ),
+    )
 
     structure2 = models_mypayment.Structure(
         id=uuid4(),
@@ -2804,7 +2786,7 @@ async def test_get_invoices_as_random_user(client: TestClient):
 async def test_get_invoices_as_bank_account_holder(client: TestClient):
     response = client.get(
         "/mypayment/invoices",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
 
     assert response.status_code == 200
@@ -2816,7 +2798,7 @@ async def test_get_invoices_as_bank_account_holder_with_date(
 ):
     response = client.get(
         "/mypayment/invoices",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         params={
             "start_date": (datetime.now(UTC) - timedelta(days=40)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ",
@@ -2836,7 +2818,7 @@ async def test_get_invoices_as_bank_account_holder_with_structure_id(
 ):
     response = client.get(
         f"/mypayment/invoices?structures_ids={structure2.id}",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
 
     assert response.status_code == 200
@@ -2848,7 +2830,7 @@ async def test_get_invoices_as_bank_account_holder_with_limit(
 ):
     response = client.get(
         "/mypayment/invoices",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         params={
             "page": 1,
             "page_size": 1,
@@ -2894,7 +2876,7 @@ async def test_generate_invoice_as_bank_account_holder(
 ):
     response = client.post(
         f"/mypayment/invoices/structures/{structure2.id}",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
 
     assert response.status_code == 201
@@ -2919,7 +2901,7 @@ async def test_empty_invoice_on_null_details(
 ):
     response = client.post(
         f"/mypayment/invoices/structures/{structure2.id}",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
 
     assert response.status_code == 400
@@ -2944,7 +2926,7 @@ async def test_update_invoice_paid_status_as_bank_account_holder(
 ):
     response = client.patch(
         f"/mypayment/invoices/{invoice2.id}/paid",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         params={"paid": True},
     )
 
@@ -2960,7 +2942,7 @@ async def test_update_invoice_paid_status_as_bank_account_holder(
 
     response = client.patch(
         f"/mypayment/invoices/{invoice2.id}/paid",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         params={"paid": False},
     )
 
@@ -3032,7 +3014,7 @@ async def test_delete_paid_invoice(
 ):
     response = client.delete(
         f"/mypayment/invoices/{invoice2.id}",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     assert response.status_code == 400, response.text
     assert (
@@ -3046,13 +3028,13 @@ async def test_delete_invoice(
 ):
     response = client.delete(
         f"/mypayment/invoices/{invoice3.id}",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     assert response.status_code == 204, response.text
 
     response = client.get(
         "/mypayment/invoices",
-        headers={"Authorization": f"Bearer {bank_account_holder_user_token}"},
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     assert response.status_code == 200
     assert not any(invoice["id"] == invoice3.id for invoice in response.json())

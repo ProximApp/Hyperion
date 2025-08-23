@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
@@ -987,9 +986,6 @@ async def update_invoice_received_status(
         .where(models_mypayment.Invoice.id == invoice_id)
         .values(received=True),
     )
-
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 async def update_invoice_paid_status(
