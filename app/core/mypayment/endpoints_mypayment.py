@@ -4,7 +4,7 @@ import urllib
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import calypsso
 from fastapi import (
@@ -15,24 +15,29 @@ from fastapi import (
     HTTPException,
     Query,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import schemas_auth
 from app.core.checkout import schemas_checkout
 from app.core.checkout.payment_tool import PaymentTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.core_endpoints import cruds_core
-from app.core.groups.groups_type import GroupType
-from app.core.memberships import schemas_memberships
+from app.core.groups.groups_type import AccountType, GroupType
 from app.core.memberships.utils_memberships import (
     get_user_active_membership_to_association_membership,
 )
 from app.core.mypayment import cruds_mypayment, schemas_mypayment
+from app.core.mypayment.coredata_mypayment import (
+    MyPaymentBankAccountInformation,
+    is_user_bank_account_holder,
+)
 from app.core.mypayment.integrity_mypayment import (
     format_cancel_log,
     format_refund_log,
     format_transaction_log,
+    format_withdrawal_log,
 )
 from app.core.mypayment.models_mypayment import Store, WalletDevice
 from app.core.mypayment.types_mypayment import (
@@ -48,6 +53,7 @@ from app.core.mypayment.utils_mypayment import (
     LATEST_TOS,
     QRCODE_EXPIRATION,
     is_user_latest_tos_signed,
+    structure_model_to_schema,
     validate_transfer_callback,
     verify_signature,
 )
@@ -63,15 +69,23 @@ from app.dependencies import (
     get_payment_tool,
     get_request_id,
     get_settings,
+    get_token_data,
     is_user,
     is_user_a_school_member,
     is_user_in,
 )
 from app.types import standard_responses
 from app.types.module import CoreModule
+from app.types.scopes_type import ScopeType
+from app.utils.auth.auth_utils import get_user_from_token_with_scopes
 from app.utils.communication.notifications import NotificationTool
 from app.utils.mail.mailworker import send_email
-from app.utils.tools import patch_identity_in_text
+from app.utils.tools import (
+    generate_pdf_from_template,
+    get_core_data,
+    patch_identity_in_text,
+    set_core_data,
+)
 
 router = APIRouter(tags=["MyPayment"])
 
@@ -96,6 +110,92 @@ MYECLPAY_USERS_S3_SUBFOLDER = "users"
 MYECLPAY_DEVICES_S3_SUBFOLDER = "devices"
 MYECLPAY_LOGS_S3_SUBFOLDER = "logs"
 RETENTION_DURATION = 10 * 365  # 10 years in days
+
+
+@router.get(
+    "/mypayment/bank-account-information",
+    response_model=schemas_users.CoreUserSimple,
+    status_code=200,
+)
+async def get_bank_account_holder(
+    user: CoreUser = Depends(is_user()),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the current bank account holder information.
+    """
+    bank_account_holder = await get_core_data(
+        MyPaymentBankAccountInformation,
+        db=db,
+    )
+    user_simple = schemas_users.CoreUserSimple(
+        id="",
+        name="",
+        firstname="",
+        account_type=AccountType.external,
+        school_id=uuid4(),
+    )
+    if bank_account_holder.holder_user_id != "":
+        user_db = await cruds_users.get_user_by_id(
+            user_id=bank_account_holder.holder_user_id,
+            db=db,
+        )
+        if user_db is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Bank account holder user does not exist",
+            )
+        user_simple = schemas_users.CoreUserSimple(
+            id=user_db.id,
+            name=user_db.name,
+            firstname=user_db.firstname,
+            nickname=user_db.nickname,
+            account_type=user_db.account_type,
+            school_id=user_db.school_id,
+        )
+    return user_simple
+
+
+@router.post(
+    "/mypayment/bank-account-holder",
+    response_model=schemas_users.CoreUserSimple,
+    status_code=201,
+)
+async def set_bank_account_holder(
+    bank_account_info: MyPaymentBankAccountInformation,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user_in(GroupType.admin)),
+):
+    """Set the bank account holder information."""
+    if bank_account_info.holder_user_id == "":
+        raise HTTPException(
+            status_code=400,
+            detail="User ID cannot be empty",
+        )
+
+    user_db = await cruds_users.get_user_by_id(
+        user_id=bank_account_info.holder_user_id,
+        db=db,
+    )
+    if user_db is None:
+        raise HTTPException(
+            status_code=404,
+            detail="User does not exist",
+        )
+
+    await set_core_data(
+        bank_account_info,
+        db=db,
+    )
+
+    return schemas_users.CoreUserSimple(
+        id=user_db.id,
+        name=user_db.name,
+        firstname=user_db.firstname,
+        nickname=user_db.nickname,
+        account_type=user_db.account_type,
+        school_id=user_db.school_id,
+    )
 
 
 @router.get(
@@ -145,20 +245,20 @@ async def create_structure(
             status_code=404,
             detail="Manager user does not exist",
         )
-    structure_db = schemas_mypayment.Structure(
+    structure_db = schemas_mypayment.StructureSimple(
         id=uuid.uuid4(),
+        short_id=structure.short_id,
         name=structure.name,
         association_membership_id=structure.association_membership_id,
-        association_membership=None,
         manager_user_id=structure.manager_user_id,
-        manager_user=schemas_users.CoreUserSimple(
-            id=db_user.id,
-            name=db_user.name,
-            firstname=db_user.firstname,
-            nickname=db_user.nickname,
-            account_type=db_user.account_type,
-            school_id=db_user.school_id,
-        ),
+        siret=structure.siret,
+        iban=structure.iban,
+        bic=structure.bic,
+        siege_address_street=structure.siege_address_street,
+        siege_address_city=structure.siege_address_city,
+        siege_address_zipcode=structure.siege_address_zipcode,
+        siege_address_country=structure.siege_address_country,
+        creation=datetime.now(tz=UTC),
     )
     await cruds_mypayment.create_structure(
         structure=structure_db,
@@ -463,6 +563,7 @@ async def create_store(
         name=store.name,
         structure_id=structure_id,
         wallet_id=wallet_id,
+        creation=datetime.now(tz=UTC),
     )
     await cruds_mypayment.create_store(
         store=store_db,
@@ -494,6 +595,7 @@ async def create_store(
         name=store_db.name,
         structure_id=store_db.structure_id,
         wallet_id=store_db.wallet_id,
+        creation=store_db.creation,
         structure=structure,
     )
 
@@ -653,27 +755,8 @@ async def get_user_stores(
                     id=store.id,
                     name=store.name,
                     structure_id=store.structure_id,
-                    structure=schemas_mypayment.Structure(
-                        id=store.structure.id,
-                        name=store.structure.name,
-                        association_membership_id=store.structure.association_membership_id,
-                        association_membership=schemas_memberships.MembershipSimple(
-                            id=store.structure.association_membership.id,
-                            name=store.structure.association_membership.name,
-                            manager_group_id=store.structure.association_membership.manager_group_id,
-                        )
-                        if store.structure.association_membership is not None
-                        else None,
-                        manager_user_id=store.structure.manager_user_id,
-                        manager_user=schemas_users.CoreUserSimple(
-                            id=store.structure.manager_user.id,
-                            name=store.structure.manager_user.name,
-                            firstname=store.structure.manager_user.firstname,
-                            nickname=store.structure.manager_user.nickname,
-                            account_type=store.structure.manager_user.account_type,
-                            school_id=store.structure.manager_user.school_id,
-                        ),
-                    ),
+                    creation=store.creation,
+                    structure=structure_model_to_schema(store.structure),
                     wallet_id=store.wallet_id,
                     can_bank=seller.can_bank,
                     can_see_history=seller.can_see_history,
@@ -2468,6 +2551,436 @@ async def cancel_transaction(
             user_id=debited_wallet.user.id,
             message=message,
         )
+
+
+@router.get(
+    "/mypayment/invoices",
+    response_model=list[schemas_mypayment.Invoice],
+)
+async def get_invoices(
+    page: int | None = None,
+    page_size: int | None = None,
+    structures_ids: list[UUID] | None = Query(default=None),
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user_bank_account_holder),
+) -> list[schemas_mypayment.Invoice]:
+    """
+    Get all invoices.
+
+    **The user must be authenticated to use this endpoint**
+    """
+    return await cruds_mypayment.get_invoices(
+        db=db,
+        skip=(page - 1) * page_size if page and page_size else None,
+        limit=page_size,
+        start_date=start_date,
+        end_date=end_date,
+        structures_ids=structures_ids,
+    )
+
+
+@router.get(
+    "/mypayment/invoices/structures/{structure_id}",
+    response_model=list[schemas_mypayment.Invoice],
+)
+async def get_structure_invoices(
+    structure_id: UUID,
+    page: int | None = None,
+    page_size: int | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user()),
+) -> list[schemas_mypayment.Invoice]:
+    """
+    Get all invoices.
+
+    **The user must be the structure manager**
+    """
+    structure = await cruds_mypayment.get_structure_by_id(
+        structure_id=structure_id,
+        db=db,
+    )
+    if structure is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Structure does not exist",
+        )
+    if structure.manager_user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="User is not allowed to access this structure invoices",
+        )
+
+    return await cruds_mypayment.get_invoices(
+        db=db,
+        skip=(page - 1) * page_size if page and page_size else None,
+        limit=page_size,
+        start_date=start_date,
+        end_date=end_date,
+        structures_ids=[structure_id],
+    )
+
+
+@router.get(
+    "/mypayment/invoices/{invoice_id}",
+)
+async def download_invoice(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user()),
+):
+    invoice = await cruds_mypayment.get_invoice_by_id(invoice_id, db)
+    if invoice is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Invoice does not exist",
+        )
+    structure = await cruds_mypayment.get_structure_by_id(
+        structure_id=invoice.structure_id,
+        db=db,
+    )
+    if structure is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Structure does not exist",
+        )
+    bank_account_info = await get_core_data(
+        MyPaymentBankAccountInformation,
+        db,
+    )
+    if user.id not in (structure.manager_user_id, bank_account_info.holder_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not allowed to access this invoice",
+        )
+    return FileResponse(
+        path="mypayment/invoices/" + str(invoice.id),
+        filename=invoice.reference + ".pdf",
+        media_type="application/pdf",
+    )
+
+
+@router.post(
+    "/mypayment/invoices/structures/{structure_id}",
+    response_model=schemas_mypayment.Invoice,
+    status_code=201,
+)
+async def create_structure_invoice(
+    structure_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    token_data: schemas_auth.TokenData = Depends(get_token_data),
+):
+    """
+    Create an invoice for a structure.
+
+    **The user must be the bank account holder**
+    """
+    now = await cruds_core.start_isolation_mode(db)
+    # Database isolation requires to be the first statement of the transaction
+    # We can't use reguler dependencies to check user permissions as they access the database
+    user = await get_user_from_token_with_scopes(
+        scopes=[[ScopeType.API]],
+        db=db,
+        token_data=token_data,
+    )
+    bank_account_info = await get_core_data(
+        MyPaymentBankAccountInformation,
+        db,
+    )
+    if bank_account_info.holder_user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="User is not the bank account holder",
+        )
+    structure = await cruds_mypayment.get_structure_by_id(
+        structure_id=structure_id,
+        db=db,
+    )
+    if structure is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Structure does not exist",
+        )
+
+    stores = await cruds_mypayment.get_stores_by_structure_id(
+        structure_id=structure_id,
+        db=db,
+    )
+    invoice_details: list[schemas_mypayment.InvoiceDetailBase] = []
+    invoice_id = uuid.uuid4()
+
+    # We use a 30 seconds delay to avoid unstable transactions
+    # as they can be canceled during the 30 seconds after their creation
+    security_now = now - timedelta(seconds=30)
+    to_substract_transactions = await cruds_mypayment.get_transactions(
+        db=db,
+        start_date=security_now,
+        exclude_canceled=True,
+    )
+
+    for store in stores:
+        store_wallet_db = await cruds_mypayment.get_wallet(
+            wallet_id=store.wallet_id,
+            db=db,
+        )
+        if store_wallet_db is None:
+            hyperion_error_logger.error(
+                "MyECLPay: Could not find wallet associated with a store, this should never happen",
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Could not find wallet associated with the store",
+            )
+        store_wallet = schemas_mypayment.Wallet(
+            id=store_wallet_db.id,
+            type=store_wallet_db.type,
+            balance=store_wallet_db.balance,
+            user=None,
+            store=None,
+        )
+        for transaction in to_substract_transactions:
+            if transaction.credited_wallet_id == store_wallet.id:
+                store_wallet.balance -= transaction.total
+            elif transaction.debited_wallet_id == store_wallet.id:
+                store_wallet.balance += transaction.total
+        store_pending_invoices = (
+            await cruds_mypayment.get_unreceived_invoices_by_store_id(
+                store_id=store.id,
+                db=db,
+            )
+        )
+        for pending_invoice in store_pending_invoices:
+            store_wallet.balance -= pending_invoice.total
+        if store_wallet.balance != 0:
+            invoice_details.append(
+                schemas_mypayment.InvoiceDetailBase(
+                    invoice_id=invoice_id,
+                    store_id=store.id,
+                    store_name=store.name,
+                    wallet_id=store_wallet.id,
+                    total=store_wallet.balance,
+                ),
+            )
+    if not invoice_details:
+        raise HTTPException(
+            status_code=400,
+            detail="No invoice to create",
+        )
+    last_structure_invoice = await cruds_mypayment.get_last_structure_invoice(
+        structure_id=structure_id,
+        db=db,
+    )
+    last_invoice_number = (
+        int(last_structure_invoice.reference[-4:])
+        if last_structure_invoice
+        and int(last_structure_invoice.reference[5:9]) == security_now.year
+        else 0
+    )
+    invoice = schemas_mypayment.InvoiceInfo(
+        id=invoice_id,
+        reference=f"MYPAY{security_now.year}{structure.short_id}{last_invoice_number + 1:04d}",
+        structure_id=structure_id,
+        creation=datetime.now(UTC),
+        start_date=last_structure_invoice.end_date
+        if last_structure_invoice
+        else structure.creation,
+        end_date=security_now,
+        total=sum(detail.total for detail in invoice_details),
+        details=invoice_details,
+    )
+    await cruds_mypayment.create_invoice(
+        invoice=invoice,
+        db=db,
+    )
+    invoice_db = await cruds_mypayment.get_invoice_by_id(
+        invoice_id=invoice_id,
+        db=db,
+    )
+    if invoice_db is None:
+        hyperion_error_logger.error(
+            "MyECLPay: Could not find invoice after its creation, this should never happen",
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Could not find invoice after its creation",
+        )
+    context = {
+        "invoice": invoice_db.model_dump(),
+        "payment_name": settings.school.payment_name,
+        "holder_coordinates": bank_account_info.holder_coordinates.model_dump(),
+    }
+    await generate_pdf_from_template(
+        template_name="mypayment_invoice.html",
+        directory="mypayment/invoices",
+        filename=invoice.id,
+        context=context,
+    )
+    return invoice_db
+
+
+@router.patch(
+    "/mypayment/invoices/{invoice_id}/paid",
+    status_code=204,
+)
+async def update_invoice_paid_status(
+    invoice_id: UUID,
+    paid: bool,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user_bank_account_holder),
+):
+    """
+    Update the paid status of a structure invoice.
+
+    **The user must be the bank account holder**
+    """
+    hyperion_error_logger.debug(
+        f"User {user.id} requested to update the paid status of invoice {invoice_id} to {paid}",
+    )
+    invoice = await cruds_mypayment.get_invoice_by_id(
+        invoice_id=invoice_id,
+        db=db,
+    )
+    if invoice is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Invoice does not exist",
+        )
+    await cruds_mypayment.update_invoice_paid_status(
+        invoice_id=invoice.id,
+        paid=paid,
+        db=db,
+    )
+
+
+@router.patch(
+    "/mypayment/invoices/{invoice_id}/received",
+    status_code=204,
+)
+async def aknowledge_invoice_as_received(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user()),
+):
+    """
+    Update the received status of a structure invoice.
+
+    **The user must be the structure manager**
+    """
+    invoice = await cruds_mypayment.get_invoice_by_id(
+        invoice_id=invoice_id,
+        db=db,
+    )
+    if invoice is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Invoice does not exist",
+        )
+    if not invoice.paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot mark an invoice as received if it is not paid",
+        )
+    if invoice.received:
+        raise HTTPException(
+            status_code=400,
+            detail="Invoice is already marked as received",
+        )
+    structure = await cruds_mypayment.get_structure_by_id(
+        structure_id=invoice.structure_id,
+        db=db,
+    )
+    if structure is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Structure does not exist",
+        )
+    if structure.manager_user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="User is not allowed to edit this structure invoice",
+        )
+
+    await cruds_mypayment.update_invoice_received_status(
+        invoice_id=invoice.id,
+        db=db,
+    )
+    for detail in invoice.details:
+        store = await cruds_mypayment.get_store(
+            store_id=detail.store_id,
+            db=db,
+        )
+        if store is None:
+            hyperion_error_logger.error(
+                "MyECLPay: Could not find store associated with an invoice, this should never happen",
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Could not find store associated with the invoice",
+            )
+        await cruds_mypayment.increment_wallet_balance(
+            wallet_id=store.wallet_id,
+            amount=-detail.total,
+            db=db,
+        )
+        await cruds_mypayment.add_withdrawal(
+            schemas_mypayment.Withdrawal(
+                id=uuid.uuid4(),
+                wallet_id=store.wallet_id,
+                total=detail.total,
+                creation=datetime.now(UTC),
+            ),
+            db=db,
+        )
+
+        hyperion_mypayment_logger.info(
+            format_withdrawal_log(
+                wallet_id=store.wallet_id,
+                total=detail.total,
+            ),
+            extra={
+                "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+                "s3_retention": RETENTION_DURATION,
+            },
+        )
+
+
+@router.delete(
+    "/mypayment/invoices/{invoice_id}",
+    status_code=204,
+)
+async def delete_structure_invoice(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CoreUser = Depends(is_user_bank_account_holder),
+):
+    """
+    Delete a structure invoice.
+
+    **The user must be the bank account holder**
+    """
+    invoice = await cruds_mypayment.get_invoice_by_id(
+        invoice_id=invoice_id,
+        db=db,
+    )
+    if invoice is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Invoice does not exist",
+        )
+    if invoice.paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete an invoice that has already been paid",
+        )
+
+    await cruds_mypayment.delete_invoice(
+        invoice_id=invoice.id,
+        db=db,
+    )
 
 
 @router.get(
