@@ -2637,7 +2637,7 @@ async def download_invoice(
             detail="User is not allowed to access this invoice",
         )
     return FileResponse(
-        path="mypayment/invoices/" + str(invoice.id),
+        path=f"mypayment/invoices/{invoice_id}.pdf",
         filename=invoice.reference + ".pdf",
         media_type="application/pdf",
     )
