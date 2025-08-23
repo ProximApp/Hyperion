@@ -39,6 +39,8 @@ admin_user: models_users.CoreUser
 admin_user_token: str
 structure_manager_user: models_users.CoreUser
 structure_manager_user_token: str
+structure2_manager_user: models_users.CoreUser
+structure2_manager_user_token: str
 
 ecl_user: models_users.CoreUser
 ecl_user_access_token: str
@@ -109,7 +111,13 @@ async def init_objects() -> None:
     )
     await add_object_to_db(association_membership)
 
-    global structure_manager_user, structure_manager_user_token, structure, structure2
+    global \
+        structure_manager_user, \
+        structure_manager_user_token, \
+        structure, \
+        structure2_manager_user, \
+        structure2_manager_user_token, \
+        structure2
 
     structure_manager_user = await create_user_with_groups(groups=[])
     structure_manager_user_token = create_api_access_token(structure_manager_user)
@@ -136,6 +144,9 @@ async def init_objects() -> None:
             holder_structure_id=structure.id,
         ),
     )
+
+    structure2_manager_user = await create_user_with_groups(groups=[])
+    structure2_manager_user_token = create_api_access_token(structure2_manager_user)
 
     structure2 = models_mypayment.Structure(
         id=uuid4(),
@@ -2776,7 +2787,7 @@ async def test_transaction_refund_partial(client: TestClient):
 async def test_get_invoices_as_random_user(client: TestClient):
     response = client.get(
         "/mypayment/invoices",
-        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        headers={"Authorization": f"Bearer {structure2_manager_user_token}"},
     )
 
     assert response.status_code == 403
@@ -2864,7 +2875,7 @@ async def test_generate_invoice_as_structure_manager(
 ):
     response = client.post(
         f"/mypayment/invoices/structures/{structure.id}",
-        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        headers={"Authorization": f"Bearer {structure2_manager_user_token}"},
     )
 
     assert response.status_code == 403
@@ -2912,9 +2923,9 @@ async def test_update_invoice_paid_status_as_structure_manager(
     client: TestClient,
 ):
     response = client.patch(
-        f"/mypayment/invoices/{invoice2.id}/paid",
-        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
-        json={"paid": True},
+        f"/mypayment/invoices/{invoice3.id}/paid",
+        headers={"Authorization": f"Bearer {structure2_manager_user_token}"},
+        params={"paid": True},
     )
 
     assert response.status_code == 403
