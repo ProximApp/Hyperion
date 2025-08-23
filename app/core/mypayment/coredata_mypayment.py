@@ -13,7 +13,7 @@ class MyPaymentInvoiceCoordinates(BaseCoreData):
     name: str = ""
     address_street: str = ""
     address_city: str = ""
-    address_postal_code: str = ""
+    address_zipcode: str = ""
     address_country: str = ""
     siret: str | None = None
 

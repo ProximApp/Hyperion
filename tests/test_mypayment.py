@@ -118,7 +118,7 @@ async def init_objects() -> None:
                 name="Test Bank Account Holder",
                 address_street="123 Test Street",
                 address_city="Test City",
-                address_postal_code="12345",
+                address_zipcode="12345",
                 address_country="Test Country",
                 siret="12345678901234",
             ),
