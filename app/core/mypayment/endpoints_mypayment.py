@@ -15,7 +15,7 @@ from fastapi import (
     HTTPException,
     Query,
 )
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,6 +85,7 @@ from app.utils.mail.mailworker import send_email
 from app.utils.tools import (
     generate_pdf_from_template,
     get_core_data,
+    get_file_from_data,
     patch_identity_in_text,
     set_core_data,
 )
@@ -2636,11 +2637,17 @@ async def download_invoice(
             status_code=403,
             detail="User is not allowed to access this invoice",
         )
-    return FileResponse(
-        path=f"mypayment/invoices/{invoice_id}.pdf",
-        filename=invoice.reference + ".pdf",
-        media_type="application/pdf",
+    return get_file_from_data(
+        directory="mypayment/invoices",
+        filename=invoice_id,
     )
+
+
+# FileResponse(
+#         path=f"mypayment/invoices/{invoice_id}.pdf",
+#         filename=invoice.reference + ".pdf",
+#         media_type="application/pdf",
+#    )
 
 
 @router.post(
