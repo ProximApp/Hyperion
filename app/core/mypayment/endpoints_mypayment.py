@@ -34,6 +34,7 @@ from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountInformationComplete,
     is_user_bank_account_holder,
 )
+from app.core.mypayment.factory_mypayment import MyPaymentFactory
 from app.core.mypayment.integrity_mypayment import (
     format_cancel_log,
     format_refund_log,
@@ -95,7 +96,7 @@ core_module = CoreModule(
     tag="MyPayment",
     router=router,
     payment_callback=validate_transfer_callback,
-    factory=None,
+    factory=MyPaymentFactory(),
 )
 
 templates = Jinja2Templates(directory="assets/templates")
