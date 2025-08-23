@@ -32,8 +32,8 @@ from app.core.mypayment import cruds_mypayment, schemas_mypayment
 from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountHolder,
     MyPaymentBankAccountInformationComplete,
-    is_user_bank_account_holder,
 )
+from app.core.mypayment.dependencies_mypayment import is_user_bank_account_holder
 from app.core.mypayment.factory_mypayment import MyPaymentFactory
 from app.core.mypayment.integrity_mypayment import (
     format_cancel_log,
