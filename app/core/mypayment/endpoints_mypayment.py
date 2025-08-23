@@ -115,7 +115,7 @@ RETENTION_DURATION = 10 * 365  # 10 years in days
 
 
 @router.get(
-    "/mypayment/bank-account-information",
+    "/mypayment/bank-account-holder",
     response_model=MyPaymentBankAccountInformationComplete,
     status_code=200,
 )
