@@ -2788,10 +2788,18 @@ async def create_structure_invoice(
             status_code=500,
             detail="Could not find invoice after its creation",
         )
+
     context = {
         "invoice": invoice_db.model_dump(),
         "payment_name": settings.school.payment_name,
-        "holder_coordinates": bank_account_info.holder_coordinates.model_dump(),
+        "holder_coordinates": {
+            "name": bank_account_info.holder_structure.name,
+            "address_street": bank_account_info.holder_structure.siege_address_street,
+            "address_city": bank_account_info.holder_structure.siege_address_city,
+            "address_zipcode": bank_account_info.holder_structure.siege_address_zipcode,
+            "address_country": bank_account_info.holder_structure.siege_address_country,
+            "siret": bank_account_info.holder_structure.siret,
+        },
     }
     await generate_pdf_from_template(
         template_name="mypayment_invoice.html",
