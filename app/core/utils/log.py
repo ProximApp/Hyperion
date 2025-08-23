@@ -149,7 +149,7 @@ class LogConfig:
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
                     "folder": "mypayment"
-                    if settings.S3_DIRECTORY is None
+                    if not settings.S3_DIRECTORY
                     else settings.S3_DIRECTORY + "/mypayment",
                 },
                 "s3": {
@@ -160,7 +160,7 @@ class LogConfig:
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
                     "folder": ""
-                    if settings.S3_DIRECTORY is None
+                    if not settings.S3_DIRECTORY
                     else settings.S3_DIRECTORY,
                 },
                 # There is a handler per log file #
