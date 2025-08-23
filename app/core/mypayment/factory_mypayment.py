@@ -63,7 +63,6 @@ class MyPaymentFactory(Factory):
                 ),
                 db,
             )
-        await db.flush()
 
     @classmethod
     async def create_other_structures_stores(cls, db: AsyncSession):
@@ -94,15 +93,16 @@ class MyPaymentFactory(Factory):
             cls.other_stores_id.append(structure_store_ids)
             cls.other_stores_wallet_id.append(structure_wallet_ids)
 
-    async def create_other_structures_invoices(self, db: AsyncSession):
-        for i, structure_id in enumerate(self.other_structures_id):
+    @classmethod
+    async def create_other_structures_invoices(cls, db: AsyncSession):
+        for i, structure_id in enumerate(cls.other_structures_id):
             invoice_id = uuid.uuid4()
             await cruds_mypayment.create_invoice(
                 schemas_mypayment.InvoiceInfo(
                     id=invoice_id,
                     structure_id=structure_id,
                     reference=faker.bothify(text="MYPAY2025???####"),
-                    total=1000 * len(self.other_stores_id[i]),
+                    total=1000 * len(cls.other_stores_id[i]),
                     paid=False,
                     received=False,
                     start_date=datetime.now(UTC) - timedelta(days=30),
@@ -114,7 +114,7 @@ class MyPaymentFactory(Factory):
                             store_id=store_id,
                             total=1000,
                         )
-                        for store_id in self.other_stores_id[i]
+                        for store_id in cls.other_stores_id[i]
                     ],
                 ),
                 db,
@@ -124,6 +124,7 @@ class MyPaymentFactory(Factory):
     async def run(cls, db: AsyncSession, settings: Settings) -> None:
         await cls.create_structures(db)
         await cls.create_other_structures_stores(db)
+        await cls.create_other_structures_invoices(db)
 
     @classmethod
     async def should_run(cls, db: AsyncSession):
