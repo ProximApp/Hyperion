@@ -40,29 +40,30 @@ class MyPaymentFactory(Factory):
                     siege_address_zipcode=faker.postcode(),
                     siege_address_country=faker.country(),
                     iban=faker.iban(),
-                    bic=faker.bic(),
+                    bic="".join(faker.random_letters(11)).upper(),
                     creation=datetime.now(UTC),
                 ),
                 db,
             )
         cls.other_structures_id = [uuid.uuid4() for _ in range(OTHER_STRUCTURES)]
-        for user_id in CoreUsersFactory.other_users_id[:OTHER_STRUCTURES]:
+        for i, structure_id in enumerate(cls.other_structures_id):
             await cruds_mypayment.create_structure(
                 schemas_mypayment.StructureSimple(
-                    id=uuid.uuid4(),
+                    id=structure_id,
                     short_id="".join(faker.random_letters(3)).upper(),
                     name=faker.company(),
-                    manager_user_id=user_id,
+                    manager_user_id=CoreUsersFactory.other_users_id[i],
                     siege_address_street=faker.street_address(),
                     siege_address_city=faker.city(),
                     siege_address_zipcode=faker.postcode(),
                     siege_address_country=faker.country(),
                     iban=faker.iban(),
-                    bic=faker.bic(),
+                    bic="".join(faker.random_letters(11)).upper(),
                     creation=datetime.now(UTC),
                 ),
                 db,
             )
+        await db.flush()
 
     @classmethod
     async def create_other_structures_stores(cls, db: AsyncSession):
