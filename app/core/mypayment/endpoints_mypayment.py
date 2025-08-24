@@ -31,7 +31,6 @@ from app.core.memberships.utils_memberships import (
 from app.core.mypayment import cruds_mypayment, schemas_mypayment
 from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountHolder,
-    MyPaymentBankAccountInformationComplete,
 )
 from app.core.mypayment.dependencies_mypayment import is_user_bank_account_holder
 from app.core.mypayment.exceptions_mypayment import (
@@ -148,7 +147,7 @@ async def get_bank_account_holder(
 
 @router.post(
     "/mypayment/bank-account-holder",
-    response_model=MyPaymentBankAccountInformationComplete,
+    response_model=schemas_mypayment.Structure,
     status_code=201,
 )
 async def set_bank_account_holder(
@@ -173,10 +172,7 @@ async def set_bank_account_holder(
         db=db,
     )
 
-    return MyPaymentBankAccountInformationComplete(
-        holder_structure_id=bank_account_info.holder_structure_id,
-        holder_structure=structure,
-    )
+    return structure
 
 
 @router.get(
