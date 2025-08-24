@@ -179,6 +179,7 @@ async def get_variables(settings: Settings = Depends(get_settings)):
         name=settings.school.application_name,
         entity_name=settings.school.entity_name,
         email_placeholder=settings.school.email_placeholder,
+        main_activation_form=settings.school.main_activation_form,
         # `as_hsl()` return a string in the format `hsl(hue saturation lightness)`, we need to convert it to `24.6 95% 53.1%` for TailwindCSS
         primary_color=settings.school.primary_color.as_hsl()[4:-1],
     )

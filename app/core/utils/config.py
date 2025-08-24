@@ -17,6 +17,7 @@ from pydantic_settings import (
 )
 
 from app.core.checkout.types_checkout import HelloAssoConfig, HelloAssoConfigName
+from app.core.core_endpoints.schemas_core import MainActivationForm
 from app.types.exceptions import (
     DotenvInvalidAuthClientNameInError,
     DotenvInvalidVariableError,
@@ -53,6 +54,8 @@ class School(BaseModel):
     primary_color: Color
     # Email placeholder
     email_placeholder: str
+    # Main activation form configuration
+    main_activation_form: MainActivationForm
 
     # Regex for email account type validation
     # On registration, user whose email match these regex will be automatically assigned to the corresponding account type
