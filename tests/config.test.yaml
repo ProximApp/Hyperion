@@ -81,6 +81,18 @@ school:
   entity_email: "eclair@myecl.fr"
   end_of_support: "2025-08-25"
   email_placeholder: prenom.nom@etu.ec-lyon.fr
+  main_activation_form:
+    fields:
+      - "birthdate"
+      - "promotion"
+      - "phone"
+      - "floor"
+    floor_choices:
+      - "T1"
+      - "T2"
+      - "T3"
+      - "Adoma"
+      - "Exté"
 
   primary_color: "#F97315"
 
