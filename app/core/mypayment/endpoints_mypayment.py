@@ -15,7 +15,7 @@ from fastapi import (
     HTTPException,
     Query,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +34,10 @@ from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountInformationComplete,
 )
 from app.core.mypayment.dependencies_mypayment import is_user_bank_account_holder
+from app.core.mypayment.exceptions_mypayment import (
+    InvoiceNotFoundAfterCreationError,
+    ReferencedStructureNotFoundError,
+)
 from app.core.mypayment.factory_mypayment import MyPaymentFactory
 from app.core.mypayment.integrity_mypayment import (
     format_cancel_log,
@@ -117,7 +121,7 @@ RETENTION_DURATION = 10 * 365  # 10 years in days
 
 @router.get(
     "/mypayment/bank-account-holder",
-    response_model=MyPaymentBankAccountInformationComplete,
+    response_model=schemas_mypayment.Structure,
     status_code=200,
 )
 async def get_bank_account_holder(
@@ -136,11 +140,10 @@ async def get_bank_account_holder(
         structure_id=bank_account_holder.holder_structure_id,
     )
     if structure is None:
-        raise ValueError
-    return MyPaymentBankAccountInformationComplete(
-        holder_structure_id=bank_account_holder.holder_structure_id,
-        holder_structure=structure,
-    )
+        raise ReferencedStructureNotFoundError(
+            structure_id=bank_account_holder.holder_structure_id,
+        )
+    return structure
 
 
 @router.post(
@@ -2604,6 +2607,7 @@ async def get_structure_invoices(
 
 @router.get(
     "/mypayment/invoices/{invoice_id}",
+    response_model=FileResponse,
 )
 async def download_invoice(
     invoice_id: UUID,
@@ -2643,13 +2647,6 @@ async def download_invoice(
     )
 
 
-# FileResponse(
-#         path=f"mypayment/invoices/{invoice_id}.pdf",
-#         filename=invoice.reference + ".pdf",
-#         media_type="application/pdf",
-#    )
-
-
 @router.post(
     "/mypayment/invoices/structures/{structure_id}",
     response_model=schemas_mypayment.Invoice,
@@ -2674,11 +2671,11 @@ async def create_structure_invoice(
         db=db,
         token_data=token_data,
     )
-    bank_account_info = await get_bank_account_holder(
+    bank_holder_structure = await get_bank_account_holder(
         user=user,
         db=db,
     )
-    if bank_account_info.holder_structure.manager_user_id != user.id:
+    if bank_holder_structure.manager_user_id != user.id:
         raise HTTPException(
             status_code=403,
             detail="User is not the bank account holder",
@@ -2788,24 +2785,18 @@ async def create_structure_invoice(
         db=db,
     )
     if invoice_db is None:
-        hyperion_error_logger.error(
-            "MyECLPay: Could not find invoice after its creation, this should never happen",
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Could not find invoice after its creation",
-        )
+        raise InvoiceNotFoundAfterCreationError(invoice_id=invoice_id)
 
     context = {
         "invoice": invoice_db.model_dump(),
         "payment_name": settings.school.payment_name,
         "holder_coordinates": {
-            "name": bank_account_info.holder_structure.name,
-            "address_street": bank_account_info.holder_structure.siege_address_street,
-            "address_city": bank_account_info.holder_structure.siege_address_city,
-            "address_zipcode": bank_account_info.holder_structure.siege_address_zipcode,
-            "address_country": bank_account_info.holder_structure.siege_address_country,
-            "siret": bank_account_info.holder_structure.siret,
+            "name": bank_holder_structure.name,
+            "address_street": bank_holder_structure.siege_address_street,
+            "address_city": bank_holder_structure.siege_address_city,
+            "address_zipcode": bank_holder_structure.siege_address_zipcode,
+            "address_country": bank_holder_structure.siege_address_country,
+            "siret": bank_holder_structure.siret,
         },
     }
     await generate_pdf_from_template(
