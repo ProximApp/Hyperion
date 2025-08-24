@@ -2607,7 +2607,7 @@ async def get_structure_invoices(
 
 @router.get(
     "/mypayment/invoices/{invoice_id}",
-    response_model=FileResponse,
+    response_class=FileResponse,
 )
 async def download_invoice(
     invoice_id: UUID,
