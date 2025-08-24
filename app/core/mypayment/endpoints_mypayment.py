@@ -2631,7 +2631,7 @@ async def download_invoice(
     )
     if user.id not in (
         structure.manager_user_id,
-        bank_account_info.holder_structure.manager_user_id,
+        bank_account_info.manager_user_id,
     ):
         raise HTTPException(
             status_code=403,
