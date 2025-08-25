@@ -14,6 +14,7 @@ from tests.commons import (
     create_user_with_groups,
 )
 
+super_admin_user: models_users.CoreUser
 admin_user: models_users.CoreUser
 ens_user: models_users.CoreUser
 fake_ens_user: models_users.CoreUser
@@ -26,7 +27,7 @@ id_test_ens = UUID("4d133de7-24c4-4dbc-be73-4705a2ddd315")
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
-    global admin_user, ens_user, fake_ens_user, new_school_user
+    global super_admin_user, admin_user, ens_user, fake_ens_user, new_school_user
 
     ens = models_schools.CoreSchool(
         id=id_test_ens,
@@ -35,7 +36,11 @@ async def init_objects() -> None:
     )
     await add_object_to_db(ens)
 
-    admin_user = await create_user_with_groups([GroupType.admin])
+    super_admin_user = await create_user_with_groups([], is_super_admin=True)
+
+    admin_user = await create_user_with_groups(
+        [GroupType.admin],
+    )
 
     ens_user = await create_user_with_groups(
         [],
@@ -59,7 +64,7 @@ async def init_objects() -> None:
 
 
 def test_read_schools(client: TestClient) -> None:
-    token = create_api_access_token(admin_user)
+    token = create_api_access_token(super_admin_user)
 
     response = client.get(
         "/schools/",
@@ -69,7 +74,7 @@ def test_read_schools(client: TestClient) -> None:
 
 
 def test_read_school(client: TestClient) -> None:
-    token = create_api_access_token(admin_user)
+    token = create_api_access_token(super_admin_user)
 
     response = client.get(
         f"/schools/{id_test_ens}",
@@ -81,7 +86,7 @@ def test_read_school(client: TestClient) -> None:
 
 
 def test_create_school_with_used_name(client: TestClient) -> None:
-    token = create_api_access_token(admin_user)
+    token = create_api_access_token(super_admin_user)
 
     response = client.post(
         "/schools/",
@@ -95,6 +100,7 @@ def test_create_school_with_used_name(client: TestClient) -> None:
 
 
 def test_create_school(client: TestClient) -> None:
+    super_token = create_api_access_token(super_admin_user)
     token = create_api_access_token(admin_user)
 
     school = client.post(
@@ -103,7 +109,7 @@ def test_create_school(client: TestClient) -> None:
             "name": "school",
             "email_regex": r"^.*@school\.fr$",
         },
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     assert school.status_code == 201
 
@@ -116,29 +122,30 @@ def test_create_school(client: TestClient) -> None:
 
 
 def test_update_school_with_used_name(client: TestClient) -> None:
-    token = create_api_access_token(admin_user)
+    token = create_api_access_token(super_admin_user)
 
     response = client.patch(
         f"/schools/{id_test_ens}",
-        json={"name": "centrale_lyon"},
+        json={"name": "base_school"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
 
 
 def test_update_school(client: TestClient) -> None:
+    super_token = create_api_access_token(super_admin_user)
     token = create_api_access_token(admin_user)
 
     response = client.patch(
         f"/schools/{id_test_ens}",
         json={"name": "school ENS", "email_regex": r"^.*@ens.fr$"},
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     assert response.status_code == 204
 
     response = client.get(
         f"/schools/{id_test_ens}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     data = response.json()
     assert data["name"] == "school ENS"
@@ -162,6 +169,7 @@ def test_create_user_corresponding_to_school(
     mocker: MockerFixture,
     client: TestClient,
 ) -> None:
+    super_token = create_api_access_token(super_admin_user)
     token = create_api_access_token(admin_user)
 
     response = client.post(
@@ -170,7 +178,7 @@ def test_create_user_corresponding_to_school(
             "name": "ENS Lyon",
             "email_regex": r"^[\w\-.]*@ens-lyon\.fr$",
         },
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     assert response.status_code == 201
     school_id = response.json()["id"]
@@ -219,27 +227,28 @@ def test_create_user_corresponding_to_school(
 
 
 def test_delete_base_school(client: TestClient) -> None:
-    token = create_api_access_token(admin_user)
+    token = create_api_access_token(super_admin_user)
 
     response = client.delete(
-        f"/schools/{SchoolType.centrale_lyon.value}",
+        f"/schools/{SchoolType.base_school.value}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
 
 
 def test_delete_school(client: TestClient) -> None:
+    super_token = create_api_access_token(super_admin_user)
     token = create_api_access_token(admin_user)
 
     response = client.delete(
         f"/schools/{id_test_ens}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     assert response.status_code == 204
 
     response = client.get(
         f"/schools/{id_test_ens}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {super_token}"},
     )
     assert response.status_code == 404
     assert response.json() == {"detail": "School not found"}

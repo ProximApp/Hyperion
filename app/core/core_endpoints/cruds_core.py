@@ -1,5 +1,6 @@
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,13 +10,59 @@ from app.core.groups.groups_type import AccountType
 from app.core.users import models_users
 
 
+async def add_queued_email(
+    email: str,
+    subject: str,
+    body: str,
+    db: AsyncSession,
+) -> None:
+    email_queue = models_core.EmailQueue(
+        id=UUID(),
+        email=email,
+        subject=subject,
+        body=body,
+        created_on=datetime.now(UTC),
+    )
+    db.add(email_queue)
+
+
+async def get_queued_emails(
+    db: AsyncSession,
+    limit: int,
+) -> Sequence[models_core.EmailQueue]:
+    """
+    Get a list of emails in the queue, ordered by creation date.
+    This is used to send emails in the background.
+    """
+    result = await db.execute(
+        select(models_core.EmailQueue)
+        .order_by(models_core.EmailQueue.created_on)
+        .limit(limit),
+    )
+    return result.scalars().all()
+
+
+async def delete_queued_email(
+    queued_email_ids: list[UUID],
+    db: AsyncSession,
+) -> None:
+    """
+    Delete emails from the queue by their IDs.
+    This is used to remove emails that have been sent or are no longer needed.
+    """
+    await db.execute(
+        delete(models_core.EmailQueue).where(
+            models_core.EmailQueue.id.in_(queued_email_ids),
+        ),
+    )
+    await db.flush()
+
+
 async def get_modules_by_user(
     user: models_users.CoreUser,
     db: AsyncSession,
 ) -> list[str]:
     """Return the modules a user has access to"""
-
-    userGroupIds = [group.id for group in user.groups]
 
     result_group = list(
         (
@@ -23,7 +70,7 @@ async def get_modules_by_user(
                 select(models_core.ModuleGroupVisibility.root)
                 .where(
                     models_core.ModuleGroupVisibility.allowed_group_id.in_(
-                        userGroupIds,
+                        user.group_ids,
                     ),
                 )
                 .group_by(models_core.ModuleGroupVisibility.root),

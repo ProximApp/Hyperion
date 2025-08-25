@@ -38,6 +38,7 @@ class CoreUser(Base):
     phone: Mapped[str | None]
     floor: Mapped[FloorsType | None]
     created_on: Mapped[datetime | None]
+    is_super_admin: Mapped[bool] = mapped_column(default=False)
 
     # We use list["CoreGroup"] with quotes as CoreGroup is only defined after this class
     # Defining CoreUser after CoreGroup would cause a similar issue
@@ -63,6 +64,10 @@ class CoreUser(Base):
             return f"{self.firstname} {self.name} ({self.nickname})"
         return f"{self.firstname} {self.name}"
 
+    @property
+    def group_ids(self) -> list[str]:
+        return [group.id for group in self.groups]
+
 
 class CoreUserUnconfirmed(Base):
     __tablename__ = "core_user_unconfirmed"
@@ -76,6 +81,25 @@ class CoreUserUnconfirmed(Base):
     activation_token: Mapped[str]
     created_on: Mapped[datetime]
     expire_on: Mapped[datetime]
+
+    # Users will be automatically added to this group when they activate their account
+    default_group_id: Mapped[str | None] = mapped_column(
+        ForeignKey("core_group.id"),
+    )
+
+
+class CoreUserInvitation(Base):
+    """
+    Registration can be limited to specific invited users.
+    """
+
+    __tablename__ = "core_user_invitation"
+
+    email: Mapped[str] = mapped_column(primary_key=True)
+
+    default_group_id: Mapped[str | None] = mapped_column(
+        ForeignKey("core_group.id"),
+    )
 
 
 class CoreUserRecoverRequest(Base):

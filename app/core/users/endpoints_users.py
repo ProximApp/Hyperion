@@ -20,27 +20,33 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import cruds_auth
+from app.core.core_endpoints import cruds_core
 from app.core.groups import cruds_groups, models_groups
 from app.core.groups.groups_type import AccountType, GroupType
+from app.core.notification.utils_notification import get_user_notification_topics
 from app.core.schools.schools_type import SchoolType
 from app.core.users import cruds_users, models_users, schemas_users
+from app.core.users.factory_users import CoreUsersFactory
 from app.core.users.tools_users import get_account_type_and_school_id_from_email
 from app.core.utils import security
 from app.core.utils.config import Settings
 from app.dependencies import (
     get_db,
     get_mail_templates,
+    get_notification_manager,
     get_request_id,
     get_settings,
     is_user,
-    is_user_an_ecl_member,
+    is_user_a_school_member,
     is_user_in,
+    is_user_super_admin,
 )
 from app.types import standard_responses
 from app.types.content_type import ContentType
 from app.types.exceptions import UserWithEmailAlreadyExistError
 from app.types.module import CoreModule
 from app.types.s3_access import S3Access
+from app.utils.communication.notifications import NotificationManager
 from app.utils.mail.mailworker import send_email
 from app.utils.tools import (
     create_and_send_email_migration,
@@ -55,6 +61,7 @@ core_module = CoreModule(
     root="users",
     tag="Users",
     router=router,
+    factory=CoreUsersFactory(),
 )
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
@@ -115,7 +122,7 @@ async def search_users(
     includedGroups: list[str] = Query(default=[]),
     excludedGroups: list[str] = Query(default=[]),
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_an_ecl_member),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
 ):
     """
     Search for a user using Jaro_Winkler distance algorithm.
@@ -204,7 +211,7 @@ async def create_user_by_user(
             background_tasks.add_task(
                 send_email,
                 recipient=user_create.email,
-                subject="MyECL - your account already exists",
+                subject=f"{settings.school.application_name} - your account already exists",
                 content=mail,
                 settings=settings,
             )
@@ -212,10 +219,39 @@ async def create_user_by_user(
         # Fail silently: the user should not be informed that a user with the email address already exist.
         return standard_responses.Result(success=True)
 
+    default_group_id: str | None = None
+    if not settings.ALLOW_SELF_REGISTRATION:
+        # If self registration is disabled, we want to check if the user was invited
+        db_invitation = await cruds_users.get_user_invitation_by_email(
+            email=user_create.email,
+            db=db,
+        )
+
+        if db_invitation is None:
+            # If the user was not invited, we can not create a new account
+            hyperion_security_logger.warning(
+                f"Create_user: {user_create.email} was not invited ({request_id})",
+            )
+            if settings.SMTP_ACTIVE:
+                mail = mail_templates.get_mail_account_invitation_required()
+                background_tasks.add_task(
+                    send_email,
+                    recipient=user_create.email,
+                    subject=f"{settings.school.application_name} - you need an invitation to create an account",
+                    content=mail,
+                    settings=settings,
+                )
+
+            # Fail silently: the user should not be informed if this email was invited
+            return standard_responses.Result(success=True)
+
+        default_group_id = db_invitation.default_group_id
+
     # There might be an unconfirmed user in the database but its not an issue. We will generate a second activation token.
 
     await create_user(
         email=user_create.email,
+        default_group_id=default_group_id,
         background_tasks=background_tasks,
         db=db,
         settings=settings,
@@ -248,6 +284,8 @@ async def batch_create_users(
 
     The endpoint return a dictionary of unsuccessful user creation: `{email: error message}`.
 
+    NOTE: the activation link will only be valid for a limited time. You should probably use `/users/batch-invitation` endpoint instead, which will send an invitation email to the user.
+
     **This endpoint is only usable by administrators**
     """
 
@@ -262,6 +300,7 @@ async def batch_create_users(
                 settings=settings,
                 request_id=request_id,
                 mail_templates=mail_templates,
+                default_group_id=user_create.default_group_id,
             )
         except Exception as error:
             failed[user_create.email] = str(error)
@@ -269,8 +308,69 @@ async def batch_create_users(
     return standard_responses.BatchResult(failed=failed)
 
 
+@router.post(
+    "/users/batch-invitation",
+    response_model=standard_responses.BatchResult,
+    status_code=201,
+)
+async def batch_invite_users(
+    user_invites: list[schemas_users.CoreBatchUserCreateRequest],
+    db: AsyncSession = Depends(get_db),
+    mail_templates: calypsso.MailTemplates = Depends(get_mail_templates),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    settings: Settings = Depends(get_settings),
+):
+    """
+    Batch user account invitation process. All users will be sent an email encouraging them to create an account.
+    These emails will be whitelisted in Hyperion. If self registration is disabled only whitelisted emails will be able to create an account.
+
+    The endpoint return a dictionary of unsuccessful user creation: `{email: error message}`.
+
+    **This endpoint is only usable by administrators**
+    """
+
+    failed = {}
+
+    already_invited_emails = await cruds_users.get_user_invitation_by_emails(
+        db=db,
+        emails=[user_invite.email for user_invite in user_invites],
+    )
+    for email in already_invited_emails:
+        failed[email] = "User already invited"
+
+    for user_invite in user_invites:
+        if user_invite.email in failed:
+            # If the user was already invited, we skip it
+            continue
+        try:
+            await cruds_users.create_invitation(
+                email=user_invite.email,
+                default_group_id=user_invite.default_group_id,
+                db=db,
+            )
+
+            creation_url = settings.CLIENT_URL + calypsso.get_register_relative_url(
+                external=True,
+                email=user_invite.email,
+            )
+
+            await cruds_core.add_queued_email(
+                email=user_invite.email,
+                subject=f"{settings.school.application_name} - you have been invited to create an account on MyECL",
+                body=mail_templates.get_mail_account_invitation(
+                    creation_url=creation_url,
+                ),
+                db=db,
+            )
+        except Exception as error:
+            failed[user_invite.email] = str(error)
+
+    return standard_responses.BatchResult(failed=failed)
+
+
 async def create_user(
     email: str,
+    default_group_id: str | None,
     background_tasks: BackgroundTasks,
     db: AsyncSession,
     settings: Settings,
@@ -299,6 +399,7 @@ async def create_user(
         created_on=datetime.now(UTC),
         expire_on=datetime.now(UTC)
         + timedelta(hours=settings.USER_ACTIVATION_TOKEN_EXPIRE_HOURS),
+        default_group_id=default_group_id,
     )
 
     await cruds_users.create_unconfirmed_user(user_unconfirmed=user_unconfirmed, db=db)
@@ -309,6 +410,7 @@ async def create_user(
     account_type, school_id = await get_account_type_and_school_id_from_email(
         email=email,
         db=db,
+        settings=settings,
     )
 
     calypsso_activate_url = settings.CLIENT_URL + calypsso.get_activate_relative_url(
@@ -326,7 +428,7 @@ async def create_user(
         background_tasks.add_task(
             send_email,
             recipient=email,
-            subject="MyECL - confirm your email",
+            subject=f"{settings.school.application_name} - confirm your email",
             content=mail,
             settings=settings,
         )
@@ -349,6 +451,7 @@ async def activate_user(
     db: AsyncSession = Depends(get_db),
     request_id: str = Depends(get_request_id),
     settings: Settings = Depends(get_settings),
+    notification_manager: NotificationManager = Depends(get_notification_manager),
 ):
     """
     Activate the previously created account.
@@ -390,6 +493,7 @@ async def activate_user(
     account_type, school_id = await get_account_type_and_school_id_from_email(
         email=unconfirmed_user.email,
         db=db,
+        settings=settings,
     )
     # A password should have been provided
     password_hash = security.get_password_hash(user.password)
@@ -418,6 +522,19 @@ async def activate_user(
         email=unconfirmed_user.email,
     )
 
+    await db.flush()
+
+    if unconfirmed_user.default_group_id:
+        # If the user was invited, we add him to the group he was invited to
+        await cruds_groups.create_membership(
+            db=db,
+            membership=models_groups.CoreMembership(
+                user_id=confirmed_user.id,
+                group_id=unconfirmed_user.default_group_id,
+                description=None,
+            ),
+        )
+
     hyperion_security_logger.info(
         f"Activate_user: Activated user {confirmed_user.id} (email: {confirmed_user.email}) ({request_id})",
     )
@@ -427,6 +544,15 @@ async def activate_user(
         confirmed_user.email,
         {"s3_filename": confirmed_user.id, "s3_subfolder": S3_USER_SUBFOLDER},
     )
+
+    # We want to subscribe the user to all topics by default
+    topics = await get_user_notification_topics(user=confirmed_user, db=db)
+    for topic in topics:
+        await notification_manager.subscribe_user_to_topic(
+            topic_id=topic.id,
+            user_id=confirmed_user.id,
+            db=db,
+        )
 
     return standard_responses.Result()
 
@@ -453,7 +579,9 @@ async def init_s3_for_users(
     # We need to use the S3Access class to get the files in the bucket
     s3_access = S3Access(
         failure_logger="hyperion.error",
-        folder="users",
+        folder="users"
+        if settings.S3_DIRECTORY is None
+        else settings.S3_DIRECTORY + "/users",
         s3_bucket_name=settings.S3_BUCKET_NAME,
         s3_access_key_id=settings.S3_ACCESS_KEY_ID,
         s3_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
@@ -495,14 +623,7 @@ async def make_admin(
         )
 
     try:
-        await cruds_groups.create_membership(
-            db=db,
-            membership=models_groups.CoreMembership(
-                user_id=users[0].id,
-                group_id=GroupType.admin,
-                description=None,
-            ),
-        )
+        await cruds_users.update_user_as_super_admin(db=db, user_id=users[0].id)
     except Exception as error:
         raise HTTPException(
             status_code=400,
@@ -546,7 +667,7 @@ async def recover_user(
             )
             send_email(
                 recipient=email,
-                subject="MyECL - reset your password",
+                subject=f"{settings.school.application_name} - reset your password",
                 content=mail,
                 settings=settings,
             )
@@ -584,7 +705,7 @@ async def recover_user(
             )
             send_email(
                 recipient=db_user.email,
-                subject="MyECL - reset your password",
+                subject=f"{settings.school.application_name} - reset your password",
                 content=mail,
                 settings=settings,
             )
@@ -676,7 +797,7 @@ async def migrate_mail(
             mail = mail_templates.get_mail_mail_migration_already_exist()
             send_email(
                 recipient=mail_migration.new_email,
-                subject="MyECL - Confirm your new email address",
+                subject=f"{settings.school.application_name} - Confirm your new email address",
                 content=mail,
                 settings=settings,
             )
@@ -686,6 +807,7 @@ async def migrate_mail(
     _, new_school_id = await get_account_type_and_school_id_from_email(
         email=mail_migration.new_email,
         db=db,
+        settings=settings,
     )
     if user.school_id is not SchoolType.no_school and user.school_id != new_school_id:
         raise HTTPException(
@@ -711,6 +833,7 @@ async def migrate_mail(
 async def migrate_mail_confirm(
     token: str,
     db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ):
     """
     This endpoint will updates the user new email address.
@@ -754,6 +877,7 @@ async def migrate_mail_confirm(
     account, new_school_id = await get_account_type_and_school_id_from_email(
         email=migration_object.new_email,
         db=db,
+        settings=settings,
     )
 
     await cruds_users.update_user(
@@ -944,7 +1068,7 @@ async def merge_users(
     background_tasks.add_task(
         send_email,
         recipient=[user_kept.email, user_deleted.email],
-        subject="MyECL - Accounts merged",
+        subject=f"{settings.school.application_name} - Accounts merged",
         content=mail,
         settings=settings,
     )
@@ -975,6 +1099,27 @@ async def update_user(
     await cruds_users.update_user(db=db, user_id=user_id, user_update=user_update)
 
 
+@router.patch(
+    "/users/{user_id}/super-admin",
+    status_code=204,
+)
+async def update_user_as_super_admin(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
+):
+    """
+    Update an user, the request should contain a JSON with the fields to change (not necessarily all fields) and their new value
+
+    **This endpoint is only usable by administrators**
+    """
+    db_user = await cruds_users.get_user_by_id(db=db, user_id=user_id)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await cruds_users.update_user_as_super_admin(db=db, user_id=user_id)
+
+
 @router.post(
     "/users/me/profile-picture",
     response_model=standard_responses.Result,
@@ -983,7 +1128,6 @@ async def update_user(
 async def create_current_user_profile_picture(
     image: UploadFile = File(...),
     user: models_users.CoreUser = Depends(is_user()),
-    request_id: str = Depends(get_request_id),
 ):
     """
     Upload a profile picture for the current user.
@@ -994,7 +1138,7 @@ async def create_current_user_profile_picture(
     await save_file_as_data(
         upload_file=image,
         directory="profile-pictures",
-        filename=str(user.id),
+        filename=user.id,
         max_file_size=4 * 1024 * 1024,
         accepted_content_types=[
             ContentType.jpg,
