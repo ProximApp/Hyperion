@@ -1,34 +1,31 @@
-import logging
-from os import path
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.core_endpoints import cruds_core, models_core, schemas_core
-from app.core.groups.groups_type import AccountType, GroupType
+from app.core.groups.groups_type import AccountType
 from app.core.users import models_users
 from app.core.utils.config import Settings
 from app.dependencies import (
     get_db,
     get_settings,
     is_user,
-    is_user_in,
+    is_user_super_admin,
 )
-from app.modules.module_list import module_list
+from app.module import module_list
 from app.types.module import CoreModule
-from app.utils.tools import is_group_id_valid
+from app.utils.tools import is_group_id_valid, patch_identity_in_text
 
 router = APIRouter(tags=["Core"])
 
 core_module = CoreModule(
-    root="",
+    root="core",
     tag="Core",
     router=router,
+    factory=None,
 )
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @router.get(
@@ -37,6 +34,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
     status_code=200,
 )
 async def read_information(
+    request: Request,
     settings: Settings = Depends(get_settings),
 ):
     """
@@ -52,118 +50,138 @@ async def read_information(
 
 @router.get(
     "/privacy",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_privacy():
+async def read_privacy(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion privacy
     """
 
-    return FileResponse("assets/privacy.txt")
+    return patch_identity_in_text(
+        Path("assets/privacy.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
     "/terms-and-conditions",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_terms_and_conditions():
+async def read_terms_and_conditions(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion terms and conditions pages
     """
 
-    return FileResponse("assets/terms-and-conditions.txt")
+    return patch_identity_in_text(
+        Path("assets/terms-and-conditions.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
-    "/myeclpay-terms-of-service",
-    response_class=FileResponse,
+    "/mypayment-terms-of-service",
     status_code=200,
 )
-async def read_myeclpay_tos():
+async def read_mypayment_tos(settings: Settings = Depends(get_settings)):
     """
     Return MyECLPay latest ToS
     """
-    return FileResponse("assets/myeclpay-terms-of-service.txt")
+    return patch_identity_in_text(
+        Path("assets/mypayment-terms-of-service.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
     "/support",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_support():
+async def read_support(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion support
     """
 
-    return FileResponse("assets/support.txt")
+    return patch_identity_in_text(
+        Path("assets/support.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
     "/security.txt",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_security_txt():
+async def read_security_txt(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion security.txt file
     """
-
-    return FileResponse("assets/security.txt")
+    return patch_identity_in_text(
+        Path("assets/security.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
     "/.well-known/security.txt",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_wellknown_security_txt():
+async def read_wellknown_security_txt(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion security.txt file
     """
 
-    return FileResponse("assets/security.txt")
+    return patch_identity_in_text(
+        Path("assets/security.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
     "/robots.txt",
-    response_class=FileResponse,
     status_code=200,
 )
-async def read_robots_txt():
+async def read_robots_txt(settings: Settings = Depends(get_settings)):
     """
     Return Hyperion robots.txt file
     """
 
-    return FileResponse("assets/robots.txt")
+    return patch_identity_in_text(
+        Path("assets/robots.txt").read_text(encoding="utf-8"),
+        settings,
+    )
 
 
 @router.get(
-    "/style/{file}.css",
-    response_class=FileResponse,
+    "/account-deletion",
     status_code=200,
 )
-async def get_style_file(
-    file: str,
-):
+async def read_account_deletion(settings: Settings = Depends(get_settings)):
+    """
+    Return Hyperion account deletion information
+    """
+
+    return patch_identity_in_text(
+        Path("assets/account-deletion.md").read_text(encoding="utf-8"),
+        settings,
+    )
+
+
+@router.get(
+    "/variables",
+    response_model=schemas_core.CoreVariables,
+    status_code=200,
+)
+async def get_variables(settings: Settings = Depends(get_settings)):
     """
     Return a style file from the assets folder
     """
-    css_dir = "assets/style/"
-    css_path = f"{css_dir}{file}.css"
-
-    # Security check (even if FastAPI parsing of path parameters does not allow path traversal)
-    if path.commonprefix(
-        (path.realpath(css_path), path.realpath(css_dir)),
-    ) != path.realpath(css_dir):
-        raise HTTPException(status_code=404, detail="File not found")
-
-    if not Path(css_path).is_file():
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(css_path)
+    return schemas_core.CoreVariables(
+        name=settings.school.application_name,
+        entity_name=settings.school.entity_name,
+        email_placeholder=settings.school.email_placeholder,
+        # `as_hsl()` return a string in the format `hsl(hue saturation lightness)`, we need to convert it to `24.6 95% 53.1%` for TailwindCSS
+        primary_color=settings.school.primary_color.as_hsl()[4:-1],
+    )
 
 
 @router.get(
@@ -182,7 +200,7 @@ async def get_favicon():
 )
 async def get_module_visibility(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     """
     Get all existing module_visibility.
@@ -236,7 +254,7 @@ async def get_user_modules_visibility(
 async def add_module_visibility(
     module_visibility: schemas_core.ModuleVisibilityCreate,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     """
     Add a new group or account type to a module
@@ -286,7 +304,7 @@ async def delete_module_group_visibility(
     root: str,
     group_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     await cruds_core.delete_module_group_visibility(
         root=root,
@@ -303,7 +321,7 @@ async def delete_module_account_type_visibility(
     root: str,
     account_type: AccountType,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     await cruds_core.delete_module_account_type_visibility(
         root=root,

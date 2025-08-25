@@ -7,19 +7,26 @@ Group management is part of the core of Hyperion. These endpoints allow managing
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.groups import cruds_groups, models_groups, schemas_groups
+from app.core.groups.factory_groups import CoreGroupsFactory
 from app.core.groups.groups_type import GroupType
-from app.core.users import cruds_users
+from app.core.notification.utils_notification import get_topics_restricted_to_group_id
+from app.core.users import cruds_users, models_users
 from app.dependencies import (
     get_db,
+    get_notification_manager,
     get_request_id,
-    is_user_an_ecl_member,
+    is_user,
     is_user_in,
 )
+from app.types.content_type import ContentType
 from app.types.module import CoreModule
+from app.utils.communication.notifications import NotificationManager
+from app.utils.tools import get_file_from_data, save_file_as_data
 
 router = APIRouter(tags=["Groups"])
 
@@ -27,6 +34,7 @@ core_module = CoreModule(
     root="groups",
     tag="Groups",
     router=router,
+    factory=CoreGroupsFactory(),
 )
 
 hyperion_security_logger = logging.getLogger("hyperion.security")
@@ -39,7 +47,7 @@ hyperion_security_logger = logging.getLogger("hyperion.security")
 )
 async def read_groups(
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_an_ecl_member),
+    user=Depends(is_user_in(GroupType.admin)),
 ):
     """
     Return all groups from database as a list of dictionaries
@@ -91,15 +99,12 @@ async def create_group(
             detail="A group with the name {group.name} already exist",
         )
 
-    try:
-        db_group = models_groups.CoreGroup(
-            id=str(uuid.uuid4()),
-            name=group.name,
-            description=group.description,
-        )
-        return await cruds_groups.create_group(group=db_group, db=db)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error))
+    db_group = models_groups.CoreGroup(
+        id=str(uuid.uuid4()),
+        name=group.name,
+        description=group.description,
+    )
+    return await cruds_groups.create_group(group=db_group, db=db)
 
 
 @router.patch(
@@ -166,15 +171,12 @@ async def create_membership(
         f"Create_membership: Admin user {user.id} ({user.name}) added user {user_db.id} ({user_db.email}) to group {group_db.id} ({group_db.name}) ({request_id})",
     )
 
-    try:
-        membership_db = models_groups.CoreMembership(
-            user_id=membership.user_id,
-            group_id=membership.group_id,
-            description=membership.description,
-        )
-        return await cruds_groups.create_membership(db=db, membership=membership_db)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error))
+    membership_db = models_groups.CoreMembership(
+        user_id=membership.user_id,
+        group_id=membership.group_id,
+        description=membership.description,
+    )
+    return await cruds_groups.create_membership(db=db, membership=membership_db)
 
 
 @router.post(
@@ -232,6 +234,7 @@ async def delete_membership(
     db: AsyncSession = Depends(get_db),
     user=Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
+    notification_manager: NotificationManager = Depends(get_notification_manager),
 ):
     """
     Delete a membership using the user and group ids.
@@ -242,6 +245,19 @@ async def delete_membership(
     hyperion_security_logger.warning(
         f"Create_membership: Admin user {user.id} ({user.name}) removed user {membership.user_id} from group {membership.group_id} ({request_id})",
     )
+
+    # To remove a user from a group, we should unsubscribe this user from all
+    # topic that required to be a member of this group
+    restricted_topics = await get_topics_restricted_to_group_id(
+        group_id=membership.group_id,
+        db=db,
+    )
+    for topic in restricted_topics:
+        await notification_manager.unsubscribe_user_to_topic(
+            topic_id=topic.id,
+            user_id=membership.user_id,
+            db=db,
+        )
 
     await cruds_groups.delete_membership_by_group_and_user_id(
         group_id=membership.group_id,
@@ -259,6 +275,7 @@ async def delete_batch_membership(
     db: AsyncSession = Depends(get_db),
     user=Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
+    notification_manager: NotificationManager = Depends(get_notification_manager),
 ):
     """
     This endpoint removes all users from a given group.
@@ -272,6 +289,20 @@ async def delete_batch_membership(
     )
     if group_db is None:
         raise HTTPException(status_code=400, detail="Invalid group_id")
+
+    # To remove a user from a group, we should unsubscribe this user from all
+    # topic that required to be a member of this group
+    restricted_topics = await get_topics_restricted_to_group_id(
+        group_id=batch_membership.group_id,
+        db=db,
+    )
+    for topic in restricted_topics:
+        for user_from_group in group_db.members:
+            await notification_manager.unsubscribe_user_to_topic(
+                topic_id=topic.id,
+                user_id=user_from_group.id,
+                db=db,
+            )
 
     hyperion_security_logger.warning(
         f"Create_batch_membership: Admin user {user.id} ({user.name}) removed all users from group {group_db.id} ({group_db.name}) in batch ({request_id})",
@@ -309,3 +340,64 @@ async def delete_group(
 
     await cruds_groups.delete_membership_by_group_id(group_id=group_id, db=db)
     await cruds_groups.delete_group(db=db, group_id=group_id)
+
+
+@router.post(
+    "/groups/{group_id}/logo",
+    status_code=204,
+)
+async def create_group_logo(
+    group_id: str,
+    image: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
+):
+    """
+    Upload a logo for a group.
+
+    **This endpoint is only usable by administrators**
+    """
+
+    group = await cruds_groups.get_group_by_id(db=db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    await save_file_as_data(
+        upload_file=image,
+        directory="groups/logos",
+        filename=group_id,
+        max_file_size=4 * 1024 * 1024,
+        accepted_content_types=[
+            ContentType.jpg,
+            ContentType.png,
+            ContentType.webp,
+        ],
+    )
+
+
+@router.get(
+    "/groups/{group_id}/logo",
+    response_class=FileResponse,
+    status_code=200,
+)
+async def read_user_profile_picture(
+    group_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: models_users.CoreUser = Depends(is_user()),
+):
+    """
+    Get the logo of a group.
+
+    **User must be authenticated**
+    """
+
+    group = await cruds_groups.get_group_by_id(db=db, group_id=group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    return get_file_from_data(
+        directory="groups/logos",
+        filename=group_id,
+        default_asset="assets/images/default_profile_picture.png",
+        raise_http_exception=True,
+    )

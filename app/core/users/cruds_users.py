@@ -149,6 +149,19 @@ async def update_user(
     )
 
 
+async def update_user_as_super_admin(
+    db: AsyncSession,
+    user_id: str,
+):
+    """Update a user as a super admin, this function is used to update the user
+    without checking the account type or the school id"""
+    await db.execute(
+        update(models_users.CoreUser)
+        .where(models_users.CoreUser.id == user_id)
+        .values(is_super_admin=True),
+    )
+
+
 async def create_unconfirmed_user(
     db: AsyncSession,
     user_unconfirmed: models_users.CoreUserUnconfirmed,
@@ -257,6 +270,43 @@ async def delete_email_migration_code_by_token(
         ),
     )
     await db.flush()
+
+
+async def create_invitation(
+    email: str,
+    default_group_id: str | None,
+    db: AsyncSession,
+) -> None:
+    invitation = models_users.CoreUserInvitation(
+        email=email,
+        default_group_id=default_group_id,
+    )
+    db.add(invitation)
+    await db.flush()
+
+
+async def get_user_invitation_by_email(
+    email: str,
+    db: AsyncSession,
+) -> models_users.CoreUserInvitation | None:
+    result = await db.execute(
+        select(models_users.CoreUserInvitation).where(
+            models_users.CoreUserInvitation.email == email,
+        ),
+    )
+    return result.scalars().first()
+
+
+async def get_user_invitation_by_emails(
+    emails: list[str],
+    db: AsyncSession,
+) -> Sequence[str]:
+    result = await db.execute(
+        select(models_users.CoreUserInvitation.email).where(
+            models_users.CoreUserInvitation.email.in_(emails),
+        ),
+    )
+    return result.scalars().all()
 
 
 async def delete_recover_request_by_email(db: AsyncSession, email: str):

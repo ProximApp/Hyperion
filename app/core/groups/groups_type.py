@@ -26,6 +26,7 @@ class GroupType(str, Enum):
     eclair = "1f841bd9-00be-41a7-96e1-860a18a46105"
     BDS = "61af3e52-7ef9-4608-823a-39d51e83d1db"
     seed_library = "09153d2a-14f4-49a4-be57-5d0f265261b9"
+    feed_admin = "59e3c4c2-e60f-44b6-b0d2-fa1b248423bb"
 
     # Auth related groups
 
@@ -51,7 +52,7 @@ class AccountType(str, Enum):
         return f"{self.name}<{self.value}>"
 
 
-def get_ecl_account_types() -> list[AccountType]:
+def get_school_account_types() -> list[AccountType]:
     return [
         AccountType.student,
         AccountType.former_student,

@@ -2,7 +2,21 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.core.payment.types_payment import HelloAssoConfigName
+from app.core.checkout.types_checkout import HelloAssoConfigName
+
+
+class MultipleWorkersWithoutRedisInitializationError(Exception):
+    def __init__(self):
+        super().__init__(
+            "Initialization steps could not be run with multiple workers as no Redis client were configured",
+        )
+
+
+class InvalidAppStateTypeError(Exception):
+    def __init__(self):
+        super().__init__(
+            "The type of the app state is not a TypedDict or a starlette State object.",
+        )
 
 
 class CoreDataNotFoundError(Exception):
@@ -115,6 +129,13 @@ class DotenvMissingVariableError(Exception):
         super().__init__(f"{variable_name} should be configured in the dotenv")
 
 
+class DotenvBothAuthClientAndAuthClientDictConfigured(Exception):
+    def __init__(self):
+        super().__init__(
+            "Both AUTH_CLIENT_DICT and the older AUTH_CLIENT are configured in the dotenv. Please remove the AUTH_CLIENT variable from the dotenv.",
+        )
+
+
 class DotenvInvalidVariableError(Exception):
     pass
 
@@ -188,4 +209,11 @@ class InvalidS3FolderError(Exception):
     def __init__(self, subfolder: str):
         super().__init__(
             f"Invalid S3 subfolder: {subfolder} - it should not contain '/'",
+        )
+
+
+class NewlyAddedObjectInDbNotFoundError(Exception):
+    def __init__(self, object_name: str):
+        super().__init__(
+            f"Newly added object {object_name} not found in the database",
         )

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.groups.groups_type import AccountType
 from app.core.schools.schemas_schools import CoreSchool
@@ -47,6 +47,7 @@ class CoreUser(CoreUserSimple):
     created_on: datetime | None = None
     groups: "list[CoreGroupSimple]" = []
     school: CoreSchool | None = None
+    is_super_admin: bool = False
 
 
 class CoreUserUpdate(BaseModel):
@@ -103,7 +104,7 @@ class CoreUserCreateRequest(BaseModel):
     The schema is used to send an account creation request.
     """
 
-    email: str
+    email: EmailStr
     accept_external: bool | None = Field(
         None,
         deprecated=True,
@@ -125,6 +126,7 @@ class CoreBatchUserCreateRequest(BaseModel):
     """
 
     email: str
+    default_group_id: str | None = None
 
     # Email normalization, this will modify the email variable
     # https://pydantic-docs.helpmanual.io/usage/validators/#reuse-validators

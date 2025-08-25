@@ -14,11 +14,11 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.checkout.payment_tool import PaymentTool
+from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.groups import cruds_groups, schemas_groups
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import cruds_memberships, schemas_memberships
-from app.core.payment.payment_tool import PaymentTool
-from app.core.payment.types_payment import HelloAssoConfigName
 from app.core.users import cruds_users, models_users, schemas_users
 from app.core.users.cruds_users import get_user_by_id, get_users
 from app.core.utils.config import Settings
@@ -64,6 +64,7 @@ module = Module(
     tag="Cdr",
     payment_callback=validate_payment,
     default_allowed_groups_ids=[GroupType.admin_cdr],
+    factory=None,
 )
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
@@ -87,7 +88,7 @@ async def get_cdr_users(
         is_user_member_of_any_group(user, [GroupType.admin_cdr])
         or await cruds_cdr.get_sellers_by_group_ids(
             db=db,
-            group_ids=[g.id for g in user.groups],
+            group_ids=user.group_ids,
         )
     ):
         raise HTTPException(
@@ -121,7 +122,7 @@ async def get_cdr_users_pending_validation(
         is_user_member_of_any_group(user, [GroupType.admin_cdr])
         or await cruds_cdr.get_sellers_by_group_ids(
             db=db,
-            group_ids=[g.id for g in user.groups],
+            group_ids=user.group_ids,
         )
     ):
         raise HTTPException(
@@ -184,7 +185,7 @@ async def get_cdr_user(
             is_user_member_of_any_group(user, [GroupType.admin_cdr])
             or await cruds_cdr.get_sellers_by_group_ids(
                 db=db,
-                group_ids=[g.id for g in user.groups],
+                group_ids=user.group_ids,
             )
         ):
             raise HTTPException(
@@ -372,7 +373,7 @@ async def get_sellers_by_user_id(
         return await cruds_cdr.get_sellers(db)
     return await cruds_cdr.get_sellers_by_group_ids(
         db,
-        [x.id for x in user.groups],
+        user.group_ids,
     )
 
 
@@ -552,7 +553,7 @@ async def get_all_products(
     """
     sellers = await cruds_cdr.get_sellers_by_group_ids(
         db,
-        [x.id for x in user.groups],
+        user.group_ids,
     )
     if not (sellers or is_user_member_of_any_group(user, [GroupType.admin_cdr])):
         raise HTTPException(
@@ -1133,7 +1134,7 @@ async def get_all_sellers_documents(
     """
     sellers = await cruds_cdr.get_sellers_by_group_ids(
         db,
-        [x.id for x in user.groups],
+        user.group_ids,
     )
     if not (sellers or is_user_member_of_any_group(user, [GroupType.admin_cdr])):
         raise HTTPException(
@@ -1508,7 +1509,7 @@ async def add_membership(
                 ),
             )
         else:
-            cruds_memberships.create_user_membership(
+            await cruds_memberships.create_user_membership(
                 db=db,
                 user_membership=schemas_memberships.UserMembershipSimple(
                     id=uuid4(),

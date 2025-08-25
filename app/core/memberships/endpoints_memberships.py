@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.groups import cruds_groups
 from app.core.groups.groups_type import GroupType
-from app.core.memberships import cruds_memberships, schemas_memberships
+from app.core.memberships import (
+    cruds_memberships,
+    schemas_memberships,
+)
+from app.core.memberships.factory_memberships import CoreMembershipsFactory
 from app.core.memberships.utils_memberships import validate_user_new_membership
 from app.core.users import cruds_users, models_users, schemas_users
 from app.dependencies import (
@@ -25,6 +29,7 @@ core_module = CoreModule(
     root="memberships",
     tag="Memberships",
     router=router,
+    factory=CoreMembershipsFactory(),
 )
 
 
@@ -73,9 +78,10 @@ async def read_association_membership(
     if db_association_membership is None:
         raise HTTPException(status_code=404, detail="Association Membership not found")
 
-    if db_association_membership.manager_group_id not in [
-        group.id for group in user.groups
-    ] and GroupType.admin not in [group.id for group in user.groups]:
+    if (
+        db_association_membership.manager_group_id not in user.group_ids
+        and GroupType.admin not in user.group_ids
+    ):
         raise HTTPException(
             status_code=403,
             detail="User is not allowed to access this membership",
@@ -128,7 +134,7 @@ async def create_association_membership(
         id=uuid.uuid4(),
     )
 
-    cruds_memberships.create_association_membership(
+    await cruds_memberships.create_association_membership(
         db=db,
         membership=db_association_membership,
     )
@@ -225,9 +231,7 @@ async def read_user_memberships(
 
     **This endpoint is only usable by administrators**
     """
-    if user_id != user.id and GroupType.admin not in [
-        group.id for group in user.groups
-    ]:
+    if user_id != user.id and GroupType.admin not in user.group_ids:
         raise HTTPException(
             status_code=403,
             detail="User is not allowed to access other users' memberships",
@@ -305,7 +309,10 @@ async def create_user_membership(
     )
     await validate_user_new_membership(db_user_membership, db)
 
-    cruds_memberships.create_user_membership(db=db, user_membership=db_user_membership)
+    await cruds_memberships.create_user_membership(
+        db=db,
+        user_membership=db_user_membership,
+    )
 
     await db.flush()
 
@@ -369,7 +376,7 @@ async def add_batch_membership(
             end_date=detail.end_date,
         )
         if len(stored_memberships) == 0:
-            cruds_memberships.create_user_membership(
+            await cruds_memberships.create_user_membership(
                 db=db,
                 user_membership=schemas_memberships.UserMembershipSimple(
                     id=uuid.uuid4(),

@@ -23,6 +23,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from weasyprint import CSS, HTML
 
+from app.core.associations import cruds_associations, models_associations
 from app.core.core_endpoints import cruds_core, models_core
 from app.core.groups import cruds_groups
 from app.core.groups.groups_type import AccountType, GroupType
@@ -108,8 +109,39 @@ def is_user_member_of_any_group(
     """
     Check if the user is a member of the group.
     """
-    user_groups_id = [group.id for group in user.groups]
-    return any(group_id in user_groups_id for group_id in allowed_groups)
+    return any(group_id in user.group_ids for group_id in allowed_groups)
+
+
+def is_user_member_of_an_association(
+    user: models_users.CoreUser,
+    association: models_associations.CoreAssociation,
+) -> bool:
+    """
+    Check if the user is a member of the association
+    """
+
+    return is_user_member_of_any_group(
+        user=user,
+        allowed_groups=[association.group_id],
+    )
+
+
+async def is_user_member_of_an_association_id(
+    user: models_users.CoreUser,
+    association_id: UUID,
+    db: AsyncSession,
+) -> bool:
+    """
+    Check if the user is a member of the association
+    """
+
+    association = await cruds_associations.get_association_by_id(
+        db=db,
+        association_id=association_id,
+    )
+    if association is None:
+        return False
+    return is_user_member_of_an_association(user=user, association=association)
 
 
 async def is_group_id_valid(group_id: str, db: AsyncSession) -> bool:
@@ -133,7 +165,7 @@ async def is_user_id_valid(user_id: str, db: AsyncSession) -> bool:
 async def save_file_as_data(
     upload_file: UploadFile,
     directory: str,
-    filename: str,
+    filename: str | UUID,
     max_file_size: int = 1024 * 1024 * 2,  # 2 MB
     accepted_content_types: list[ContentType] | None = None,
 ):
@@ -156,6 +188,9 @@ async def save_file_as_data(
 
     WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
     """
+    if isinstance(filename, UUID):
+        filename = str(filename)
+
     if accepted_content_types is None:
         # Accept only images by default
         accepted_content_types = [
@@ -264,11 +299,14 @@ def get_file_path_from_data(
     directory: str,
     filename: str | UUID,
     default_asset: str | None = None,
+    raise_http_exception: bool = False,
 ) -> Path:
     """
     If there is a file with the provided filename in the data folder, return it. The file extension will be inferred from the provided content file.
     > "data/{directory}/{filename}.ext"
+
     Otherwise, return the default asset if provided, or raise an exception.
+    If `raise_http_exception`, then a 404 error will be returned, otherwise a `FileDoesNotExistError` server error will be raised
 
     The filename should be a uuid.
 
@@ -289,13 +327,17 @@ def get_file_path_from_data(
     if default_asset is not None:
         return Path(default_asset)
 
+    if raise_http_exception:
+        raise HTTPException(status_code=404, detail="File does not exist")
+
     raise FileDoesNotExistError(name=f"{directory}/{filename}.*")
 
 
 def get_file_from_data(
     directory: str,
-    filename: str,
-    default_asset: str,
+    filename: str | UUID,
+    default_asset: str | None = None,
+    raise_http_exception: bool = False,
 ) -> FileResponse:
     """
     If there is a file with the provided filename in the data folder, return it. The file extension will be inferred from the provided content file.
@@ -306,7 +348,12 @@ def get_file_from_data(
 
     WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
     """
-    path = get_file_path_from_data(directory, filename, default_asset)
+    path = get_file_path_from_data(
+        directory,
+        filename,
+        default_asset,
+        raise_http_exception,
+    )
 
     return FileResponse(path)
 
@@ -574,3 +621,17 @@ async def execute_async_or_sync_method(
     if iscoroutinefunction(job_function):
         return await job_function(**kwargs)
     return job_function(**kwargs)
+
+
+def patch_identity_in_text(
+    text: str,
+    settings: "Settings",
+):
+    """
+    Patch the given text with the identity of the school.
+    This is used to replace the identity placeholders in the legal texts with the values defined in the settings.
+    """
+    for key, value in settings.school.model_dump().items():
+        if isinstance(value, str):
+            text = text.replace(f"{{{key}}}", value)
+    return text
