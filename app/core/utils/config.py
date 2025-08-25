@@ -19,7 +19,6 @@ from pydantic_settings import (
 from app.core.checkout.types_checkout import HelloAssoConfig, HelloAssoConfigName
 from app.types.exceptions import (
     DotenvInvalidAuthClientNameInError,
-    DotenvInvalidHelloAssoConfigNameError,
     DotenvInvalidVariableError,
     DotenvMissingVariableError,
     InvalidRSAKeyInDotenvError,
@@ -448,40 +447,6 @@ class Settings(BaseSettings):
                 f"redis://:{cls.REDIS_PASSWORD or ''}@{cls.REDIS_HOST}:{cls.REDIS_PORT}"
             )
         return None
-
-    @computed_field  # type: ignore[prop-decorator]
-    @cached_property
-    def PARSED_HELLOASSO_CONFIGURATIONS(cls) -> list[HelloAssoConfig]:
-        """
-        Parse the HELLOASSO_CONFIGURATIONS to return a list of HelloAssoConfigName
-        """
-        helloasso_configurations = []
-        for config_tuple in cls.HELLOASSO_CONFIGURATIONS:
-            if len(config_tuple) == 4:
-                name, helloasso_client_id, helloasso_client_secret, helloasso_slug = (
-                    config_tuple
-                )
-                redirection_uri = None
-            else:
-                (
-                    name,
-                    helloasso_client_id,
-                    helloasso_client_secret,
-                    helloasso_slug,
-                    redirection_uri,
-                ) = config_tuple
-            if name not in HelloAssoConfigName._member_names_:
-                raise DotenvInvalidHelloAssoConfigNameError(name)
-            helloasso_configurations.append(
-                HelloAssoConfig(
-                    name=name,
-                    helloasso_client_id=helloasso_client_id,
-                    helloasso_client_secret=helloasso_client_secret,
-                    helloasso_slug=helloasso_slug,
-                    redirection_uri=redirection_uri,
-                ),
-            )
-        return helloasso_configurations
 
     #######################################
     #          Fields validation          #
