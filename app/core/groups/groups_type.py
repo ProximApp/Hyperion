@@ -58,6 +58,7 @@ def get_school_account_types() -> list[AccountType]:
         AccountType.former_student,
         AccountType.staff,
         AccountType.association,
+        AccountType.demo,
     ]
 
 
@@ -68,6 +69,7 @@ def get_schools_account_types() -> list[AccountType]:
         AccountType.staff,
         AccountType.association,
         AccountType.other_school_student,
+        AccountType.demo,
     ]
 
 
