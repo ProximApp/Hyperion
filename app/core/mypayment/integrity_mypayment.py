@@ -2,9 +2,9 @@
 #########################################################################################
 #### /!\ Warning /!\ /!\ Warning /!\ /!\ Warning /!\ /!\ Warning /!\ /!\ Warning /!\ ####
 ####                                                                                 ####
-####     Following functions are used to format MyECLPay actions for S3 storage.     ####
+####     Following functions are used to format MyPayment actions for S3 storage.    ####
 ####                   Modifying them will break the verification                    ####
-####                   of MyECLPay's integrity via S3 validation.                    ####
+####                   of MyPayment's integrity via S3 validation.                   ####
 ####                                                                                 ####
 ####       Please do not modify them without understanding the consequences.         ####
 ####                                                                                 ####

@@ -27,7 +27,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 
 LATEST_TOS = 2
 QRCODE_EXPIRATION = 5  # minutes
-MYECLPAY_LOGS_S3_SUBFOLDER = "logs"
+MYPAYMENT_LOGS_S3_SUBFOLDER = "logs"
 RETENTION_DURATION = 10 * 365  # 10 years in days
 
 
@@ -51,12 +51,12 @@ def verify_signature(
         )
     except InvalidSignature:
         hyperion_security_logger.info(
-            f"MyECLPay: Invalid signature for QR Code with WalletDevice {wallet_device_id} ({request_id})",
+            f"MyPayment: Invalid signature for QR Code with WalletDevice {wallet_device_id} ({request_id})",
         )
         return False
     except Exception as error:
         hyperion_security_logger.info(
-            f"MyECLPay: Failed to verify signature for QR Code with WalletDevice {wallet_device_id}: {error} ({request_id})",
+            f"MyPayment: Failed to verify signature for QR Code with WalletDevice {wallet_device_id}: {error} ({request_id})",
         )
         return False
     return True
@@ -85,19 +85,19 @@ async def validate_transfer_callback(
     )
     if not transfer:
         hyperion_error_logger.error(
-            f"MyECLPay payment callback: user transfer with transfer identifier {checkout_id} not found.",
+            f"MyPayment payment callback: user transfer with transfer identifier {checkout_id} not found.",
         )
         raise TransferNotFoundByCallbackError(checkout_id)
 
     if transfer.total != paid_amount:
         hyperion_error_logger.error(
-            f"MyECLPay payment callback: user transfer {transfer.id} amount does not match the paid amount.",
+            f"MyPayment payment callback: user transfer {transfer.id} amount does not match the paid amount.",
         )
         raise TransferTotalDontMatchInCallbackError(checkout_id)
 
     if transfer.confirmed:
         hyperion_error_logger.error(
-            f"MyECLPay payment callback: user transfer {transfer.id} is already confirmed.",
+            f"MyPayment payment callback: user transfer {transfer.id} is already confirmed.",
         )
         raise TransferAlreadyConfirmedInCallbackError(checkout_id)
 
@@ -114,7 +114,7 @@ async def validate_transfer_callback(
     hyperion_mypayment_logger.info(
         format_transfer_log(transfer),
         extra={
-            "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
             "s3_retention": RETENTION_DURATION,
         },
     )

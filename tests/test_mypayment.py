@@ -1734,7 +1734,7 @@ async def test_create_and_activate_user_device(
     assert response.status_code == 307
     assert response.next_request is not None
     assert str(response.next_request.url).endswith(
-        "calypsso/message?type=myeclpay_wallet_device_activation_success",
+        "calypsso/message?type=mypayment_wallet_device_activation_success",
     )
 
 
@@ -1760,7 +1760,7 @@ async def test_activate_already_activated_device(
     assert response.status_code == 307
     assert response.next_request is not None
     assert str(response.next_request.url).endswith(
-        "calypsso/message?type=myeclpay_wallet_device_already_activated_or_revoked",
+        "calypsso/message?type=mypayment_wallet_device_already_activated_or_revoked",
     )
 
 

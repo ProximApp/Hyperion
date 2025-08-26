@@ -84,7 +84,7 @@ async def read_terms_and_conditions(settings: Settings = Depends(get_settings)):
 )
 async def read_mypayment_tos(settings: Settings = Depends(get_settings)):
     """
-    Return MyECLPay latest ToS
+    Return MyPayment latest ToS
     """
     return patch_identity_in_text(
         Path("assets/mypayment-terms-of-service.txt").read_text(encoding="utf-8"),
