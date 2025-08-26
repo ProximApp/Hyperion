@@ -74,7 +74,7 @@ class LogConfig:
 
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     MATRIX_LOG_FORMAT: str = "%(asctime)s - %(name)s - <code>%(levelname)s</code> - <font color ='green'>%(message)s</font>"
-    MYECLPAY_LOG_FORMAT: str = "%(message)s"  # Do not change at any cost
+    MYPAYMENT_LOG_FORMAT: str = "%(message)s"  # Do not change at any cost
 
     # Logging config
     # See https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
@@ -83,7 +83,7 @@ class LogConfig:
 
         # /!\ WARNING /!\
         # MINIMUM_LOG_LEVEL should never be set higher than INFO
-        # as it would prevent important information to be logged, like MyECLPay operations
+        # as it would prevent important information to be logged, like MyPayment operations
         MINIMUM_LOG_LEVEL: str = (
             "DEBUG" if settings.LOG_DEBUG_MESSAGES else "INFO"
         )  # /!\ read warning before modifying this /!\
@@ -105,7 +105,7 @@ class LogConfig:
                     "datefmt": "%d-%b-%y %H:%M:%S",
                 },
                 "mypayment": {
-                    "format": self.MYECLPAY_LOG_FORMAT,
+                    "format": self.MYPAYMENT_LOG_FORMAT,
                 },
             },
             "handlers": {
@@ -195,7 +195,7 @@ class LogConfig:
                     "level": "INFO",
                 },
                 "file_mypayment": {
-                    # file_mypayment is there to log all operations related to MyECLPay that failed to be logged in the S3 bucket
+                    # file_mypayment is there to log all operations related to MyPayment that failed to be logged in the S3 bucket
                     "formatter": "default",
                     "class": "logging.handlers.RotatingFileHandler",
                     "filename": "logs/mypayment.log",
@@ -204,7 +204,7 @@ class LogConfig:
                     "level": "DEBUG",
                 },
                 "file_s3": {
-                    # file_mypayment is there to log all operations related to MyECLPay that failed to be logged in the S3 bucket
+                    # file_s3 is there to log all operations related to s3 that failed to be logged in the S3 bucket
                     "formatter": "default",
                     "class": "logging.handlers.RotatingFileHandler",
                     "filename": "logs/s3.log",

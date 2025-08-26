@@ -1522,7 +1522,7 @@ async def test_get_tos_for_unregistered_user(client: TestClient):
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_get_user_tos(client: TestClient):
@@ -1552,7 +1552,7 @@ async def test_register_new_user(client: TestClient):
         headers={"Authorization": f"Bearer {user_to_register_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is already registered for MyECL Pay"
+    assert response.json()["detail"] == "User is already registered for MyPayment"
 
 
 async def test_sign_tos_for_old_tos_version(client: TestClient):
@@ -1572,7 +1572,7 @@ async def test_sign_tos_for_unregistered_user(client: TestClient):
         json={"accepted_tos_version": LATEST_TOS},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_sign_tos(client: TestClient):
@@ -1601,7 +1601,7 @@ async def test_get_user_devices_with_unregistred_user(client: TestClient):
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_get_user_devices(client: TestClient):
@@ -1619,7 +1619,7 @@ async def test_get_user_wallet_unregistred_user(client: TestClient):
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_get_user_wallet(client: TestClient):
@@ -1637,7 +1637,7 @@ async def test_get_user_device_non_existing_user(client: TestClient):
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_get_user_device_non_existing_device(client: TestClient):
@@ -1682,7 +1682,7 @@ async def test_create_user_device_unregistred_user(client: TestClient):
         },
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_create_and_activate_user_device(
@@ -1734,7 +1734,7 @@ async def test_create_and_activate_user_device(
     assert response.status_code == 307
     assert response.next_request is not None
     assert str(response.next_request.url).endswith(
-        "calypsso/message?type=myeclpay_wallet_device_activation_success",
+        "calypsso/message?type=mypayment_wallet_device_activation_success",
     )
 
 
@@ -1760,7 +1760,7 @@ async def test_activate_already_activated_device(
     assert response.status_code == 307
     assert response.next_request is not None
     assert str(response.next_request.url).endswith(
-        "calypsso/message?type=myeclpay_wallet_device_already_activated_or_revoked",
+        "calypsso/message?type=mypayment_wallet_device_already_activated_or_revoked",
     )
 
 
@@ -1773,7 +1773,7 @@ async def test_revoke_user_device_unregistered_user(
         headers={"Authorization": f"Bearer {unregistered_ecl_user_access_token}"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 async def test_revoke_user_device_device_does_not_exist(
@@ -1837,7 +1837,7 @@ async def test_get_transactions_unregistered(client: TestClient):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 def test_get_transactions_success(client: TestClient):
@@ -1980,7 +1980,7 @@ def test_transfer_with_unregistered_user(client: TestClient):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "User is not registered for MyECL Pay"
+    assert response.json()["detail"] == "User is not registered for MyPayment"
 
 
 def test_transfer_with_too_small_amount(client: TestClient):

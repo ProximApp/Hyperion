@@ -110,11 +110,11 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
 hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 
-MYECLPAY_STRUCTURE_S3_SUBFOLDER = "structures"
-MYECLPAY_STORES_S3_SUBFOLDER = "stores"
-MYECLPAY_USERS_S3_SUBFOLDER = "users"
-MYECLPAY_DEVICES_S3_SUBFOLDER = "devices"
-MYECLPAY_LOGS_S3_SUBFOLDER = "logs"
+MYPAYMENT_STRUCTURE_S3_SUBFOLDER = "structures"
+MYPAYMENT_STORES_S3_SUBFOLDER = "stores"
+MYPAYMENT_USERS_S3_SUBFOLDER = "users"
+MYPAYMENT_DEVICES_S3_SUBFOLDER = "devices"
+MYPAYMENT_LOGS_S3_SUBFOLDER = "logs"
 RETENTION_DURATION = 10 * 365  # 10 years in days
 
 
@@ -245,7 +245,7 @@ async def create_structure(
     hyperion_mypayment_logger.info(
         structure_db.name,
         extra={
-            "s3_subfolder": MYECLPAY_STRUCTURE_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_STRUCTURE_S3_SUBFOLDER,
             "s3_filename": str(structure_db.id),
         },
     )
@@ -287,7 +287,7 @@ async def update_structure(
     hyperion_mypayment_logger.info(
         structure.name,
         extra={
-            "s3_subfolder": MYECLPAY_STRUCTURE_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_STRUCTURE_S3_SUBFOLDER,
             "s3_filename": str(structure.id),
         },
     )
@@ -380,14 +380,14 @@ async def init_transfer_structure_manager(
         user_id=transfer_info.new_manager_user_id,
         confirmation_token=confirmation_token,
         valid_until=datetime.now(tz=UTC)
-        + timedelta(minutes=settings.MYECLPAY_MANAGER_TRANSFER_TOKEN_EXPIRES_MINUTES),
+        + timedelta(minutes=settings.MYPAYMENT_MANAGER_TRANSFER_TOKEN_EXPIRES_MINUTES),
         db=db,
     )
 
     confirmation_url = f"{settings.CLIENT_URL}mypayment/structures/confirm-manager-transfer?token={confirmation_token}"
 
     if settings.SMTP_ACTIVE:
-        mail = mail_templates.get_mail_myeclpay_structure_transfer(
+        mail = mail_templates.get_mail_mypayment_structure_transfer(
             confirmation_url=confirmation_url,
         )
 
@@ -478,7 +478,7 @@ async def confirm_structure_manager_transfer(
     return RedirectResponse(
         url=settings.CLIENT_URL
         + calypsso.get_message_relative_url(
-            message_type=calypsso.TypeMessage.myeclpay_structure_transfer_success,
+            message_type=calypsso.TypeMessage.mypayment_structure_transfer_success,
         ),
     )
 
@@ -562,7 +562,7 @@ async def create_store(
     hyperion_mypayment_logger.info(
         f"store.name: {store_db.name}, structure_id: {store_db.structure_id}",
         extra={
-            "s3_subfolder": MYECLPAY_STORES_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_STORES_S3_SUBFOLDER,
             "s3_filename": str(store_db.id),
         },
     )
@@ -789,7 +789,7 @@ async def update_store(
     hyperion_mypayment_logger.info(
         f"store.name: {store.name}, structure_id: {store.structure_id}",
         extra={
-            "s3_subfolder": MYECLPAY_STORES_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_STORES_S3_SUBFOLDER,
             "s3_filename": str(store.id),
         },
     )
@@ -1121,9 +1121,9 @@ async def register_user(
     user: CoreUser = Depends(is_user()),
 ):
     """
-    Sign MyECL Pay TOS for the given user.
+    Sign MyPayment TOS for the given user.
 
-    The user will need to accept the latest TOS version to be able to use MyECL Pay.
+    The user will need to accept the latest TOS version to be able to use MyPayment.
 
     **The user must be authenticated to use this endpoint**
     """
@@ -1136,7 +1136,7 @@ async def register_user(
     if existing_user_payment is not None:
         raise HTTPException(
             status_code=400,
-            detail="User is already registered for MyECL Pay",
+            detail="User is already registered for MyPayment",
         )
 
     # Create new wallet for user
@@ -1162,7 +1162,7 @@ async def register_user(
     hyperion_mypayment_logger.info(
         wallet_id,
         extra={
-            "s3_subfolder": MYECLPAY_USERS_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_USERS_S3_SUBFOLDER,
             "s3_filename": str(user.id),
         },
     )
@@ -1191,7 +1191,7 @@ async def get_user_tos(
     if existing_user_payment is None:
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     return schemas_mypayment.TOSSignatureResponse(
@@ -1201,7 +1201,7 @@ async def get_user_tos(
             Path("assets/mypayment-terms-of-service.txt").read_text(),
             settings=settings,
         ),
-        max_wallet_balance=settings.MYECLPAY_MAXIMUM_WALLET_BALANCE,
+        max_wallet_balance=settings.MYPAYMENT_MAXIMUM_WALLET_BALANCE,
     )
 
 
@@ -1218,9 +1218,9 @@ async def sign_tos(
     settings: Settings = Depends(get_settings),
 ):
     """
-    Sign MyECL Pay TOS for the given user.
+    Sign MyPayment TOS for the given user.
 
-    If the user is already registered in the MyECLPay system, this will update the TOS version.
+    If the user is already registered in the MyPayment system, this will update the TOS version.
 
     **The user must be authenticated to use this endpoint**
     """
@@ -1238,7 +1238,7 @@ async def sign_tos(
     if existing_user_payment is None:
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     # Update existing user payment
@@ -1251,18 +1251,18 @@ async def sign_tos(
 
     # TODO: add logs
     if settings.SMTP_ACTIVE:
-        mail = mail_templates.get_mail_myeclpay_tos_signed(
+        mail = mail_templates.get_mail_mypayment_tos_signed(
             tos_version=signature.accepted_tos_version,
             tos_url=settings.CLIENT_URL
             + calypsso.get_asset_relative_url(
-                asset=calypsso.Asset.myeclpay_terms_of_service,
+                asset=calypsso.Asset.mypayment_terms_of_service,
             ),
         )
 
         background_tasks.add_task(
             send_email,
             recipient=user.email,
-            subject="MyECL - You signed the Terms of Service for MyECLPay",
+            subject=f"MyECL - You signed the Terms of Service for {settings.school.payment_name}",
             content=mail,
             settings=settings,
         )
@@ -1290,7 +1290,7 @@ async def get_user_devices(
     if user_payment is None:
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     return await cruds_mypayment.get_wallet_devices_by_wallet_id(
@@ -1322,7 +1322,7 @@ async def get_user_device(
     if user_payment is None:
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     wallet_device = await cruds_mypayment.get_wallet_device(
@@ -1367,7 +1367,7 @@ async def get_user_wallet(
     if user_payment is None:
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     wallet = await cruds_mypayment.get_wallet(
@@ -1411,7 +1411,7 @@ async def create_user_devices(
     if user_payment is None or not is_user_latest_tos_signed(user_payment):
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     activation_token = security.generate_token(nbytes=16)
@@ -1434,25 +1434,25 @@ async def create_user_devices(
     )
 
     if settings.SMTP_ACTIVE:
-        mail = mail_templates.get_mail_myeclpay_device_activation(
+        mail = mail_templates.get_mail_mypayment_device_activation(
             activation_url=f"{settings.CLIENT_URL}mypayment/devices/activate?token={activation_token}",
         )
 
         background_tasks.add_task(
             send_email,
             recipient=user.email,
-            subject="MyECL - activate your device",
+            subject=f"{settings.school.application_name} - activate your {settings.school.payment_name} device",
             content=mail,
             settings=settings,
         )
     else:
         hyperion_error_logger.warning(
-            f"MyECLPay: activate your device using the token: {activation_token}",
+            f"MyPayment: activate your device using the token: {activation_token}",
         )
     hyperion_mypayment_logger.info(
         wallet_device_creation.ed25519_public_key,
         extra={
-            "s3_subfolder": f"{MYECLPAY_DEVICES_S3_SUBFOLDER}/{user.id}",
+            "s3_subfolder": f"{MYPAYMENT_DEVICES_S3_SUBFOLDER}/{user.id}",
             "s3_filename": str(wallet_device_db.id),
         },
     )
@@ -1489,7 +1489,7 @@ async def activate_user_device(
         return RedirectResponse(
             url=settings.CLIENT_URL
             + calypsso.get_message_relative_url(
-                message_type=calypsso.TypeMessage.myeclpay_wallet_device_already_activated_or_revoked,
+                message_type=calypsso.TypeMessage.mypayment_wallet_device_already_activated_or_revoked,
             ),
         )
 
@@ -1518,7 +1518,7 @@ async def activate_user_device(
         message = Message(
             title="💳 Paiement - appareil activé",
             content=f"Vous avez activé l'appareil {wallet_device.name}",
-            action_module="MyECLPay",
+            action_module=settings.school.payment_name,
         )
         await notification_tool.send_notification_to_user(
             user_id=user.id,
@@ -1530,7 +1530,7 @@ async def activate_user_device(
     return RedirectResponse(
         url=settings.CLIENT_URL
         + calypsso.get_message_relative_url(
-            message_type=calypsso.TypeMessage.myeclpay_wallet_device_activation_success,
+            message_type=calypsso.TypeMessage.mypayment_wallet_device_activation_success,
         ),
     )
 
@@ -1544,6 +1544,7 @@ async def revoke_user_devices(
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user()),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Revoke a device for the user.
@@ -1558,7 +1559,7 @@ async def revoke_user_devices(
     if user_payment is None or not is_user_latest_tos_signed(user_payment):
         raise HTTPException(
             status_code=400,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     wallet_device = await cruds_mypayment.get_wallet_device(
@@ -1591,7 +1592,7 @@ async def revoke_user_devices(
     message = Message(
         title="💳 Paiement - appareil revoqué",
         content=f"Vous avez revoqué l'appareil {wallet_device.name}",
-        action_module="MyECLPay",
+        action_module=settings.school.payment_name,
     )
     await notification_tool.send_notification_to_user(
         user_id=user_payment.user_id,
@@ -1622,7 +1623,7 @@ async def get_user_wallet_history(
     if user_payment is None:
         raise HTTPException(
             status_code=404,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     history: list[schemas_mypayment.History] = []
@@ -1737,7 +1738,9 @@ async def init_ha_transfer(
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user()),
     settings: Settings = Depends(get_settings),
-    payment_tool: PaymentTool = Depends(get_payment_tool(HelloAssoConfigName.MYECLPAY)),
+    payment_tool: PaymentTool = Depends(
+        get_payment_tool(HelloAssoConfigName.MYPAYMENT),
+    ),
 ):
     """
     Initiate HelloAsso transfer, return a payment url to complete the transaction on HelloAsso website.
@@ -1765,7 +1768,7 @@ async def init_ha_transfer(
     if user_payment is None:
         raise HTTPException(
             status_code=404,
-            detail="User is not registered for MyECL Pay",
+            detail="User is not registered for MyPayment",
         )
 
     if not is_user_latest_tos_signed(user_payment):
@@ -1783,7 +1786,10 @@ async def init_ha_transfer(
             status_code=404,
             detail="Wallet does not exist",
         )
-    if wallet.balance + transfer_info.amount > settings.MYECLPAY_MAXIMUM_WALLET_BALANCE:
+    if (
+        wallet.balance + transfer_info.amount
+        > settings.MYPAYMENT_MAXIMUM_WALLET_BALANCE
+    ):
         raise HTTPException(
             status_code=403,
             detail="Wallet balance would exceed the maximum allowed balance",
@@ -1805,9 +1811,9 @@ async def init_ha_transfer(
         nickname=user.nickname,
     )
     checkout = await payment_tool.init_checkout(
-        module="mypayment",
+        module=core_module.root,
         checkout_amount=transfer_info.amount,
-        checkout_name="Recharge MyECL Pay",
+        checkout_name="Recharge MyPayment",
         redirection_uri=f"{settings.CLIENT_URL}mypayment/transfer/redirect?url={transfer_info.redirect_url}",
         payer_user=user_schema,
         db=db,
@@ -1935,7 +1941,7 @@ async def validate_can_scan_qrcode(
     )
     if debited_wallet is None:
         hyperion_error_logger.error(
-            f"MyECLPay: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
+            f"MyPayment: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
         )
         raise HTTPException(
             status_code=400,
@@ -1943,7 +1949,7 @@ async def validate_can_scan_qrcode(
         )
     if debited_wallet.user is None:
         hyperion_error_logger.error(
-            f"MyECLPay: Debited wallet device {debited_wallet_device.id} does not contains a user, this should never happen",
+            f"MyPayment: Debited wallet device {debited_wallet_device.id} does not contains a user, this should never happen",
         )
         raise HTTPException(
             status_code=400,
@@ -1975,6 +1981,7 @@ async def store_scan_qrcode(
     user: CoreUser = Depends(is_user_a_school_member),
     request_id: str = Depends(get_request_id),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Scan and bank a QR code for this store.
@@ -2105,7 +2112,7 @@ async def store_scan_qrcode(
         )
         if debited_wallet is None:
             hyperion_error_logger.error(
-                f"MyECLPay: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
+                f"MyPayment: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
             )
             raise HTTPException(
                 status_code=400,
@@ -2187,14 +2194,14 @@ async def store_scan_qrcode(
         hyperion_mypayment_logger.info(
             format_transaction_log(transaction),
             extra={
-                "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+                "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
                 "s3_retention": RETENTION_DURATION,
             },
         )
         message = Message(
             title=f"💳 Paiement - {store.name}",
             content=f"Une transaction de {scan_info.tot / 100} € a été effectuée",
-            action_module="MyECLPay",
+            action_module=settings.school.payment_name,
         )
         await notification_tool.send_notification_to_user(
             user_id=debited_wallet.user.id,
@@ -2213,6 +2220,7 @@ async def refund_transaction(
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user_a_school_member),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Refund a transaction. Only transactions made in the last 30 days can be refunded.
@@ -2363,7 +2371,7 @@ async def refund_transaction(
     hyperion_mypayment_logger.info(
         format_refund_log(refund),
         extra={
-            "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
             "s3_retention": RETENTION_DURATION,
         },
     )
@@ -2372,7 +2380,7 @@ async def refund_transaction(
         message = Message(
             title="💳 Remboursement",
             content=f"La transaction pour {wallet_previously_credited_name} ({transaction.total / 100} €) a été remboursée de {refund_amount / 100} €",
-            action_module="MyECLPay",
+            action_module=settings.school.payment_name,
         )
         await notification_tool.send_notification_to_user(
             user_id=wallet_previously_debited.user.id,
@@ -2387,7 +2395,7 @@ async def refund_transaction(
         message = Message(
             title="💳 Remboursement",
             content=f"Vous avez remboursé la transaction de {wallet_previously_debited_name} ({transaction.total / 100} €) de {refund_amount / 100} €",
-            action_module="MyECLPay",
+            action_module=settings.school.payment_name,
         )
         await notification_tool.send_notification_to_user(
             user_id=wallet_previously_credited.user.id,
@@ -2405,6 +2413,7 @@ async def cancel_transaction(
     user: CoreUser = Depends(is_user_a_school_member),
     request_id: str = Depends(get_request_id),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Cancel a transaction.
@@ -2513,7 +2522,7 @@ async def cancel_transaction(
     hyperion_mypayment_logger.info(
         format_cancel_log(transaction_id),
         extra={
-            "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+            "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
             "s3_retention": RETENTION_DURATION,
         },
     )
@@ -2522,7 +2531,7 @@ async def cancel_transaction(
         message = Message(
             title="💳 Paiement annulé",
             content=f"La transaction de {transaction.total / 100} € a été annulée",
-            action_module="MyECLPay",
+            action_module=settings.school.payment_name,
         )
         await notification_tool.send_notification_to_user(
             user_id=debited_wallet.user.id,
@@ -2709,7 +2718,7 @@ async def create_structure_invoice(
         )
         if store_wallet_db is None:
             hyperion_error_logger.error(
-                "MyECLPay: Could not find wallet associated with a store, this should never happen",
+                "MyPayment: Could not find wallet associated with a store, this should never happen",
             )
             raise HTTPException(
                 status_code=500,
@@ -2897,7 +2906,7 @@ async def aknowledge_invoice_as_received(
         )
         if store is None:
             hyperion_error_logger.error(
-                "MyECLPay: Could not find store associated with an invoice, this should never happen",
+                "MyPayment: Could not find store associated with an invoice, this should never happen",
             )
             raise HTTPException(
                 status_code=500,
@@ -2924,7 +2933,7 @@ async def aknowledge_invoice_as_received(
                 total=detail.total,
             ),
             extra={
-                "s3_subfolder": MYECLPAY_LOGS_S3_SUBFOLDER,
+                "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
                 "s3_retention": RETENTION_DURATION,
             },
         )
@@ -2977,22 +2986,22 @@ async def get_data_for_integrity_check(
     settings: Settings = Depends(get_settings),
 ):
     """
-    Send all the MyECL Pay data for integrity check.
+    Send all the MyPayment data for integrity check.
     Data includes:
     - Wallets deducted of the last 30 seconds transactions
     - Transactions with at least 30 seconds delay
     - Transfers
     - Refunds
 
-    **The header must contain the MYECLPAY_DATA_VERIFIER_ACCESS_TOKEN defined in the settings in the `x-data-verifier-token` field**
+    **The header must contain the MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN defined in the settings in the `x-data-verifier-token` field**
     """
-    if settings.MYECLPAY_DATA_VERIFIER_ACCESS_TOKEN is None:
+    if settings.MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN is None:
         raise HTTPException(
             status_code=301,
-            detail="MYECLPAY_DATA_VERIFIER_ACCESS_TOKEN is not set in the settings",
+            detail="MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN is not set in the settings",
         )
 
-    if headers.x_data_verifier_token != settings.MYECLPAY_DATA_VERIFIER_ACCESS_TOKEN:
+    if headers.x_data_verifier_token != settings.MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN:
         hyperion_security_logger.warning(
             f"A request to /mypayment/integrity-check has been made with an invalid token, request_content: {headers}",
         )
