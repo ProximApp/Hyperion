@@ -54,6 +54,9 @@ class CoreVariables(BaseModel):
     entity_name: str
     email_placeholder: str
     main_activation_form: MainActivationForm
+    student_email_regex: str
+    staff_email_regex: str | None = None
+    former_student_email_regex: str | None = None
     primary_color: str = Field(
         description="Returned as an HSL triplet (ex: `24.6 95% 53.1%`)",
     )
