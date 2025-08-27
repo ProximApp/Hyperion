@@ -125,7 +125,7 @@ class CoreBatchUserCreateRequest(BaseModel):
     The schema is used for batch account creation requests.
     """
 
-    email: str
+    email: EmailStr
     default_group_id: str | None = None
 
     # Email normalization, this will modify the email variable
