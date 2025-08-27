@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
@@ -17,7 +18,7 @@ async def add_queued_email(
     db: AsyncSession,
 ) -> None:
     email_queue = models_core.EmailQueue(
-        id=UUID(),
+        id=uuid.uuid4(),
         email=email,
         subject=subject,
         body=body,
