@@ -304,23 +304,6 @@ def test_update_batch_invite_users(client: TestClient) -> None:
     assert response.status_code == 201
 
 
-def test_can_not_make_admin_when_there_are_multiple_users(client: TestClient) -> None:
-    response = client.post(
-        "/users/init/make-admin",
-    )
-    assert response.status_code == 403
-
-
-def test_can_not_invite_when_there_are_users(client: TestClient) -> None:
-    response = client.post(
-        "/users/init/invite",
-        json=[
-            {"email": "email@domain.fr"},
-        ],
-    )
-    assert response.status_code == 403
-
-
 def test_recover_and_reset_password(mocker: MockerFixture, client: TestClient) -> None:
     # NOTE: we don't want to mock app.core.security.generate_token but
     # app.core.users.endpoints_users.security.generate_token which is the imported version of the function

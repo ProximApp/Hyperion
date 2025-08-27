@@ -612,26 +612,6 @@ async def init_s3_for_users(
 
 
 @router.post(
-    "/users/init/make-admin",
-    status_code=204,
-)
-async def make_admin(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    This endpoint is only usable if the database contains exactly one user.
-    It will add this user to the `admin` group.
-    """
-    if (await cruds_users.count_users(db=db)) != 1:
-        raise HTTPException(
-            status_code=403,
-            detail="This endpoint is only usable if there is exactly one user in the database",
-        )
-    users = await cruds_users.get_users(db=db)
-    await cruds_users.update_user_as_super_admin(db=db, user_id=users[0].id)
-
-
-@router.post(
     "/users/recover",
     response_model=standard_responses.Result,
     status_code=201,
