@@ -308,8 +308,8 @@ async def test_webhook_payment_callback(
         factory=None,
     )
     mocker.patch(
-        "app.core.checkout.endpoints_checkout.all_modules",
-        [test_module],
+        "app.module.get_all_modules",
+        return_value=[test_module],
     )
 
     response = client.post(
@@ -350,8 +350,8 @@ async def test_webhook_payment_callback_fail(
         factory=None,
     )
     mocker.patch(
-        "app.core.checkout.endpoints_checkout.all_modules",
-        [test_module],
+        "app.module.get_all_modules",
+        return_value=[test_module],
     )
 
     mocked_hyperion_security_logger = mocker.patch(
