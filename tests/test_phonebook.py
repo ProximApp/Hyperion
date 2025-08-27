@@ -523,8 +523,8 @@ def test_add_membership_admin_with_president_tag(client: TestClient):
     user_simple3 = members[0]
 
     assert user_simple3["id"] == phonebook_user_simple3.id
-    assert user_simple3["name"] == phonebook_user_simple3.name
-    assert user_simple3["firstname"] == phonebook_user_simple3.firstname
+    assert user_simple3["name"] == phonebook_user_simple3.name.title()
+    assert user_simple3["firstname"] == phonebook_user_simple3.firstname.title()
     assert user_simple3["email"] == phonebook_user_simple3.email
     assert len(user_simple3["memberships"]) == 1
     assert user_simple3["memberships"][0]["association_id"] == association3.id
