@@ -71,7 +71,7 @@ async def send_emails_from_queue(db: "AsyncSession", settings: "Settings") -> No
 
     for email in queued_emails:
         try:
-            await send_email(
+            send_email(
                 recipient=email.email,
                 subject=email.subject,
                 content=email.body,
