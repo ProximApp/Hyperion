@@ -26,7 +26,11 @@ from app.dependencies import (
 from app.types.content_type import ContentType
 from app.types.module import CoreModule
 from app.utils.communication.notifications import NotificationManager
-from app.utils.tools import get_file_from_data, save_file_as_data
+from app.utils.tools import (
+    get_file_from_data,
+    is_user_member_of_any_group,
+    save_file_as_data,
+)
 
 router = APIRouter(tags=["Groups"])
 
@@ -47,11 +51,19 @@ hyperion_security_logger = logging.getLogger("hyperion.security")
 )
 async def read_groups(
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user()),
 ):
     """
     Return all groups from database as a list of dictionaries
     """
+    if not user.is_super_admin and not is_user_member_of_any_group(
+        user=user,
+        allowed_groups=[GroupType.admin],
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to access this resource",
+        )
 
     return await cruds_groups.get_groups(db)
 
