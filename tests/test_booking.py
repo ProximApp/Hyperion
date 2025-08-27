@@ -190,8 +190,10 @@ def test_get_user_bookings_manage_confirmed(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert booking_id in [booking["id"] for booking in response.json()]
-    assert response.json()[0]["applicant"].get("name", None) == simple_user.name
-    assert response.json()[0]["applicant"].get("email", None) == simple_user.email
+    assert response.json()[0]["applicant"].get("name", None) == simple_user.name.title()
+    assert (
+        response.json()[0]["applicant"].get("email", None) == simple_user.email.title()
+    )
 
 
 def test_get_bookings_confirmed(client: TestClient) -> None:
