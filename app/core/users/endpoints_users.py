@@ -222,9 +222,7 @@ async def create_user_by_user(
     default_group_id: str | None = None
     nb_user = await cruds_users.count_users(db=db)
     nb_activation_tokens = await cruds_users.count_activation_tokens(db=db)
-    if nb_user == 0 and nb_activation_tokens == 0:
-        default_group_id = GroupType.admin.value
-    elif not settings.ALLOW_SELF_REGISTRATION:
+    if not settings.ALLOW_SELF_REGISTRATION and nb_user + nb_activation_tokens > 0:
         # If self registration is disabled, we want to check if the user was invited
         db_invitation = await cruds_users.get_user_invitation_by_email(
             email=user_create.email,
@@ -504,7 +502,10 @@ async def activate_user(
     password_hash = security.get_password_hash(user.password)
 
     nb_user = await cruds_users.count_users(db=db)
-    is_super_admin = nb_user == 0
+    is_super_admin = False
+    if nb_user == 0:
+        is_super_admin = True
+        unconfirmed_user.default_group_id = GroupType.admin.value
 
     confirmed_user = models_users.CoreUser(
         id=unconfirmed_user.id,
