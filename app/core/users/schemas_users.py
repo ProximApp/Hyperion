@@ -17,9 +17,9 @@ class CoreUserBase(BaseModel):
     firstname: str
     nickname: str | None = None
 
-    _normalize_name = field_validator("name")(validators.trailing_spaces_remover)
+    _normalize_name = field_validator("name")(validators.name_normalizer)
     _normalize_firstname = field_validator("firstname")(
-        validators.trailing_spaces_remover,
+        validators.name_normalizer,
     )
     _normalize_nickname = field_validator("nickname")(
         validators.trailing_spaces_remover,
