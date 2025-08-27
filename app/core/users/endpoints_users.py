@@ -503,6 +503,9 @@ async def activate_user(
     # A password should have been provided
     password_hash = security.get_password_hash(user.password)
 
+    nb_user = await cruds_users.count_users(db=db)
+    is_super_admin = nb_user == 0
+
     confirmed_user = models_users.CoreUser(
         id=unconfirmed_user.id,
         email=unconfirmed_user.email,
@@ -517,6 +520,7 @@ async def activate_user(
         phone=user.phone,
         floor=user.floor,
         created_on=datetime.now(UTC),
+        is_super_admin=is_super_admin,
     )
     # We add the new user to the database
     await cruds_users.create_user(db=db, user=confirmed_user)
