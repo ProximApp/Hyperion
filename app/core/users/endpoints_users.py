@@ -220,7 +220,9 @@ async def create_user_by_user(
         return standard_responses.Result(success=True)
 
     default_group_id: str | None = None
-    if not settings.ALLOW_SELF_REGISTRATION:
+    nb_user = await cruds_users.count_users(db=db)
+    nb_activation_tokens = await cruds_users.count_activation_tokens(db=db)
+    if not settings.ALLOW_SELF_REGISTRATION and nb_user + nb_activation_tokens > 0:
         # If self registration is disabled, we want to check if the user was invited
         db_invitation = await cruds_users.get_user_invitation_by_email(
             email=user_create.email,
@@ -353,7 +355,7 @@ async def batch_invite_users(
 
             await cruds_core.add_queued_email(
                 email=user_invite.email,
-                subject=f"{settings.school.application_name} - you have been invited to create an account on MyECL",
+                subject=f"{settings.school.application_name} - you have been invited to create an account",
                 body=mail_templates.get_mail_account_invitation(
                     creation_url=creation_url,
                 ),
@@ -499,6 +501,12 @@ async def activate_user(
     # A password should have been provided
     password_hash = security.get_password_hash(user.password)
 
+    nb_user = await cruds_users.count_users(db=db)
+    is_super_admin = False
+    if nb_user == 0:
+        is_super_admin = True
+        unconfirmed_user.default_group_id = GroupType.admin.value
+
     confirmed_user = models_users.CoreUser(
         id=unconfirmed_user.id,
         email=unconfirmed_user.email,
@@ -513,6 +521,7 @@ async def activate_user(
         phone=user.phone,
         floor=user.floor,
         created_on=datetime.now(UTC),
+        is_super_admin=is_super_admin,
     )
     # We add the new user to the database
     await cruds_users.create_user(db=db, user=confirmed_user)
@@ -601,37 +610,6 @@ async def init_s3_for_users(
     hyperion_error_logger.info(
         f"Created {count} files in S3 bucket for users",
     )
-
-
-@router.post(
-    "/users/make-admin",
-    response_model=standard_responses.Result,
-    status_code=200,
-)
-async def make_admin(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    This endpoint is only usable if the database contains exactly one user.
-    It will add this user to the `admin` group.
-    """
-    users = await cruds_users.get_users(db=db)
-
-    if len(users) != 1:
-        raise HTTPException(
-            status_code=403,
-            detail="This endpoint is only usable if there is exactly one user in the database",
-        )
-
-    try:
-        await cruds_users.update_user_as_super_admin(db=db, user_id=users[0].id)
-    except Exception as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error),
-        )
-
-    return standard_responses.Result()
 
 
 @router.post(
