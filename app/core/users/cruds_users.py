@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, and_, delete, not_, or_, select, update
+from sqlalchemy import ForeignKey, and_, delete, func, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_utils import get_referencing_foreign_keys
@@ -16,9 +16,14 @@ from app.core.users import models_users, schemas_users
 
 async def count_users(db: AsyncSession) -> int:
     """Return the number of users in the database"""
+    return (await db.execute(select(func.count(models_users.CoreUser.id)))).scalar_one()
 
-    result = await db.execute(select(models_users.CoreUser))
-    return len(result.scalars().all())
+
+async def count_activation_tokens(db: AsyncSession) -> int:
+    """Return the number of activation tokens in the database"""
+    return (
+        await db.execute(select(func.count(models_users.CoreUserUnconfirmed.id)))
+    ).scalar_one()
 
 
 async def get_users(
