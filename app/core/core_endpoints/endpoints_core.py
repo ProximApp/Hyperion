@@ -14,7 +14,7 @@ from app.dependencies import (
     is_user,
     is_user_super_admin,
 )
-from app.module import module_list
+from app.module import get_module_list
 from app.types.module import CoreModule
 from app.utils.tools import is_group_id_valid, patch_identity_in_text
 
@@ -209,7 +209,7 @@ async def get_module_visibility(
     """
 
     return_module_visibilities = []
-    for module in module_list:
+    for module in get_module_list():
         allowed_group_ids = await cruds_core.get_allowed_groups_by_root(
             root=module.root,
             db=db,
@@ -237,6 +237,7 @@ async def get_module_visibility(
 async def get_user_modules_visibility(
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(is_user()),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Get group user accessible root
@@ -244,7 +245,11 @@ async def get_user_modules_visibility(
     **This endpoint is only usable by everyone**
     """
 
-    return await cruds_core.get_modules_by_user(user=user, db=db)
+    modules = await cruds_core.get_modules_by_user(user=user, db=db)
+    if settings.RESTRICT_TO_MODULES:
+        return [module for module in modules if module in settings.RESTRICT_TO_MODULES]
+
+    return modules
 
 
 @router.post(
