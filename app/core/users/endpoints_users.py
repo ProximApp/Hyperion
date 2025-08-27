@@ -363,6 +363,10 @@ async def batch_invite_users(
                 db=db,
             )
         except Exception as error:
+            # Maybe we should not log exception due to malformed email address
+            hyperion_error_logger.exception(
+                f"Could not send email invitation to {user_invite.email}",
+            )
             failed[user_invite.email] = str(error)
 
     return standard_responses.BatchResult(failed=failed)
