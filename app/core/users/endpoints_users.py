@@ -335,19 +335,16 @@ async def batch_invite_users(
         db=db,
         emails=[user_invite.email for user_invite in user_invites],
     )
-    for email in already_invited_emails:
-        failed[email] = "User already invited"
 
     for user_invite in user_invites:
-        if user_invite.email in failed:
-            # If the user was already invited, we skip it
-            continue
         try:
-            await cruds_users.create_invitation(
-                email=user_invite.email,
-                default_group_id=user_invite.default_group_id,
-                db=db,
-            )
+            if user_invite.email not in already_invited_emails:
+                # If the user was already invited, we only send them an email
+                await cruds_users.create_invitation(
+                    email=user_invite.email,
+                    default_group_id=user_invite.default_group_id,
+                    db=db,
+                )
 
             creation_url = settings.CLIENT_URL + calypsso.get_register_relative_url(
                 external=True,
