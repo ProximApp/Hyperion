@@ -200,7 +200,7 @@ def test_get_bookings_confirmed(client: TestClient) -> None:
         headers={"Authorization": f"Bearer {token_manager}"},
     )
     assert response.status_code == 200
-    assert response.json()[0]["applicant"].get("name", None) == simple_user.name
+    assert response.json()[0]["applicant"].get("name", None) == simple_user.name.title()
     assert response.json()[0]["applicant"].get("email", None) is None
 
 
