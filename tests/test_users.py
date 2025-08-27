@@ -306,8 +306,17 @@ def test_update_batch_invite_users(client: TestClient) -> None:
 
 def test_can_not_make_admin_when_there_are_multiple_users(client: TestClient) -> None:
     response = client.post(
-        "/users/make-admin",
-        headers={"Authorization": f"Bearer {token_admin_user}"},
+        "/users/init/make-admin",
+    )
+    assert response.status_code == 403
+
+
+def test_can_not_invite_when_there_are_users(client: TestClient) -> None:
+    response = client.post(
+        "/users/init/invite",
+        json=[
+            {"email": "email@domain.fr"},
+        ],
     )
     assert response.status_code == 403
 

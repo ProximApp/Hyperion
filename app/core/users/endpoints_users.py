@@ -353,7 +353,7 @@ async def batch_invite_users(
 
             await cruds_core.add_queued_email(
                 email=user_invite.email,
-                subject=f"{settings.school.application_name} - you have been invited to create an account on MyECL",
+                subject=f"{settings.school.application_name} - you have been invited to create an account",
                 body=mail_templates.get_mail_account_invitation(
                     creation_url=creation_url,
                 ),
@@ -604,9 +604,8 @@ async def init_s3_for_users(
 
 
 @router.post(
-    "/users/make-admin",
-    response_model=standard_responses.Result,
-    status_code=200,
+    "/users/init/make-admin",
+    status_code=204,
 )
 async def make_admin(
     db: AsyncSession = Depends(get_db),
@@ -623,15 +622,50 @@ async def make_admin(
             detail="This endpoint is only usable if there is exactly one user in the database",
         )
 
-    try:
-        await cruds_users.update_user_as_super_admin(db=db, user_id=users[0].id)
-    except Exception as error:
+    await cruds_users.update_user_as_super_admin(db=db, user_id=users[0].id)
+
+
+@router.post(
+    "/users/init/invite",
+    status_code=204,
+)
+async def invite_first_user(
+    email: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    mail_templates: calypsso.MailTemplates = Depends(get_mail_templates),
+):
+    """
+    This endpoint is only usable if the database contains exactly one user.
+    It will add this user to the `admin` group.
+    """
+    users = await cruds_users.get_users(db=db)
+
+    if len(users) != 0:
         raise HTTPException(
-            status_code=400,
-            detail=str(error),
+            status_code=403,
+            detail="This endpoint is only usable if there is exactly one user in the database",
         )
 
-    return standard_responses.Result()
+    await cruds_users.create_invitation(
+        email=email,
+        default_group_id=None,
+        db=db,
+    )
+
+    creation_url = settings.CLIENT_URL + calypsso.get_register_relative_url(
+        external=True,
+        email=email,
+    )
+
+    await cruds_core.add_queued_email(
+        email=email,
+        subject=f"{settings.school.application_name} - you have been invited to create an account",
+        body=mail_templates.get_mail_account_invitation(
+            creation_url=creation_url,
+        ),
+        db=db,
+    )
 
 
 @router.post(
