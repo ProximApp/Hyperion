@@ -25,6 +25,7 @@ async def add_queued_email(
         created_on=datetime.now(UTC),
     )
     db.add(email_queue)
+    await db.flush()
 
 
 async def get_queued_emails(

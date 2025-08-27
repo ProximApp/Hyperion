@@ -173,14 +173,14 @@ class Scheduler:
                 port=redis_port,
                 password=redis_password or "",
             )
-            # Every hours we send some emails in the queue
+            # Every fifteen minutes we send some emails in the queue
             cron_jobs = [
                 cron(
                     get_send_emails_from_queue_task(
                         _dependency_overrides=_dependency_overrides,
                     ),
                     hour=None,
-                    minute=10,
+                    minute={0, 15, 30, 45},
                 ),
             ]
 

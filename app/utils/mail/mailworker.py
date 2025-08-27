@@ -60,18 +60,18 @@ def send_email(
 async def send_emails_from_queue(db: "AsyncSession", settings: "Settings") -> None:
     """
     Send emails from the email queue. This function should be called by a cron scheduled task only once per hour.
-    The task will only send 100 emails per hour to avoid being rate-limited by the email provider.
+    The task will only send 25 emails per fivteen minutes (100 emails per hour) to avoid being rate-limited by the email provider.
     """
     queued_emails = await cruds_core.get_queued_emails(
         db=db,
-        limit=100,
+        limit=25,
     )
 
     send_emails_ids = [email.id for email in queued_emails]
 
     for email in queued_emails:
         try:
-            await send_email(
+            send_email(
                 recipient=email.email,
                 subject=email.subject,
                 content=email.body,
