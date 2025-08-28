@@ -40,13 +40,13 @@ async def init_objects():
     aeecl_association_membership = models_memberships.CoreAssociationMembership(
         id=uuid.uuid4(),
         name="AEECL",
-        manager_group_id=GroupType.BDE,
+        manager_group_id=GroupType.admin_amap,
     )
     await add_object_to_db(aeecl_association_membership)
     useecl_association_membership = models_memberships.CoreAssociationMembership(
         id=uuid.uuid4(),
         name="USEECL",
-        manager_group_id=GroupType.BDS,
+        manager_group_id=GroupType.admin_calendar,
     )
     await add_object_to_db(useecl_association_membership)
 
@@ -85,7 +85,7 @@ def test_create_association_membership_user(client: TestClient):
         "/memberships",
         json={
             "name": "Random Association",
-            "manager_group_id": GroupType.AE,
+            "manager_group_id": GroupType.admin_cinema,
         },
         headers={"Authorization": f"Bearer {token_user}"},
     )
@@ -97,7 +97,7 @@ def test_create_association_membership_admin(client: TestClient):
         "/memberships",
         json={
             "name": "Random Association",
-            "manager_group_id": GroupType.AE,
+            "manager_group_id": GroupType.admin_cinema,
         },
         headers={"Authorization": f"Bearer {token_admin}"},
     )
@@ -158,7 +158,7 @@ async def test_delete_association_membership_admin(client: TestClient):
     new_membership = models_memberships.CoreAssociationMembership(
         id=uuid.uuid4(),
         name="Random Association1",
-        manager_group_id=GroupType.AE,
+        manager_group_id=GroupType.admin_feed,
     )
     await add_object_to_db(new_membership)
 
@@ -181,7 +181,7 @@ def test_patch_association_membership_user(client: TestClient):
         f"/memberships/{aeecl_association_membership.id}",
         json={
             "name": "Random Association",
-            "manager_group_id": GroupType.eclair.value,
+            "manager_group_id": GroupType.admin_feed.value,
         },
         headers={"Authorization": f"Bearer {token_user}"},
     )
@@ -202,12 +202,12 @@ async def test_patch_association_membership_admin(client: TestClient):
     new_membership = models_memberships.CoreAssociationMembership(
         id=uuid.uuid4(),
         name="Random Association2",
-        manager_group_id=GroupType.AE,
+        manager_group_id=GroupType.admin_feed,
     )
     await add_object_to_db(new_membership)
 
     new_name = "Random Association3"
-    new_group_id = GroupType.eclair.value
+    new_group_id = GroupType.admin_feed.value
     response = client.patch(
         f"/memberships/{new_membership.id}",
         json={

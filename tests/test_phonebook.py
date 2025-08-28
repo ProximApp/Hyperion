@@ -28,7 +28,7 @@ membership3: models_phonebook.Membership
 membership4: models_phonebook.Membership
 membership5: models_phonebook.Membership
 membership6: models_phonebook.Membership
-phonebook_user_BDE: models_users.CoreUser
+phonebook_user_phonebook_admin: models_users.CoreUser
 phonebook_user_president: models_users.CoreUser
 phonebook_user_simple: models_users.CoreUser
 phonebook_user_simple2: models_users.CoreUser
@@ -40,15 +40,15 @@ association2_group: models_groups.CoreGroup
 association2_group2: models_phonebook.AssociationAssociatedGroups
 
 token_admin: str
-token_BDE: str
+token_phonebook_admin: str
 token_president: str
 token_simple: str
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects():
-    global phonebook_user_BDE
-    global token_BDE
+    global phonebook_user_phonebook_admin
+    global token_phonebook_admin
     global phonebook_user_president
     global token_president
     global phonebook_user_simple
@@ -77,10 +77,10 @@ async def init_objects():
 
     global association2_group2
 
-    phonebook_user_BDE = await create_user_with_groups(
-        [GroupType.BDE],
+    phonebook_user_phonebook_admin = await create_user_with_groups(
+        [GroupType.admin_phonebook],
     )
-    token_BDE = create_api_access_token(phonebook_user_BDE)
+    token_phonebook_admin = create_api_access_token(phonebook_user_phonebook_admin)
 
     phonebook_user_president = await create_user_with_groups(
         [],
@@ -174,7 +174,7 @@ async def init_objects():
 
     membership2 = models_phonebook.Membership(
         id=str(uuid.uuid4()),
-        user_id=phonebook_user_BDE.id,
+        user_id=phonebook_user_phonebook_admin.id,
         association_id=association1.id,
         role_tags="",
         role_name="VP",
@@ -279,7 +279,9 @@ def test_get_members_by_association_id_simple(client: TestClient):
     assert any(
         member["id"] == phonebook_user_president.id for member in response.json()
     )
-    assert any(member["id"] == phonebook_user_BDE.id for member in response.json())
+    assert any(
+        member["id"] == phonebook_user_phonebook_admin.id for member in response.json()
+    )
     assert any(member["id"] == phonebook_user_simple.id for member in response.json())
     assert any(member["id"] == phonebook_user_simple2.id for member in response.json())
 
@@ -326,7 +328,7 @@ def test_create_association_groupement_BDE(client: TestClient):
         json={
             "name": "Section USE",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 201
 
@@ -370,7 +372,7 @@ def test_create_association_admin(client: TestClient):
             "mandate_year": 2023,
             "description": "Bazar description",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
 
     association = response.json()
@@ -393,7 +395,7 @@ def test_create_association_with_related_groups(client: TestClient):
             "description": "Bazar description",
             "associated_groups": [association1_group.id],
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
 
     associations = client.get(
@@ -446,7 +448,7 @@ def test_add_membership_admin(client: TestClient):
             "role_tags": "",
             "member_order": 1,
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 201
 
@@ -509,7 +511,7 @@ def test_add_membership_admin_with_president_tag(client: TestClient):
             "role_tags": RoleTags.president.value,
             "member_order": 0,
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 201
 
@@ -565,7 +567,7 @@ def test_add_association_group_BDE(client: TestClient):
         json={
             "associated_groups": [association1_group.id],
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 403
 
@@ -646,7 +648,7 @@ def test_update_association_groupement_BDE(client: TestClient):
         json={
             "name": "Section AE modifié",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -701,7 +703,7 @@ def test_update_association_admin(client: TestClient):
             "name": "Bazar",
             "description": "Bazar description",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -794,7 +796,7 @@ def test_update_membership_admin(client: TestClient):
         json={
             "role_name": "Autre rôle",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -875,7 +877,11 @@ def test_update_membership_president_with_president_tag(client: TestClient):
     ).json()
 
     user_BDE = next(
-        (member for member in members if member["id"] == phonebook_user_BDE.id),
+        (
+            member
+            for member in members
+            if member["id"] == phonebook_user_phonebook_admin.id
+        ),
         None,
     )
 
@@ -901,7 +907,7 @@ def test_update_membership_admin_with_president_tag(client: TestClient):
         json={
             "role_tags": RoleTags.president.value,
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -911,7 +917,11 @@ def test_update_membership_admin_with_president_tag(client: TestClient):
     ).json()
 
     user_BDE = next(
-        (member for member in members if member["id"] == phonebook_user_BDE.id),
+        (
+            member
+            for member in members
+            if member["id"] == phonebook_user_phonebook_admin.id
+        ),
         None,
     )
 
@@ -937,7 +947,7 @@ def test_update_membership_order(client: TestClient):
         json={
             "member_order": 2,
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -951,7 +961,11 @@ def test_update_membership_order(client: TestClient):
         None,
     )
     user_BDE = next(
-        (member for member in members if member["id"] == phonebook_user_BDE.id),
+        (
+            member
+            for member in members
+            if member["id"] == phonebook_user_phonebook_admin.id
+        ),
         None,
     )
     user_simple = next(
@@ -1060,7 +1074,7 @@ def test_delete_groupement_simple(client: TestClient):
 def test_delete_groupement_BDE(client: TestClient):
     response = client.delete(
         f"/phonebook/groupements/{section_ae.id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 400
 
@@ -1087,7 +1101,7 @@ async def test_delete_empty_groupement_BDE(client: TestClient):
     await add_object_to_db(empty_groupement)
     response = client.delete(
         f"/phonebook/groupements/{empty_groupement.id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
     groupements = client.get(
@@ -1115,13 +1129,13 @@ def test_delete_membership_simple(client: TestClient):
 def test_delete_membership_admin(client: TestClient):
     response = client.delete(
         f"/phonebook/associations/memberships/{membership4.id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
     members = client.get(
         f"/phonebook/associations/{association1.id}/members/{association1.mandate_year}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     ).json()
 
     assert len(members) == 3
@@ -1145,17 +1159,21 @@ def test_delete_membership_president(client: TestClient):
 def test_delete_membership_update_order(client: TestClient):
     response = client.delete(
         f"/phonebook/associations/memberships/{membership1.id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
     members = client.get(
         f"/phonebook/associations/{association1.id}/members/{association1.mandate_year}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     ).json()
 
     user_BDE = next(
-        (member for member in members if member["id"] == phonebook_user_BDE.id),
+        (
+            member
+            for member in members
+            if member["id"] == phonebook_user_phonebook_admin.id
+        ),
         None,
     )
 
@@ -1201,7 +1219,7 @@ def test_delete_association_simple(client: TestClient):
 def test_delete_association_admin_without_deactivation(client: TestClient):
     response = client.delete(
         f"/phonebook/associations/{association2.id}/",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 400
 
@@ -1223,7 +1241,7 @@ def test_delete_association_admin_without_deactivation(client: TestClient):
 def test_delete_association_admin_with_deactivation(client: TestClient):
     response = client.patch(
         f"/phonebook/associations/{association2.id}/deactivate",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 
@@ -1244,7 +1262,7 @@ def test_delete_association_admin_with_deactivation(client: TestClient):
 
     response = client.delete(
         f"/phonebook/associations/{association2.id}/",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_phonebook_admin}"},
     )
     assert response.status_code == 204
 

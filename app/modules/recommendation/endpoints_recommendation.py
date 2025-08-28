@@ -60,7 +60,7 @@ async def get_recommendation(
 async def create_recommendation(
     recommendation: schemas_recommendation.RecommendationBase,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_recommandation)),
 ):
     """
     Create a recommendation.
@@ -88,7 +88,7 @@ async def edit_recommendation(
     recommendation_id: uuid.UUID,
     recommendation: schemas_recommendation.RecommendationEdit,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_recommandation)),
 ):
     """
     Edit a recommendation.
@@ -113,7 +113,7 @@ async def edit_recommendation(
 async def delete_recommendation(
     recommendation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_recommandation)),
 ):
     """
     Delete a recommendation.
@@ -168,7 +168,7 @@ async def read_recommendation_image(
 async def create_recommendation_image(
     recommendation_id: uuid.UUID,
     image: UploadFile = File(),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_recommandation)),
     db: AsyncSession = Depends(get_db),
 ):
     """

@@ -23,7 +23,7 @@ token_simple: str
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
     global cinema_user_cinema
-    cinema_user_cinema = await create_user_with_groups([GroupType.cinema])
+    cinema_user_cinema = await create_user_with_groups([GroupType.admin_cinema])
 
     global token_cinema
     token_cinema = create_api_access_token(cinema_user_cinema)

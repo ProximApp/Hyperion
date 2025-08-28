@@ -41,7 +41,7 @@ async def init_objects() -> None:
 
     global manager_user
     manager_user = await create_user_with_groups(
-        [GroupType.BDE],
+        [GroupType.admin_cdr],
     )
 
     global token_manager
@@ -56,8 +56,8 @@ async def init_objects() -> None:
     global manager
     manager = models_booking.Manager(
         id=str(uuid.uuid4()),
-        name="BDE",
-        group_id=GroupType.BDE,
+        name="CDR",
+        group_id=GroupType.admin_cdr,
     )
     await add_object_to_db(manager)
 
@@ -65,7 +65,7 @@ async def init_objects() -> None:
     manager_to_delete = models_booking.Manager(
         id=str(uuid.uuid4()),
         name="Planet",
-        group_id=GroupType.amap,
+        group_id=GroupType.admin_amap,
     )
     await add_object_to_db(manager_to_delete)
 
@@ -153,7 +153,7 @@ def test_edit_manager(client: TestClient) -> None:
     assert response.status_code == 204
     response = client.patch(
         f"/booking/managers/{manager_to_delete.id}",
-        json={"group_id": GroupType.cinema.value},
+        json={"group_id": GroupType.admin_cinema.value},
         headers={"Authorization": f"Bearer {token_admin}"},
     )
     assert response.status_code == 204

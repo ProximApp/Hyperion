@@ -54,7 +54,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 )
 async def get_products(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Return all products
@@ -72,7 +72,7 @@ async def get_products(
 async def create_product(
     product: schemas_amap.ProductSimple,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Create a new product
@@ -113,7 +113,7 @@ async def edit_product(
     product_id: str,
     product_update: schemas_amap.ProductEdit,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Edit a product
@@ -139,7 +139,7 @@ async def edit_product(
 async def delete_product(
     product_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Delete a product. A product can not be deleted if it is already used in a delivery.
@@ -183,7 +183,7 @@ async def get_deliveries(
 async def create_delivery(
     delivery: schemas_amap.DeliveryBase,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Create a new delivery.
@@ -215,7 +215,7 @@ async def create_delivery(
 async def delete_delivery(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Delete a delivery.
@@ -244,7 +244,7 @@ async def edit_delivery(
     delivery_id: str,
     delivery: schemas_amap.DeliveryUpdate,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Edit a delivery.
@@ -273,7 +273,7 @@ async def add_product_to_delivery(
     products_ids: schemas_amap.DeliveryProductsUpdate,
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Add `product_id` product to `delivery_id` delivery. This endpoint will only add a membership between the two objects.
@@ -305,7 +305,7 @@ async def remove_product_from_delivery(
     delivery_id: str,
     products_ids: schemas_amap.DeliveryProductsUpdate,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Remove a given product from a delivery. This won't delete the product nor the delivery.
@@ -337,7 +337,7 @@ async def remove_product_from_delivery(
 async def get_orders_from_delivery(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user_req: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user_req: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Get orders from a delivery.
@@ -371,7 +371,7 @@ async def get_orders_from_delivery(
 async def get_order_by_id(
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Get content of an order.
@@ -419,7 +419,8 @@ async def add_order_to_delievery(
         raise HTTPException(status_code=400, detail="Invalid request")
 
     if not (
-        user.id == order.user_id or is_user_member_of_any_group(user, [GroupType.amap])
+        user.id == order.user_id
+        or is_user_member_of_any_group(user, [GroupType.admin_amap])
     ):
         raise HTTPException(
             status_code=403,
@@ -537,7 +538,7 @@ async def edit_order_from_delivery(
 
     if not (
         user.id == previous_order.user_id
-        or is_user_member_of_any_group(user, [GroupType.amap])
+        or is_user_member_of_any_group(user, [GroupType.admin_amap])
     ):
         raise HTTPException(
             status_code=403,
@@ -631,7 +632,7 @@ async def remove_order(
 
     **A member of the group AMAP can delete orders of other users**
     """
-    is_user_admin = is_user_member_of_any_group(user, [GroupType.amap])
+    is_user_admin = is_user_member_of_any_group(user, [GroupType.admin_amap])
     order = await cruds_amap.get_order_by_id(db=db, order_id=order_id)
     if not order:
         raise HTTPException(status_code=404, detail="No order found")
@@ -694,7 +695,7 @@ async def remove_order(
 async def open_ordering_of_delivery(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
     notification_tool: NotificationTool = Depends(get_notification_tool),
 ):
     delivery = await cruds_amap.get_delivery_by_id(db=db, delivery_id=delivery_id)
@@ -727,7 +728,7 @@ async def open_ordering_of_delivery(
 async def lock_delivery(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     delivery = await cruds_amap.get_delivery_by_id(db=db, delivery_id=delivery_id)
     if delivery is None:
@@ -748,7 +749,7 @@ async def lock_delivery(
 async def mark_delivery_as_delivered(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     delivery = await cruds_amap.get_delivery_by_id(db=db, delivery_id=delivery_id)
     if delivery is None:
@@ -769,7 +770,7 @@ async def mark_delivery_as_delivered(
 async def archive_of_delivery(
     delivery_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     delivery = await cruds_amap.get_delivery_by_id(db=db, delivery_id=delivery_id)
     if delivery is None:
@@ -791,7 +792,7 @@ async def archive_of_delivery(
 )
 async def get_users_cash(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Get cash from all users.
@@ -820,7 +821,9 @@ async def get_cash_by_id(
     if user_db is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not (user_id == user.id or is_user_member_of_any_group(user, [GroupType.amap])):
+    if not (
+        user_id == user.id or is_user_member_of_any_group(user, [GroupType.admin_amap])
+    ):
         raise HTTPException(
             status_code=403,
             detail="Users that are not member of the group AMAP can only access the endpoint for their own user_id.",
@@ -849,7 +852,7 @@ async def create_cash_of_user(
     user_id: str,
     cash: schemas_amap.CashEdit,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
     request_id: str = Depends(get_request_id),
     notification_tool: NotificationTool = Depends(get_notification_tool),
 ):
@@ -909,7 +912,7 @@ async def edit_cash_by_id(
     user_id: str,
     balance: schemas_amap.CashEdit,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
     request_id: str = Depends(get_request_id),
 ):
     """
@@ -955,7 +958,9 @@ async def get_orders_of_user(
     if not user_requested:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not (user_id == user.id or is_user_member_of_any_group(user, [GroupType.amap])):
+    if not (
+        user_id == user.id or is_user_member_of_any_group(user, [GroupType.admin_amap])
+    ):
         raise HTTPException(
             status_code=403,
             detail="Users that are not member of the group AMAP can only access the endpoint for their own user_id.",
@@ -1002,7 +1007,7 @@ async def get_information(
 async def edit_information(
     edit_information: schemas_amap.InformationEdit,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.amap)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_amap)),
 ):
     """
     Update information

@@ -24,7 +24,7 @@ async def init_objects() -> None:
     super_admin_user = await create_user_with_groups([], is_super_admin=True)
     global token_super_admin
     token_super_admin = create_api_access_token(super_admin_user)
-    user_simple = await create_user_with_groups([GroupType.AE])
+    user_simple = await create_user_with_groups([GroupType.admin_phonebook])
     global token_simple
     token_simple = create_api_access_token(user_simple)
     module_visibility = models_core.ModuleGroupVisibility(
@@ -55,7 +55,7 @@ def test_add_group_module_visibility(client: TestClient) -> None:
         "/module-visibility/",
         json={
             "root": "root",
-            "allowed_group_id": GroupType.AE.value,
+            "allowed_group_id": GroupType.admin_phonebook.value,
         },
         headers={"Authorization": f"Bearer {token_super_admin}"},
     )

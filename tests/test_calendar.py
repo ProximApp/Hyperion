@@ -23,7 +23,7 @@ association: models_associations.CoreAssociation
 
 token_bde: str
 token_simple: str
-token_eclair: str
+token_amap: str
 token_admin: str
 
 simple_user_ical_secret = "simple_user_ical_secret"
@@ -32,7 +32,7 @@ simple_user_ical_secret = "simple_user_ical_secret"
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
     calendar_user_bde = await create_user_with_groups(
-        [GroupType.BDE],
+        [GroupType.admin_calendar],
     )
     global token_bde
     token_bde = create_api_access_token(calendar_user_bde)
@@ -41,9 +41,9 @@ async def init_objects() -> None:
     global token_simple
     token_simple = create_api_access_token(calendar_user_simple)
 
-    calendar_user_eclair = await create_user_with_groups([GroupType.eclair])
-    global token_eclair
-    token_eclair = create_api_access_token(calendar_user_eclair)
+    calendar_user_amap = await create_user_with_groups([GroupType.admin_amap])
+    global token_amap
+    token_amap = create_api_access_token(calendar_user_amap)
 
     calendar_user_admin = await create_user_with_groups([GroupType.admin])
     global token_admin
@@ -53,7 +53,7 @@ async def init_objects() -> None:
     association = models_associations.CoreAssociation(
         id=uuid.uuid4(),
         name="Eclair",
-        group_id=GroupType.eclair,
+        group_id=GroupType.admin_amap,
     )
     await add_object_to_db(association)
 
@@ -143,7 +143,7 @@ def test_get_confirmed_events(client: TestClient) -> None:
 def test_get_association_events_member_of_association(client: TestClient) -> None:
     response = client.get(
         f"/calendar/events/associations/{association.id}",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -207,7 +207,7 @@ def test_create_picture(client: TestClient) -> None:
         response = client.post(
             f"/calendar/events/{calendar_event.id}/image",
             files={"image": ("advert.png", image, "image/png")},
-            headers={"Authorization": f"Bearer {token_eclair}"},
+            headers={"Authorization": f"Bearer {token_amap}"},
         )
 
     assert response.status_code == 204
@@ -225,7 +225,7 @@ def test_add_event(client: TestClient) -> None:
             "location": "Skylab",
             "description": "Apprendre à coder !",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 201
 
@@ -243,7 +243,7 @@ def test_add_event_with_missing_ticket_field(client: TestClient) -> None:
             "description": "Apprendre à coder !",
             "ticket_url_opening": "2019-08-24T14:15:22Z",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 422
 
@@ -259,7 +259,7 @@ def test_add_event_with_missing_ticket_field(client: TestClient) -> None:
             "description": "Apprendre à coder !",
             "ticket_url": "https://example.com/ticket",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 422
 
@@ -293,7 +293,7 @@ def test_add_event_non_existing_association(client: TestClient) -> None:
             "location": "Skylab",
             "description": "Apprendre à coder !",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 404
 
@@ -302,7 +302,7 @@ def test_edit_event(client: TestClient) -> None:
     response = client.patch(
         f"/calendar/events/{calendar_event.id}",
         json={"description": "Apprendre à programmer"},
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 204
 
@@ -313,7 +313,7 @@ def test_edit_event_with_missing_ticket_field(client: TestClient) -> None:
         json={
             "ticket_url_opening": "2019-08-24T14:15:22Z",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 400
 
@@ -322,7 +322,7 @@ def test_edit_event_with_missing_ticket_field(client: TestClient) -> None:
         json={
             "ticket_url": "https://example.com/ticket",
         },
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 400
 
@@ -364,7 +364,7 @@ def test_delete_event(client: TestClient) -> None:
     """Test if an admin can delete an event."""
     response = client.delete(
         f"/calendar/events/{calendar_event_to_delete.id}",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 204
 
@@ -373,7 +373,7 @@ def test_delete_non_existing_event(client: TestClient) -> None:
     """Test if an admin can delete an event."""
     response = client.delete(
         f"/calendar/events/{uuid.uuid4()}",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 404
 
@@ -391,14 +391,14 @@ def test_get_ical_url(client: TestClient) -> None:
     """Test if a simple user can get the iCal URL for an event."""
     response = client.get(
         "/calendar/ical-url",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 200
     data = response.json()
 
     response2 = client.get(
         "/calendar/ical-url",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response2.status_code == 200
     data2 = response2.json()
@@ -418,7 +418,7 @@ def test_get_ical(client: TestClient) -> None:
     """Test if a simple user can get the iCal URL for an event."""
     response = client.get(
         f"/calendar/ical?secret={simple_user_ical_secret}",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 200
 
@@ -427,6 +427,6 @@ def test_get_ical_invalid_secret(client: TestClient) -> None:
     """Test if a simple user can get the iCal URL for an event."""
     response = client.get(
         "/calendar/ical?secret=invalid",
-        headers={"Authorization": f"Bearer {token_eclair}"},
+        headers={"Authorization": f"Bearer {token_amap}"},
     )
     assert response.status_code == 403

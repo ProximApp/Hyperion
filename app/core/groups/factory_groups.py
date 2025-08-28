@@ -15,14 +15,21 @@ class CoreGroupsFactory(Factory):
     groups_ids = [
         str(uuid.uuid4()),
         str(uuid.uuid4()),
+        str(uuid.uuid4()),
+        str(uuid.uuid4()),
     ]
 
     depends_on = [CoreUsersFactory]
 
     @classmethod
     async def create_core_groups(cls, db: AsyncSession):
-        groups = ["Oui", "Pixels"]
-        descriptions = ["Groupe de test", "Groupe de test 2"]
+        groups = ["BDE", "BDS", "Oui", "Pixels"]
+        descriptions = [
+            "Bureau des élèves",
+            "Bureau des sports",
+            "Association d'entraide",
+            "Association de photographie",
+        ]
         for i in range(len(groups)):
             await cruds_groups.create_group(
                 db=db,

@@ -60,7 +60,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 async def get_movie(
     themoviedb_id: str,
     settings: Settings = Depends(get_settings),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.cinema)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_cinema)),
 ):
     """
     Makes a HTTP request to The Movie Database (TMDB)
@@ -130,7 +130,7 @@ async def get_sessions(
 async def create_session(
     session: schemas_cinema.CineSessionBase,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.cinema)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_cinema)),
     notification_tool: NotificationTool = Depends(get_notification_tool),
     scheduler: Scheduler = Depends(get_scheduler),
 ):
@@ -178,7 +178,7 @@ async def update_session(
     session_id: str,
     session_update: schemas_cinema.CineSessionUpdate,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.cinema)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_cinema)),
 ):
     await cruds_cinema.update_session(
         session_id=session_id,
@@ -191,7 +191,7 @@ async def update_session(
 async def delete_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.cinema)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_cinema)),
 ):
     await cruds_cinema.delete_session(session_id=session_id, db=db)
 
@@ -204,7 +204,7 @@ async def delete_session(
 async def create_campaigns_logo(
     session_id: str,
     image: UploadFile = File(...),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.cinema)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_cinema)),
     db: AsyncSession = Depends(get_db),
 ):
     session = await cruds_cinema.get_session_by_id(db=db, session_id=session_id)

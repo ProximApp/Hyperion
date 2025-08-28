@@ -7,7 +7,6 @@ import uuid
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from app.core.groups.groups_type import GroupType
 from app.types.sqlalchemy import TZDateTime
 
 if TYPE_CHECKING:
@@ -22,6 +21,7 @@ down_revision: str | None = "ca448cdee52b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+BDE_ID = "53a669d6-84b1-4352-8d7c-421c1fbd9c6a"
 
 associations_table = sa.Table(
     "associations_associations",
@@ -58,7 +58,7 @@ def upgrade() -> None:
         bde_db = {
             "id": bde_id,
             "name": "BDE",
-            "group_id": GroupType.BDE.value,
+            "group_id": BDE_ID,
         }
         conn.execute(associations_table.insert().values(bde_db))
     else:

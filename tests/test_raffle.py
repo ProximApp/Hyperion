@@ -14,7 +14,7 @@ from tests.commons import (
     create_user_with_groups,
 )
 
-BDE_user: models_users.CoreUser
+AMAP_user: models_users.CoreUser
 admin_user: models_users.CoreUser
 student_user: models_users.CoreUser
 raffle: models_raffle.Raffle
@@ -34,7 +34,7 @@ cash: models_raffle.Cash
 async def init_objects() -> None:
     global \
         admin_user, \
-        BDE_user, \
+        AMAP_user, \
         student_user, \
         raffle, \
         raffle_to_draw, \
@@ -48,7 +48,7 @@ async def init_objects() -> None:
         raffle_to_delete, \
         packticket_to_delete
 
-    BDE_user = await create_user_with_groups([GroupType.BDE])
+    AMAP_user = await create_user_with_groups([GroupType.admin_amap])
     student_user = await create_user_with_groups(
         [],
     )
@@ -58,7 +58,7 @@ async def init_objects() -> None:
         id=str(uuid.uuid4()),
         name="Antoine's raffle",
         status=RaffleStatusType.creation,
-        group_id=GroupType.BDE,
+        group_id=GroupType.admin_amap,
         description=None,
     )
     await add_object_to_db(raffle_to_delete)
@@ -66,7 +66,7 @@ async def init_objects() -> None:
         id=str(uuid.uuid4()),
         name="The best raffle",
         status=RaffleStatusType.creation,
-        group_id=GroupType.BDE,
+        group_id=GroupType.admin_amap,
         description="Description of the raffle",
     )
     await add_object_to_db(raffle)
@@ -75,7 +75,7 @@ async def init_objects() -> None:
         id=str(uuid.uuid4()),
         name="The best raffle to draw",
         status=RaffleStatusType.lock,
-        group_id=GroupType.BDE,
+        group_id=GroupType.admin_amap,
         description="Description of the raffle",
     )
     await add_object_to_db(raffle_to_draw)
@@ -157,7 +157,7 @@ def test_create_raffle(client: TestClient) -> None:
         "/tombola/raffles",
         json={
             "name": "test",
-            "group_id": GroupType.BDE,
+            "group_id": GroupType.admin_amap,
             "description": "Raffle's description",
         },
         headers={"Authorization": f"Bearer {token}"},
@@ -166,7 +166,7 @@ def test_create_raffle(client: TestClient) -> None:
 
 
 def test_edit_raffle(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.patch(
         f"/tombola/raffles/{raffle_to_delete.id}",
@@ -188,7 +188,7 @@ def test_edit_raffle(client: TestClient) -> None:
 
 
 def test_create_raffle_logo(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     with Path("assets/images/default_campaigns_logo.png").open("rb") as image:
         response = client.post(
@@ -201,7 +201,7 @@ def test_create_raffle_logo(client: TestClient) -> None:
 
 
 def test_read_raffle_logo(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.get(
         f"/tombola/raffles/{raffle.id}/logo",
@@ -212,7 +212,7 @@ def test_read_raffle_logo(client: TestClient) -> None:
 
 
 def test_create_prize_picture(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     with Path("assets/images/default_campaigns_logo.png").open("rb") as image:
         response = client.post(
@@ -225,7 +225,7 @@ def test_create_prize_picture(client: TestClient) -> None:
 
 
 def test_read_prize_picture(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.get(
         f"/tombola/prizes/{prize.id}/picture",
@@ -236,7 +236,7 @@ def test_read_prize_picture(client: TestClient) -> None:
 
 
 def test_open_raffle(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.patch(
         f"/tombola/raffles/{raffle_to_delete.id}/open",
@@ -254,7 +254,7 @@ def test_open_raffle(client: TestClient) -> None:
 
 
 def test_lock_raffle(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.patch(
         f"/tombola/raffles/{raffle_to_delete.id}/lock",
@@ -294,7 +294,7 @@ def test_get_tickets(client: TestClient) -> None:
 
 
 def test_get_tickets_by_raffle_id(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.get(
         f"/tombola/raffles/{raffle.id}/tickets",
@@ -355,7 +355,7 @@ def test_buy_tickets(client: TestClient) -> None:
 
 # # pack_tickets
 def test_get_packtickets(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.get(
         "/tombola/pack_tickets",
@@ -365,7 +365,7 @@ def test_get_packtickets(client: TestClient) -> None:
 
 
 def test_get_packtickets_by_raffle_id(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.get(
         f"/tombola/raffles/{raffle.id}/pack_tickets",
@@ -375,7 +375,7 @@ def test_get_packtickets_by_raffle_id(client: TestClient) -> None:
 
 
 def test_create_packtickets(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.post(
         "/tombola/pack_tickets",
@@ -390,7 +390,7 @@ def test_create_packtickets(client: TestClient) -> None:
 
 
 def test_edit_packtickets(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.patch(
         f"/tombola/pack_tickets/{packticket.id}",
@@ -405,7 +405,7 @@ def test_edit_packtickets(client: TestClient) -> None:
 
 
 def test_delete_packtickets(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.delete(
         f"/tombola/pack_tickets/{packticket_to_delete.id}",
@@ -437,7 +437,7 @@ def test_get_prizes_by_raffle_id(client: TestClient) -> None:
 
 
 def test_create_prizes(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.post(
         "/tombola/prizes",
@@ -453,7 +453,7 @@ def test_create_prizes(client: TestClient) -> None:
 
 
 def test_edit_prizes(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.patch(
         f"/tombola/prizes/{prize.id}",
@@ -469,7 +469,7 @@ def test_edit_prizes(client: TestClient) -> None:
 
 
 def test_draw_prizes(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.post(
         f"/tombola/prizes/{prize_to_draw.id}/draw",
@@ -481,7 +481,7 @@ def test_draw_prizes(client: TestClient) -> None:
 
 
 def test_delete_prizes(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.delete(
         f"/tombola/prizes/{prize.id}",
@@ -491,7 +491,7 @@ def test_delete_prizes(client: TestClient) -> None:
 
 
 def test_delete_raffle(client: TestClient) -> None:
-    token = create_api_access_token(BDE_user)
+    token = create_api_access_token(AMAP_user)
 
     response = client.delete(
         f"/tombola/raffles/{raffle_to_delete.id}",

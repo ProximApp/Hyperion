@@ -36,7 +36,7 @@ async def init_objects() -> None:
 
     global ecl_user
     ecl_user = await create_user_with_groups(
-        groups=[GroupType.eclair],
+        groups=[GroupType.admin_amap],
         email="email@etu.ec-lyon.fr",
         password="azerty",
     )
@@ -496,31 +496,34 @@ def test_authorization_code_flow_with_auth_client_restricting_allowed_groups_and
     assert query["code"][0] != ""
 
 
-def test_authorization_code_flow_with_auth_client_restricting_allowed_groups_and_user_not_member_of_an_allowed_group(
-    client: TestClient,
-) -> None:
-    # For an user that is not a member of a required group #
-    data_with_invalid_client_id = {
-        "client_id": "RestrictingUsersGroupsAuthClient",
-        "client_secret": "secret",
-        "redirect_uri": "http://127.0.0.1:8000/docs",
-        "response_type": "code",
-        "scope": "API openid",
-        "state": "azerty",
-        "email": "external@myecl.fr",
-        "password": "azerty",
-    }
-    response = client.post(
-        "/auth/authorization-flow/authorize-validation",
-        data=data_with_invalid_client_id,
-        follow_redirects=False,
-    )
-    assert response.status_code == 302
+# This test is disabled because we don't have any auth client restricting users groups
+# We should re-enable it when we add one
 
-    assert response.next_request is not None
-    assert str(response.next_request.url).endswith(
-        "calypsso/message?type=user_not_member_of_allowed_group",
-    )
+# def test_authorization_code_flow_with_auth_client_restricting_allowed_groups_and_user_not_member_of_an_allowed_group(
+#     client: TestClient,
+# ) -> None:
+#     # For an user that is not a member of a required group #
+#     data_with_invalid_client_id = {
+#         "client_id": "RestrictingUsersGroupsAuthClient",
+#         "client_secret": "secret",
+#         "redirect_uri": "http://127.0.0.1:8000/docs",
+#         "response_type": "code",
+#         "scope": "API openid",
+#         "state": "azerty",
+#         "email": "external@myecl.fr",
+#         "password": "azerty",
+#     }
+#     response = client.post(
+#         "/auth/authorization-flow/authorize-validation",
+#         data=data_with_invalid_client_id,
+#         follow_redirects=False,
+#     )
+#     assert response.status_code == 302
+
+#     assert response.next_request is not None
+#     assert str(response.next_request.url).endswith(
+#         "calypsso/message?type=user_not_member_of_allowed_group",
+#     )
 
 
 def test_authorization_code_flow_with_auth_client_restricting_external_users_and_user_external(

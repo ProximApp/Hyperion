@@ -43,7 +43,7 @@ async def init_objects() -> None:
         token_simple, \
         token_admin
 
-    admin_user = await create_user_with_groups([GroupType.seed_library])
+    admin_user = await create_user_with_groups([GroupType.admin_seed_library])
 
     simple_user = await create_user_with_groups(
         [],

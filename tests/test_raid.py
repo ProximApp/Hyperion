@@ -53,7 +53,7 @@ token_validated_team_captain: str
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
     global raid_admin_user, token_raid_admin
-    raid_admin_user = await create_user_with_groups([GroupType.raid_admin])
+    raid_admin_user = await create_user_with_groups([GroupType.admin_raid])
     token_raid_admin = create_api_access_token(raid_admin_user)
 
     global simple_user, token_simple

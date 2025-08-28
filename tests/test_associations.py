@@ -14,27 +14,27 @@ from tests.commons import (
 
 user_token: str
 admin_user_token: str
-eclair_user_token: str
+AMAP_user_token: str
 
 id_association = uuid.UUID("8aab79e7-1e15-456d-b6e2-11e4e9f77e4f")
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
-    global user_token, admin_user_token, eclair_user_token
+    global user_token, admin_user_token, AMAP_user_token
 
     eclair_association = models_associations.CoreAssociation(
         id=id_association,
-        name="test_association_eclair",
-        group_id=GroupType.eclair,
+        name="test_association_amap",
+        group_id=GroupType.admin_amap,
     )
     await add_object_to_db(eclair_association)
 
     admin_user = await create_user_with_groups([GroupType.admin])
     admin_user_token = create_api_access_token(admin_user)
 
-    eclair_user = await create_user_with_groups([GroupType.eclair])
-    eclair_user_token = create_api_access_token(eclair_user)
+    AMAP_user = await create_user_with_groups([GroupType.admin_amap])
+    AMAP_user_token = create_api_access_token(AMAP_user)
 
     user = await create_user_with_groups([])
     user_token = create_api_access_token(user)
@@ -49,7 +49,7 @@ def test_get_associations(client: TestClient) -> None:
     data = response.json()
     assert len(data) == 1
     assert data[0]["id"] == str(id_association)
-    assert data[0]["name"] == "test_association_eclair"
+    assert data[0]["name"] == "test_association_amap"
 
 
 def test_get_associations_me_without_associations(client: TestClient) -> None:
@@ -65,13 +65,13 @@ def test_get_associations_me_without_associations(client: TestClient) -> None:
 def test_get_associations_me_with_associations(client: TestClient) -> None:
     response = client.get(
         "/associations/me",
-        headers={"Authorization": f"Bearer {eclair_user_token}"},
+        headers={"Authorization": f"Bearer {AMAP_user_token}"},
     )
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["id"] == str(id_association)
-    assert data[0]["name"] == "test_association_eclair"
+    assert data[0]["name"] == "test_association_amap"
 
 
 def test_create_association(client: TestClient) -> None:
@@ -79,7 +79,7 @@ def test_create_association(client: TestClient) -> None:
         "/associations/",
         json={
             "name": "TestAsso",
-            "group_id": GroupType.eclair.value,
+            "group_id": GroupType.admin_amap.value,
         },
         headers={"Authorization": f"Bearer {admin_user_token}"},
     )

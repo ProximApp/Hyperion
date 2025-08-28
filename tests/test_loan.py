@@ -40,23 +40,23 @@ async def init_objects() -> None:
     admin_user = await create_user_with_groups([GroupType.admin])
 
     loan_user_loaner = await create_user_with_groups(
-        [GroupType.CAA],
+        [GroupType.admin_feed],
     )
     loaner = models_loan.Loaner(
         id=str(uuid.uuid4()),
-        name="CAA",
-        group_manager_id="6c6d7e88-fdb8-4e42-b2b5-3d3cfd12e7d6",
+        name="Feed",
+        group_manager_id=GroupType.admin_feed.value,
     )
     await add_object_to_db(loaner)
 
     loan_user_simple = await create_user_with_groups(
-        [GroupType.amap],
+        [GroupType.admin_amap],
     )
 
     loaner_to_delete = models_loan.Loaner(
         id=str(uuid.uuid4()),
         name="cinema",
-        group_manager_id="ce5f36e6-5377-489f-9696-de70e2477300",
+        group_manager_id=GroupType.admin_cinema.value,
     )
     await add_object_to_db(loaner_to_delete)
 
@@ -118,8 +118,8 @@ def test_create_loaners(client: TestClient) -> None:
     response = client.post(
         "/loans/loaners/",
         json={
-            "name": "BDE",
-            "group_manager_id": "ce5f36e6-5377-489f-9696-de70e2477300",
+            "name": "AMAP",
+            "group_manager_id": GroupType.admin_amap.value,
         },
         headers={"Authorization": f"Bearer {token_admin}"},
     )
@@ -131,7 +131,7 @@ def test_update_loaners(client: TestClient) -> None:
         f"/loans/loaners/{loaner_to_delete.id}",
         json={
             "name": "AE",
-            "group_manager_id": "45649735-866a-49df-b04b-a13c74fd5886",
+            "group_manager_id": GroupType.admin_raid.value,
         },
         headers={"Authorization": f"Bearer {token_admin}"},
     )
