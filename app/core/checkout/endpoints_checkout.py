@@ -14,7 +14,7 @@ from app.core.checkout.types_checkout import (
     NotificationResultContent,
 )
 from app.dependencies import get_db
-from app.module import all_modules
+from app.module import get_all_modules
 from app.types.module import CoreModule
 
 router = APIRouter(tags=["Checkout"])
@@ -133,7 +133,7 @@ async def webhook(
 
         # If a callback is defined for the module, we want to call it
         try:
-            for module in all_modules:
+            for module in get_all_modules():
                 if module.root == checkout.module:
                     if module.payment_callback is not None:
                         hyperion_error_logger.info(
