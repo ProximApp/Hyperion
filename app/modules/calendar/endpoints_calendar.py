@@ -52,7 +52,7 @@ module = Module(
 )
 async def get_events(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_calendar)),
 ):
     """Get all events from the database."""
     return await cruds_calendar.get_all_events(db=db)
@@ -122,7 +122,7 @@ async def get_event_by_id(
         if not is_user_member_of_an_association(
             user=user,
             association=event.association,
-        ) and not is_user_member_of_any_group(user, [GroupType.BDE]):
+        ) and not is_user_member_of_any_group(user, [GroupType.admin_calendar]):
             raise HTTPException(
                 status_code=403,
                 detail="You are not allowed to access this event",
@@ -179,7 +179,7 @@ async def create_event_image(
     if not is_user_member_of_an_association(
         user=user,
         association=event.association,
-    ) and not is_user_member_of_any_group(user, [GroupType.BDE]):
+    ) and not is_user_member_of_any_group(user, [GroupType.admin_calendar]):
         raise HTTPException(
             status_code=403,
             detail="You are not allowed to access this event",
@@ -301,7 +301,10 @@ async def edit_bookings_id(
                 detail="Ticket URL and opening time must be provided together",
             )
 
-    is_user_member_of_BDE = is_user_member_of_any_group(user, [GroupType.BDE])
+    is_user_member_of_BDE = is_user_member_of_any_group(
+        user,
+        [GroupType.admin_calendar],
+    )
 
     if (
         not is_user_member_of_an_association(
@@ -337,7 +340,7 @@ async def confirm_booking(
     decision: Decision,
     db: AsyncSession = Depends(get_db),
     notification_tool: NotificationTool = Depends(get_notification_tool),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.BDE)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_calendar)),
     settings: Settings = Depends(get_settings),
 ):
     """
@@ -384,7 +387,10 @@ async def delete_bookings_id(
     if event is None:
         raise HTTPException(status_code=404)
 
-    is_user_member_of_BDE = is_user_member_of_any_group(user, [GroupType.BDE])
+    is_user_member_of_BDE = is_user_member_of_any_group(
+        user,
+        [GroupType.admin_calendar],
+    )
     is_user_member_of_the_event_association = is_user_member_of_an_association(
         user=user,
         association=event.association,

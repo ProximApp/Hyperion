@@ -64,6 +64,6 @@ async def create_feed_news(
             action_module="feed",
         )
         await notification_tool.send_notification_to_group(
-            group_id=GroupType.feed_admin,
+            group_id=GroupType.admin_feed,
             message=message,
         )

@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from app.core.groups.groups_type import GroupType
 from app.core.schools.schools_type import SchoolType
 
 if TYPE_CHECKING:
@@ -21,6 +20,8 @@ revision: str = "c73c7f521728"
 down_revision: str | None = "c778706af06f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+BDS_ID = "61af3e52-7ef9-4608-823a-39d51e83d1db"
 
 
 def upgrade() -> None:
@@ -80,7 +81,7 @@ def upgrade() -> None:
         return
 
     old_BDS_id = res[0][0]
-    new_BDS_id = GroupType.BDS
+    new_BDS_id = BDS_ID
 
     # We don't need to do anything if the group id is already the correct one
     if old_BDS_id == new_BDS_id:
@@ -237,7 +238,7 @@ def test_upgrade(
     alembic_runner: "MigrationContext",
     alembic_connection: sa.Connection,
 ) -> None:
-    new_BDS_id = GroupType.BDS
+    new_BDS_id = BDS_ID
 
     rows = alembic_connection.execute(
         sa.text("SELECT id from core_group WHERE name = 'BDS'"),

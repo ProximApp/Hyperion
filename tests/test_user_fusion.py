@@ -37,19 +37,19 @@ async def init_objects() -> None:
         [GroupType.admin, GroupType.admin_cdr],
     )
     student_user_to_keep = await create_user_with_groups(
-        [GroupType.BDE],
+        [GroupType.admin_feed],
         email=FABRISTPP_EMAIL_1,
     )
     student_user_to_delete = await create_user_with_groups(
-        [GroupType.BDE, GroupType.CAA],
+        [GroupType.admin_calendar, GroupType.admin_raid],
         email=FABRISTPP_EMAIL_2,
     )
 
     global core_association_membership
     core_association_membership = models_memberships.CoreAssociationMembership(
         id=uuid4(),
-        name="AEECL",
-        manager_group_id=GroupType.BDE,
+        name="AMAP",
+        manager_group_id=GroupType.admin_amap,
     )
     await add_object_to_db(core_association_membership)
 
@@ -114,7 +114,7 @@ def test_fusion_users(client: TestClient) -> None:
     assert response.status_code == 200
 
     response = client.get(
-        f"/groups/{GroupType.CAA.value}",
+        f"/groups/{GroupType.admin_raid.value}",
         headers={"Authorization": f"Bearer {token_admin_user}"},
     )
     assert response.status_code == 200

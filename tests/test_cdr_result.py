@@ -84,16 +84,16 @@ async def init_objects():
     global seller1
     seller1 = models_cdr.Seller(
         id=uuid.uuid4(),
-        name="BDE",
-        group_id=str(GroupType.BDE.value),
+        name="AMAP",
+        group_id=str(GroupType.admin_amap.value),
         order=1,
     )
 
     global seller2
     seller2 = models_cdr.Seller(
         id=uuid.uuid4(),
-        name="CAA",
-        group_id=str(GroupType.CAA.value),
+        name="Calendar",
+        group_id=str(GroupType.admin_calendar.value),
         order=2,
     )
 

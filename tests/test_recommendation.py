@@ -14,7 +14,7 @@ from tests.commons import (
 )
 
 token_simple: str
-token_BDE: str
+token_admin_recommendation: str
 recommendation: models_recommendation.Recommendation
 
 
@@ -27,10 +27,12 @@ async def init_objects() -> None:
     global token_simple
     token_simple = create_api_access_token(user_simple)
 
-    user_BDE = await create_user_with_groups([GroupType.BDE])
+    user_admin_recommendation = await create_user_with_groups(
+        [GroupType.admin_recommandation],
+    )
 
-    global token_BDE
-    token_BDE = create_api_access_token(user_BDE)
+    global token_admin_recommendation
+    token_admin_recommendation = create_api_access_token(user_admin_recommendation)
 
     global recommendation
     recommendation = models_recommendation.Recommendation(
@@ -49,7 +51,7 @@ def test_create_picture(client: TestClient) -> None:
         response = client.post(
             f"/recommendation/recommendations/{recommendation.id}/picture",
             files={"image": ("recommendation.png", image, "image/png")},
-            headers={"Authorization": f"Bearer {token_BDE}"},
+            headers={"Authorization": f"Bearer {token_admin_recommendation}"},
         )
     assert response.status_code == 201
 
@@ -60,7 +62,7 @@ def test_create_picture_for_non_existing_recommendation(client: TestClient) -> N
         response = client.post(
             f"/recommendation/recommendations/{false_id}/picture",
             files={"image": ("recommendation.png", image, "image/png")},
-            headers={"Authorization": f"Bearer {token_BDE}"},
+            headers={"Authorization": f"Bearer {token_admin_recommendation}"},
         )
     assert response.status_code == 404
 
@@ -90,7 +92,7 @@ def test_create_recommendation(client: TestClient) -> None:
             "summary": "Un résumé",
             "description": "Une description",
         },
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 201
 
@@ -99,7 +101,7 @@ def test_create_recommendation_with_no_body(client: TestClient) -> None:
     response = client.post(
         "/recommendation/recommendations",
         json={},
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 422
 
@@ -108,7 +110,7 @@ def test_edit_recommendation(client: TestClient) -> None:
     response = client.patch(
         f"/recommendation/recommendations/{recommendation.id}",
         json={"title": "Nouveau titre"},
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 204
 
@@ -117,7 +119,7 @@ def test_edit_recommendation_with_no_body(client: TestClient) -> None:
     response = client.patch(
         f"/recommendation/recommendations/{recommendation.id}",
         json={},
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 204
 
@@ -127,7 +129,7 @@ def test_edit_for_non_existing_recommendation(client: TestClient) -> None:
     response = client.patch(
         f"/recommendation/recommendations/{false_id}",
         json={"title": "Nouveau titre"},
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 404
 
@@ -135,7 +137,7 @@ def test_edit_for_non_existing_recommendation(client: TestClient) -> None:
 def test_delete_recommendation(client: TestClient) -> None:
     response = client.delete(
         f"/recommendation/recommendations/{recommendation.id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 204
 
@@ -144,6 +146,6 @@ def test_delete_for_non_existing_recommendation(client: TestClient) -> None:
     false_id = "cfba17a6-58b8-4595-afb9-3c9e4e169a14"
     response = client.delete(
         f"/recommendation/recommendations/{false_id}",
-        headers={"Authorization": f"Bearer {token_BDE}"},
+        headers={"Authorization": f"Bearer {token_admin_recommendation}"},
     )
     assert response.status_code == 404

@@ -14,13 +14,20 @@ class AssociationsFactory(Factory):
     association_ids = [
         uuid.uuid4(),
         uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
     ]
 
     depends_on = [CoreGroupsFactory]
 
     @classmethod
     async def create_associations(cls, db: AsyncSession):
-        descriptions = ["Association 1", "Association 2"]
+        descriptions = [
+            "Association 1",
+            "Association 2",
+            "Association 3",
+            "Association 4",
+        ]
         for i in range(len(CoreGroupsFactory.groups_ids)):
             await cruds_associations.create_association(
                 db=db,

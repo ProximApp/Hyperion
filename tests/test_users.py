@@ -54,7 +54,7 @@ async def init_objects() -> None:
     )
 
     global user_with_group
-    user_with_group = await create_user_with_groups([GroupType.amap])
+    user_with_group = await create_user_with_groups([GroupType.admin_amap])
 
     global token_admin_user
     token_admin_user = create_api_access_token(admin_user)
@@ -116,7 +116,7 @@ def test_restrict_access_on_group(client: TestClient) -> None:
         match="Unauthorized, user is a member of any of the groups ",
     ):
         is_user(
-            excluded_groups=[GroupType.amap],
+            excluded_groups=[GroupType.admin_amap],
         )(user_with_group)
 
 
@@ -282,7 +282,10 @@ def test_update_batch_create_users(client: TestClient) -> None:
     response = client.post(
         "/users/batch-creation",
         json=[
-            {"email": "1@1.fr", "default_group_id": GroupType.BDE.value},
+            {
+                "email": "1@1.fr",
+                "default_group_id": GroupType.admin_recommandation.value,
+            },
             {"email": "2@1.fr"},
             {"email": "3@b.fr"},
         ],
@@ -295,7 +298,10 @@ def test_update_batch_invite_users(client: TestClient) -> None:
     response = client.post(
         "/users/batch-invitation",
         json=[
-            {"email": "1@1.net", "default_group_id": GroupType.BDE.value},
+            {
+                "email": "1@1.net",
+                "default_group_id": GroupType.admin_recommandation.value,
+            },
             {"email": "2@1.fr"},
             {"email": "3@b.fr"},
         ],

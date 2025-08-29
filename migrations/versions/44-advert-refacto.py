@@ -7,8 +7,6 @@ import uuid
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from app.core.groups.groups_type import GroupType
-
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
 
@@ -45,6 +43,8 @@ advertiser_table = sa.Table(
     sa.UniqueConstraint("name"),
 )
 
+BDE_ID = "53a669d6-84b1-4352-8d7c-421c1fbd9c6a"
+
 
 def upgrade() -> None:
     # Select existing core_associations
@@ -62,7 +62,7 @@ def upgrade() -> None:
         bde_db = {
             "id": bde_id,
             "name": "BDE",
-            "group_id": GroupType.BDE.value,
+            "group_id": BDE_ID,
         }
         conn.execute(associations_table.insert().values(bde_db))
     else:
@@ -144,7 +144,7 @@ def downgrade() -> None:
     bde_advertiser = {
         "id": advertiser_id,
         "name": "BDE",
-        "group_manager_id": GroupType.BDE.value,
+        "group_manager_id": BDE_ID,
     }
     conn = op.get_bind()
     conn.execute(advertiser_table.insert().values(bde_advertiser))
@@ -175,7 +175,7 @@ def pre_test_upgrade(
         {
             "id": advertiser_id,
             "name": "test",
-            "group_manager_id": GroupType.BDE.value,
+            "group_manager_id": BDE_ID,
         },
     )
     alembic_runner.insert_into(

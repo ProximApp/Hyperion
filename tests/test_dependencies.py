@@ -43,33 +43,33 @@ async def init_objects() -> None:
     )
 
     user_with_restricted_group = await create_user_with_groups(
-        [GroupType.amap],
+        [GroupType.admin_amap],
     )
 
-    user_with_needed_group = await create_user_with_groups([GroupType.eclair])
+    user_with_needed_group = await create_user_with_groups([GroupType.admin_phonebook])
 
 
 def test_exclude_access_on_group(
     client: TestClient,
 ) -> None:
     user = is_user(
-        excluded_groups=[GroupType.amap],
+        excluded_groups=[GroupType.admin_amap],
     )(admin_user)
     assert user == admin_user
     user = is_user(
-        excluded_groups=[GroupType.amap],
+        excluded_groups=[GroupType.admin_amap],
     )(user_external)
     assert user == user_external
     user = is_user(
-        excluded_groups=[GroupType.amap],
+        excluded_groups=[GroupType.admin_amap],
     )(user_with_restricted_account_type)
     assert user == user_with_restricted_account_type
     user = is_user(
-        excluded_groups=[GroupType.amap],
+        excluded_groups=[GroupType.admin_amap],
     )(user_with_needed_account_type)
     assert user == user_with_needed_account_type
     user = is_user(
-        excluded_groups=[GroupType.amap],
+        excluded_groups=[GroupType.admin_amap],
     )(user_with_needed_group)
     assert user == user_with_needed_group
     with pytest.raises(
@@ -77,7 +77,7 @@ def test_exclude_access_on_group(
         match="Unauthorized, user is a member of any of the groups ",
     ):
         is_user(
-            excluded_groups=[GroupType.amap],
+            excluded_groups=[GroupType.admin_amap],
         )(user_with_restricted_group)
 
 
@@ -89,10 +89,10 @@ def test_restrict_access_on_group(
         match="Unauthorized, user is not a member of an allowed group",
     ):
         is_user(
-            included_groups=[GroupType.eclair],
+            included_groups=[GroupType.admin_phonebook],
         )(admin_user)
     user = is_user(
-        included_groups=[GroupType.eclair],
+        included_groups=[GroupType.admin_phonebook],
     )(user_with_needed_group)
     assert user == user_with_needed_group
     with pytest.raises(
@@ -100,28 +100,28 @@ def test_restrict_access_on_group(
         match="Unauthorized, user is not a member of an allowed group",
     ):
         is_user(
-            included_groups=[GroupType.eclair],
+            included_groups=[GroupType.admin_phonebook],
         )(user_with_restricted_group)
     with pytest.raises(
         HTTPException,
         match="Unauthorized, user is not a member of an allowed group",
     ):
         is_user(
-            included_groups=[GroupType.eclair],
+            included_groups=[GroupType.admin_phonebook],
         )(user_external)
     with pytest.raises(
         HTTPException,
         match="Unauthorized, user is not a member of an allowed group",
     ):
         is_user(
-            included_groups=[GroupType.eclair],
+            included_groups=[GroupType.admin_phonebook],
         )(user_with_needed_account_type)
     with pytest.raises(
         HTTPException,
         match="Unauthorized, user is not a member of an allowed group",
     ):
         is_user(
-            included_groups=[GroupType.eclair],
+            included_groups=[GroupType.admin_phonebook],
         )(user_with_restricted_account_type)
 
 

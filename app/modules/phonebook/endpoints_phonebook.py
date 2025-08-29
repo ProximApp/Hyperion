@@ -87,17 +87,14 @@ async def get_all_groupements(
 )
 async def create_groupement(
     groupement_base: schemas_phonebook.AssociationGroupementBase,
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
     db: AsyncSession = Depends(get_db),
 ):
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You are not allowed to create association",
-        )
+    """
+    Create a new Groupement by giving an AssociationGroupementBase scheme
+
+    **This endpoint is only usable by phonebook_admin**
+    """
     groupement_db = await cruds_phonebook.get_groupement_by_name(
         groupement_name=groupement_base.name,
         db=db,
@@ -127,22 +124,14 @@ async def create_groupement(
 async def update_groupement(
     groupement_id: uuid.UUID,
     groupement_edit: schemas_phonebook.AssociationGroupementBase,
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Update a groupement
 
-    **This endpoint is only usable by CAA and BDE**
+    **This endpoint is only usable by phonebook_admin**
     """
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"You are not allowed to update groupement {groupement_id}",
-        )
     groupement = await cruds_phonebook.get_groupement_by_id(
         groupement_id=groupement_id,
         db=db,
@@ -176,22 +165,15 @@ async def update_groupement(
 )
 async def delete_groupement(
     groupement_id: uuid.UUID,
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a groupement
 
-    **This endpoint is only usable by CAA and BDE**
+    **This endpoint is only usable by phonebook_admin**
     """
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"You are not allowed to delete groupement {groupement_id}",
-        )
+
     associations = await cruds_phonebook.get_associations_by_groupement_id(
         groupement_id=groupement_id,
         db=db,
@@ -212,23 +194,13 @@ async def delete_groupement(
 async def create_association(
     association: schemas_phonebook.AssociationBase,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
 ):
     """
     Create a new Association by giving an AssociationBase scheme
 
-    **This endpoint is only usable by CAA, BDE**
+    **This endpoint is only usable by phonebook_admin**
     """
-
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You are not allowed to create association",
-        )
-
     association_id = str(uuid.uuid4())
     association_model = schemas_phonebook.AssociationComplete(
         id=association_id,
@@ -266,12 +238,12 @@ async def update_association(
     """
     Update an Association
 
-    **This endpoint is only usable by CAA, BDE and association's president**
+    **This endpoint is only usable by phonebook_admin and association's president**
     """
     if not (
         is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         )
         or await cruds_phonebook.is_user_president(
             association_id=association_id,
@@ -304,7 +276,7 @@ async def update_association_groups(
     """
     Update the groups associated with an Association
 
-    **This endpoint is only usable by Admins (not BDE and CAA)**
+    **This endpoint is only usable by admin (not phonebook_admin)**
     """
     await cruds_phonebook.update_association_groups(
         association_id=association_id,
@@ -319,22 +291,14 @@ async def update_association_groups(
 )
 async def deactivate_association(
     association_id: str,
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Deactivate an Association
 
-    **This endpoint is only usable by CAA and BDE**
+    **This endpoint is only usable by phonebook_admin**
     """
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"You are not allowed to delete association {association_id}",
-        )
     await cruds_phonebook.deactivate_association(association_id, db)
 
 
@@ -345,24 +309,15 @@ async def deactivate_association(
 async def delete_association(
     association_id: str,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_a_school_member),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_phonebook)),
 ):
     """
     Delete an Association
 
     [!] Memberships linked to association_id will be deleted too
 
-    **This endpoint is only usable by CAA and BDE**
+    **This endpoint is only usable by phonebook_admin**
     """
-
-    if not is_user_member_of_any_group(
-        user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"You are not allowed to delete association {association_id}",
-        )
     association = await cruds_phonebook.get_association_by_id(association_id, db)
     if association is None:
         raise HTTPException(404, "Association does not exist.")
@@ -490,7 +445,7 @@ async def create_membership(
     Create a new Membership.
     'role_tags' are used to indicate if the members has a main role in the association (president, secretary ...) and 'role_name' is the display name for this membership
 
-    **This endpoint is only usable by CAA, BDE and association's president**
+    **This endpoint is only usable by phonebook_admin and association's president**
     """
 
     user_added = await cruds_users.get_user_by_id(db, membership.user_id)
@@ -503,7 +458,7 @@ async def create_membership(
     if not (
         is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         )
         or await cruds_phonebook.is_user_president(
             association_id=membership.association_id,
@@ -521,7 +476,7 @@ async def create_membership(
             ";",
         ) and not is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         ):
             raise HTTPException(
                 status_code=403,
@@ -596,7 +551,7 @@ async def update_membership(
     """
     Update a Membership.
 
-    **This endpoint is only usable by CAA, BDE and association's president**
+    **This endpoint is only usable by phonebook_admin and association's president**
     """
 
     old_membership = await cruds_phonebook.get_membership_by_id(
@@ -612,7 +567,7 @@ async def update_membership(
     if not (
         is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         )
         or await cruds_phonebook.is_user_president(
             association_id=old_membership.association_id,
@@ -630,11 +585,11 @@ async def update_membership(
             ";",
         ) and not is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         ):
             raise HTTPException(
                 status_code=403,
-                detail="Only CAA and BDE can update a membership with the role of president",
+                detail="Only phonebook_admin can update a membership with the role of president",
             )
 
     if updated_membership.member_order is not None:
@@ -662,7 +617,7 @@ async def delete_membership(
     """
     Delete a membership.
 
-    **This endpoint is only usable by CAA, BDE and association's president**
+    **This endpoint is only usable by phonebook_admin and association's president**
     """
 
     membership = await cruds_phonebook.get_membership_by_id(membership_id, db)
@@ -675,7 +630,7 @@ async def delete_membership(
     if not (
         is_user_member_of_any_group(
             user=user,
-            allowed_groups=[GroupType.CAA, GroupType.BDE],
+            allowed_groups=[GroupType.admin_phonebook],
         )
         or await cruds_phonebook.is_user_president(
             association_id=membership.association_id,
@@ -711,12 +666,13 @@ async def create_association_logo(
 ):
     """
     Upload a logo for an Association.
-    **The user must be a member of the group CAA or BDE to use this endpoint**
+
+    **The user must be a member of the group phonebook_admin or the president of the association to use this endpoint**
     """
 
     if not is_user_member_of_any_group(
         user=user,
-        allowed_groups=[GroupType.CAA, GroupType.BDE],
+        allowed_groups=[GroupType.admin_phonebook],
     ) and not await cruds_phonebook.is_user_president(
         association_id=association_id,
         user=user,

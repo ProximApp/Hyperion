@@ -107,7 +107,7 @@ async def init_objects() -> None:
     association_membership = models_memberships.CoreAssociationMembership(
         id=uuid4(),
         name="Test Association Membership",
-        manager_group_id=GroupType.BDE,
+        manager_group_id=GroupType.admin_feed,
     )
     await add_object_to_db(association_membership)
 
@@ -235,7 +235,7 @@ async def init_objects() -> None:
         firstname="firstname",
         name="ECL User 2",
         nickname="nickname",
-        groups=[GroupType.BDE],
+        groups=[GroupType.admin_feed],
     )
     ecl_user2_access_token = create_api_access_token(ecl_user2)
 

@@ -36,13 +36,13 @@ async def init_objects() -> None:
     global association
     association = models_associations.CoreAssociation(
         id=uuid.uuid4(),
-        name="Eclair",
-        group_id=GroupType.eclair,
+        name="AMAP",
+        group_id=GroupType.admin_amap,
     )
     await add_object_to_db(association)
 
     user_advertiser = await create_user_with_groups(
-        [GroupType.eclair],
+        [GroupType.admin_amap],
     )
 
     global token_advertiser

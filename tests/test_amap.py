@@ -38,7 +38,7 @@ async def init_objects() -> None:
         order, \
         deletable_order_by_admin
 
-    amap_user = await create_user_with_groups([GroupType.amap])
+    amap_user = await create_user_with_groups([GroupType.admin_amap])
     student_user = await create_user_with_groups(
         [],
     )

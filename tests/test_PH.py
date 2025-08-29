@@ -27,7 +27,7 @@ paper2: models_ph.Paper
 @pytest_asyncio.fixture(scope="module", autouse=True)
 async def init_objects() -> None:
     global ph_user_ph
-    ph_user_ph = await create_user_with_groups([GroupType.ph])
+    ph_user_ph = await create_user_with_groups([GroupType.admin_ph])
 
     global token_ph
     token_ph = create_api_access_token(ph_user_ph)

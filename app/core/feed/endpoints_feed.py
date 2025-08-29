@@ -80,7 +80,7 @@ async def get_news_image(
 )
 async def get_admin_news(
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.feed_admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_feed)),
 ):
     """
     Return news from the feed
@@ -98,7 +98,7 @@ async def get_admin_news(
 async def approve_news(
     news_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.feed_admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_feed)),
 ):
     """
     Approve a news
@@ -120,7 +120,7 @@ async def approve_news(
 async def reject_news(
     news_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: models_users.CoreUser = Depends(is_user_in(GroupType.feed_admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin_feed)),
 ):
     """
     Reject a news

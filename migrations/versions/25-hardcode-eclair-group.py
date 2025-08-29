@@ -6,8 +6,6 @@ Create Date: 2024-08-22 09:02:59.887161
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from app.core.groups.groups_type import GroupType
-
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
 
@@ -65,6 +63,8 @@ t_raffle = sa.Table(
     sa.Column("group_id", sa.String(), nullable=False),
 )
 
+ECLAIR_ID = "1f841bd9-00be-41a7-96e1-860a18a46105"
+
 
 def upgrade() -> None:
     conn = op.get_bind()
@@ -78,7 +78,7 @@ def upgrade() -> None:
         return
 
     old_eclair_id = res[0][0]
-    new_eclair_id = GroupType.eclair
+    new_eclair_id = ECLAIR_ID
 
     # We don't need to do anything if the group id is already the correct one
     if old_eclair_id == new_eclair_id:
@@ -234,7 +234,7 @@ def test_upgrade(
     alembic_runner: "MigrationContext",
     alembic_connection: sa.Connection,
 ) -> None:
-    new_eclair_id = GroupType.eclair
+    new_eclair_id = ECLAIR_ID
 
     rows = alembic_connection.execute(
         sa.text("SELECT id from core_group WHERE name = 'eclair'"),

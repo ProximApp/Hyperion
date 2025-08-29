@@ -9,7 +9,6 @@ from datetime import date
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from app.core.groups.groups_type import GroupType
 from app.core.schools.schools_type import SchoolType
 
 if TYPE_CHECKING:
@@ -23,6 +22,9 @@ revision: str = "ea30ad00bb01"
 down_revision: str | None = "c73c7f521728"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+BDE_ID = "53a669d6-84b1-4352-8d7c-421c1fbd9c6a"
+BDS_ID = "61af3e52-7ef9-4608-823a-39d51e83d1db"
 
 
 class AvailableAssociationMembership(str, Enum):
@@ -135,20 +137,20 @@ def upgrade() -> None:
     )
 
     ids = [group[0] for group in conn.execute(sa.select(group_table)).fetchall()]
-    if GroupType.BDE.value not in ids:
+    if BDE_ID not in ids:
         conn.execute(
             sa.insert(
                 group_table,
             ).values(
-                {"id": GroupType.BDE, "name": "BDE"},
+                {"id": BDE_ID, "name": "BDE"},
             ),
         )
-    if GroupType.BDS.value not in ids:
+    if BDS_ID not in ids:
         conn.execute(
             sa.insert(
                 group_table,
             ).values(
-                {"id": GroupType.BDS, "name": "BDS"},
+                {"id": BDS_ID, "name": "BDS"},
             ),
         )
 
@@ -157,8 +159,8 @@ def upgrade() -> None:
             association_membership_table,
         ).values(
             [
-                {"id": AEECL_ID, "name": "AEECL", "manager_group_id": GroupType.BDE},
-                {"id": USEECL_ID, "name": "USEECL", "manager_group_id": GroupType.BDS},
+                {"id": AEECL_ID, "name": "AEECL", "manager_group_id": BDE_ID},
+                {"id": USEECL_ID, "name": "USEECL", "manager_group_id": BDS_ID},
             ],
         ),
     )
