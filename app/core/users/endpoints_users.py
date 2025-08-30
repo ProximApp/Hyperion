@@ -552,7 +552,7 @@ async def activate_user(
     # It will only contain the user email address as it is all we need to identify the person
     hyperion_s3_logger.info(
         confirmed_user.email,
-        {"s3_filename": confirmed_user.id, "s3_subfolder": S3_USER_SUBFOLDER},
+        extra={"s3_filename": confirmed_user.id, "s3_subfolder": S3_USER_SUBFOLDER},
     )
 
     # We want to subscribe the user to all topics by default
