@@ -120,6 +120,7 @@ async def webhook(
             id=uuid.uuid4(),
             checkout_id=checkout.id,
             paid_amount=content.data.amount,
+            tip_amount=content.data.amountTip,
             hello_asso_payment_id=content.data.id,
         )
         await cruds_checkout.create_checkout_payment(
@@ -135,20 +136,28 @@ async def webhook(
         try:
             for module in all_modules:
                 if module.root == checkout.module:
-                    if module.payment_callback is not None:
+                    if module.payment_callback is None:
                         hyperion_error_logger.info(
-                            f"Payment: calling module {checkout.module} payment callback",
-                        )
-                        checkout_payment_schema = (
-                            schemas_checkout.CheckoutPayment.model_validate(
-                                checkout_payment_model.__dict__,
-                            )
-                        )
-                        await module.payment_callback(checkout_payment_schema, db)
-                        hyperion_error_logger.info(
-                            f"Payment: call to module {checkout.module} payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) succeeded",
+                            f"Payment: module {checkout.module} does not define a payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id})",
                         )
                         return
+                    hyperion_error_logger.info(
+                        f"Payment: calling module {checkout.module} payment callback",
+                    )
+                    checkout_payment_schema = schemas_checkout.CheckoutPayment(
+                        id=checkout_payment_model.id,
+                        paid_amount=checkout_payment_model.paid_amount,
+                        checkout_id=checkout_payment_model.checkout_id,
+                    )
+                    await module.payment_callback(checkout_payment_schema, db)
+                    hyperion_error_logger.info(
+                        f"Payment: call to module {checkout.module} payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) succeeded",
+                    )
+                    return
+
+            hyperion_error_logger.info(
+                f"Payment: callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) was not called for module {checkout.module}",
+            )
         except Exception:
             hyperion_error_logger.exception(
                 f"Payment: call to module {checkout.module} payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) failed",
