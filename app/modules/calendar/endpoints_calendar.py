@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import cruds_associations
+from app.core.feed import cruds_feed
+from app.core.feed.types_feed import NewsStatus
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.notification.schemas_notification import Message
 from app.core.notification.utils_notification import get_topic_by_root_and_identifier
@@ -35,6 +37,8 @@ from app.types.exceptions import NewlyAddedObjectInDbNotFoundError
 from app.types.module import Module
 from app.utils.communication.notifications import NotificationManager, NotificationTool
 from app.utils.tools import (
+    delete_file_from_data,
+    get_file_from_data,
     is_user_member_of_an_association,
     is_user_member_of_any_group,
     save_file_as_data,
@@ -156,6 +160,43 @@ async def get_event_ticket_url(
         raise HTTPException(status_code=400, detail="Event does not have a ticket url")
 
     return schemas_calendar.EventTicketUrl(ticket_url=event.ticket_url)
+
+
+@module.router.get(
+    "/calendar/events/{event_id}/image",
+    response_class=FileResponse,
+    status_code=200,
+)
+async def get_event_image(
+    event_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: models_users.CoreUser = Depends(is_user_a_school_member),
+):
+    """
+    Get the image of an event
+
+    **The user must be authenticated to use this endpoint**
+    """
+    event = await cruds_calendar.get_event(db=db, event_id=event_id)
+    if event is None:
+        raise HTTPException(
+            status_code=404,
+            detail="The event does not exist",
+        )
+    if not is_user_member_of_an_association(
+        user=user,
+        association=event.association,
+    ) and not is_user_member_of_any_group(user, [GroupType.admin_calendar]):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to access this event",
+        )
+
+    return get_file_from_data(
+        directory="event",
+        filename=event_id,
+        raise_http_exception=True,
+    )
 
 
 @module.router.post(
@@ -312,11 +353,12 @@ async def add_event(
     "/calendar/events/{event_id}",
     status_code=204,
 )
-async def edit_bookings_id(
+async def edit_envent(
     event_id: uuid.UUID,
     event_edit: schemas_calendar.EventEdit,
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(is_user_a_school_member),
+    notification_tool: NotificationTool = Depends(get_notification_tool),
 ):
     """
     Edit an event.
@@ -369,13 +411,21 @@ async def edit_bookings_id(
         decision=new_decision,
         db=db,
     )
+    event_db = await cruds_calendar.get_event(db=db, event_id=event_id)
+    if event_db is None:
+        raise NewlyAddedObjectInDbNotFoundError("event")
+    await utils_calendar.edit_event_feed_news(
+        event=event_db,
+        db=db,
+        notification_tool=notification_tool,
+    )
 
 
 @module.router.patch(
     "/calendar/events/{event_id}/reply/{decision}",
     status_code=204,
 )
-async def confirm_booking(
+async def confirm_event(
     event_id: uuid.UUID,
     decision: Decision,
     db: AsyncSession = Depends(get_db),
@@ -454,7 +504,7 @@ async def confirm_booking(
     "/calendar/events/{event_id}",
     status_code=204,
 )
-async def delete_bookings_id(
+async def delete_event(
     event_id,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
@@ -486,6 +536,16 @@ async def delete_bookings_id(
             event_id=event_id,
             db=db,
             settings=settings,
+        )
+        await cruds_feed.change_news_status_by_module_object_id(
+            module=module.root,
+            module_object_id=event_id,
+            status=NewsStatus.REJECTED,
+            db=db,
+        )
+        delete_file_from_data(
+            directory="event",
+            filename=event_id,
         )
     else:
         raise HTTPException(
