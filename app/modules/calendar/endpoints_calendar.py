@@ -84,7 +84,7 @@ async def get_confirmed_events(
 
 @module.router.get(
     "/calendar/events/associations/{association_id}",
-    response_model=list[schemas_calendar.EventComplete],
+    response_model=list[schemas_calendar.EventCompleteTicketUrl],
     status_code=200,
 )
 async def get_association_events(
