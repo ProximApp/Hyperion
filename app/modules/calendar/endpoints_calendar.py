@@ -87,7 +87,7 @@ async def get_confirmed_events(
     response_model=list[schemas_calendar.EventComplete],
     status_code=200,
 )
-async def get_association_booking(
+async def get_association_events(
     association_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(is_user_in_association),
