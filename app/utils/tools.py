@@ -7,6 +7,7 @@ import shutil
 import unicodedata
 from collections.abc import Callable, Sequence
 from inspect import iscoroutinefunction
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from jellyfish import jaro_winkler_similarity
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from weasyprint import CSS, HTML
@@ -31,7 +33,7 @@ from app.core.users import cruds_users, models_users
 from app.core.users.models_users import CoreUser
 from app.core.utils import security
 from app.types import core_data
-from app.types.content_type import ContentType
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.exceptions import (
     CoreDataNotFoundError,
     FileDoesNotExistError,
@@ -483,6 +485,54 @@ async def save_pdf_first_page_as_image(
             filename=filename,
             extension="jpg",
         )
+
+
+async def compress_image(
+    file_bytes: bytes,
+    height: int | None = None,
+    width: int | None = None,
+    quality: int = 85,
+    output_format: PillowImageFormat = PillowImageFormat.webp,
+) -> bytes:
+    """
+    Resize, crop and compress an image using Pillow.
+
+    - If `height` or `width` is None, the original image dimension will be used.
+    - The image aspect ratio will be preserved.
+    - The resulting image will be centered if cropping is needed.
+
+    Don't forget to take into account the output format when saving the image.
+    """
+    image = Image.open(BytesIO(file_bytes))
+
+    if height is None:
+        height = image.height
+    if width is None:
+        width = image.width
+
+    # Preserve aspect ratio
+    ratio = min(width / image.width, height / image.height)
+    new_size = (int(image.width * ratio), int(image.height * ratio))
+    resized_image = image.resize(new_size)
+
+    # We may want to crop the image, the resulting image will be centered
+    left = (resized_image.width - width) // 2
+    top = (resized_image.height - height) // 2
+    right = (resized_image.width + width) // 2
+    bottom = (resized_image.height + height) // 2
+
+    cropped_image = resized_image.crop(
+        (
+            left,
+            top,
+            right,
+            bottom,
+        ),
+    )
+
+    output = BytesIO()
+    cropped_image.save(output, format=output_format, quality=quality)
+    return output.getvalue()
 
 
 def get_random_string(length: int = 5) -> str:

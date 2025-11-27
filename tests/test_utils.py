@@ -1,16 +1,20 @@
 import shutil
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException, UploadFile
+from PIL import Image
 from starlette.datastructures import Headers
 
 from app.core.core_endpoints import models_core
+from app.types.content_type import PillowImageFormat
 from app.types.core_data import BaseCoreData
 from app.types.exceptions import CoreDataNotFoundError, FileNameIsNotAnUUIDError
 from app.utils.tools import (
+    compress_image,
     delete_file_from_data,
     get_core_data,
     get_file_from_data,
@@ -235,6 +239,32 @@ def test_delete_file_raise_a_value_error_if_filename_isnt_an_uuid() -> None:
             directory="test",
             filename=not_a_uuid,
         )
+
+
+@pytest.mark.parametrize(
+    ("height", "width"),
+    [
+        (100, 100),
+        (300, 300),
+        (50, 100),
+        (100, 50),
+    ],
+)
+async def test_compress(height: int, width: int) -> None:
+    with Path("assets/images/default_profile_picture.png").open("rb") as file:
+        file_bytes = file.read()
+        res = await compress_image(
+            file_bytes,
+            height=height,
+            width=width,
+            quality=70,
+            output_format=PillowImageFormat.webp,
+        )
+
+        res_image = Image.open(BytesIO(res))
+        assert res_image.height == height
+        assert res_image.width == width
+        assert res_image.format == "WEBP"
 
 
 async def test_save_pdf_first_page_as_image() -> None:
