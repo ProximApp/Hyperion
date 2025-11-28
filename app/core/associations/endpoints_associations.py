@@ -22,10 +22,8 @@ from app.types.module import CoreModule
 from app.utils.tools import (
     compress_image,
     ensure_file_properties,
-    ensure_maximal_file_size,
     get_file_from_data,
     save_bytes_as_data,
-    save_file_as_data,
 )
 
 router = APIRouter(tags=["Associations"])

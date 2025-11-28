@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from jellyfish import jaro_winkler_similarity
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from weasyprint import CSS, HTML
