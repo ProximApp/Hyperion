@@ -164,6 +164,49 @@ async def is_user_id_valid(user_id: str, db: AsyncSession) -> bool:
     return await cruds_users.get_user_by_id(db=db, user_id=user_id) is not None
 
 
+async def ensure_file_properties(
+    upload_file: UploadFile,
+    accepted_content_types: list[ContentType] | None = None,
+    max_file_size: int = 1024 * 1024 * 5,  # 5 MB
+) -> None:
+    """
+    Ensure that the provided file respects the properties:
+    - Maximum size is 5 MB by default, it can be changed using `max_file_size` (in bytes) parameter.
+    - `accepted_content_types` is a list of accepted content types. By default, all format are accepted.
+        Use: `["image/jpeg", "image/png", "image/webp"]` to accept only images.
+
+    An HTTP Exception will be raised if an error occurs.
+
+    The file will not be saved nor modified.
+    """
+    if accepted_content_types is None:
+        # Accept only images by default
+        accepted_content_types = [
+            ContentType.jpg,
+            ContentType.png,
+            ContentType.webp,
+            ContentType.pdf,
+        ]
+
+    if upload_file.content_type not in accepted_content_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file format, supported {accepted_content_types}",
+        )
+
+    # We need to go to the end of the file to be able to get the size of the file
+    upload_file.file.seek(0, os.SEEK_END)
+    # Use file.tell() to retrieve the cursor's current position
+    file_size = upload_file.file.tell()  # Bytes
+    if file_size > max_file_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File size is too big. Limit is {max_file_size / 1024 / 1024} MB",
+        )
+    # We go back to the beginning of the file to save it on the disk
+    await upload_file.seek(0)
+
+
 async def save_file_as_data(
     upload_file: UploadFile,
     directory: str,
@@ -184,7 +227,7 @@ async def save_file_as_data(
     There should only be one file with the same filename, thus, saving a new file will remove the existing even if its extension was different.
     Currently, compatible extensions are defined in the enum `ContentType`
 
-    An HTTP Exception will be raised if an error occurres.
+    An HTTP Exception will be raised if an error occurs.
 
     The filename should be a uuid.
 
@@ -193,38 +236,17 @@ async def save_file_as_data(
     if isinstance(filename, UUID):
         filename = str(filename)
 
-    if accepted_content_types is None:
-        # Accept only images by default
-        accepted_content_types = [
-            ContentType.jpg,
-            ContentType.png,
-            ContentType.webp,
-            ContentType.pdf,
-        ]
-
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
             f"save_file_as_data: security issue, the filename is not a valid UUID: {filename}.",
         )
         raise FileNameIsNotAnUUIDError()
 
-    if upload_file.content_type not in accepted_content_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file format, supported {accepted_content_types}",
-        )
-
-    # We need to go to the end of the file to be able to get the size of the file
-    upload_file.file.seek(0, os.SEEK_END)
-    # Use file.tell() to retrieve the cursor's current position
-    file_size = upload_file.file.tell()  # Bytes
-    if file_size > max_file_size:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File size is too big. Limit is {max_file_size / 1024 / 1024} MB",
-        )
-    # We go back to the beginning of the file to save it on the disk
-    await upload_file.seek(0)
+    await ensure_file_properties(
+        upload_file=upload_file,
+        accepted_content_types=accepted_content_types,
+        max_file_size=max_file_size,
+    )
 
     extension = ContentType(upload_file.content_type).name
     # Remove the existing file if any and create the new one
@@ -503,7 +525,8 @@ async def compress_image(
 
     Don't forget to take into account the output format when saving the image.
     """
-    image = Image.open(BytesIO(file_bytes))
+    # We want to add an Alpha layer so that cropping does not produce black borders
+    image = Image.open(BytesIO(file_bytes)).convert("RGBA")
 
     if height is None:
         height = image.height
