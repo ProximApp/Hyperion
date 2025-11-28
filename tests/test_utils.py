@@ -248,6 +248,8 @@ def test_delete_file_raise_a_value_error_if_filename_isnt_an_uuid() -> None:
         (300, 300),
         (50, 100),
         (100, 50),
+        (100, None),
+        (None, 100),
     ],
 )
 async def test_compress(height: int, width: int) -> None:
