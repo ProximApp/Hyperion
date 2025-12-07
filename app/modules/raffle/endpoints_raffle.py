@@ -20,12 +20,15 @@ from app.dependencies import (
 from app.modules.raffle import cruds_raffle, models_raffle, schemas_raffle
 from app.modules.raffle.types_raffle import RaffleStatusType
 from app.types import standard_responses
-from app.types.content_type import ContentType
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.module import Module
 from app.utils.redis import locker_get, locker_set
 from app.utils.tools import (
+    compress_image,
+    ensure_file_properties,
     get_file_from_data,
     is_user_member_of_any_group,
+    save_bytes_as_data,
     save_file_as_data,
 )
 
@@ -228,16 +231,30 @@ async def create_current_raffle_logo(
             detail=f"Raffle {raffle_id} is not in Creation Mode",
         )
 
-    await save_file_as_data(
+    await ensure_file_properties(
         upload_file=image,
-        directory="raffle-pictures",
-        filename=str(raffle_id),
-        max_file_size=4 * 1024 * 1024,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
+        max_file_size=1024 * 1024 * 5,  # 5 MB
+    )
+
+    file_bytes = await compress_image(
+        file_bytes=await image.read(),
+        # TODO: change size
+        height=300,
+        width=300,
+        quality=85,
+        output_format=PillowImageFormat.webp,
+    )
+
+    await save_bytes_as_data(
+        file_bytes=file_bytes,
+        directory="raffle-pictures",
+        filename=str(raffle_id),
+        extension=ContentType.webp,
     )
 
     return standard_responses.Result(success=True)

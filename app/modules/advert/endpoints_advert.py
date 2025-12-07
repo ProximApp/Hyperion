@@ -24,13 +24,16 @@ from app.modules.advert import (
     schemas_advert,
 )
 from app.modules.advert.factory_advert import AdvertFactory
-from app.types.content_type import ContentType
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.module import Module
 from app.utils.communication.notifications import NotificationManager, NotificationTool
 from app.utils.tools import (
+    compress_image,
+    ensure_file_properties,
     get_file_from_data,
     is_user_member_of_an_association,
     is_user_member_of_an_association_id,
+    save_bytes_as_data,
     save_file_as_data,
 )
 
@@ -323,14 +326,28 @@ async def create_advert_image(
             detail=f"Unauthorized to manage {advert.advertiser_id} adverts",
         )
 
-    await save_file_as_data(
+    await ensure_file_properties(
         upload_file=image,
-        directory="adverts",
-        filename=advert_id,
-        max_file_size=4 * 1024 * 1024,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
+        max_file_size=1024 * 1024 * 5,  # 5 MB
+    )
+
+    file_bytes = await compress_image(
+        file_bytes=await image.read(),
+        # TODO: change size
+        height=300,
+        width=300,
+        quality=85,
+        output_format=PillowImageFormat.webp,
+    )
+
+    await save_bytes_as_data(
+        file_bytes=file_bytes,
+        directory="adverts",
+        filename=advert_id,
+        extension=ContentType.webp,
     )

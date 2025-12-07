@@ -32,15 +32,18 @@ from app.modules.calendar import (
 )
 from app.modules.calendar.factory_calendar import CalendarFactory
 from app.modules.calendar.types_calendar import Decision
-from app.types.content_type import ContentType
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.exceptions import NewlyAddedObjectInDbNotFoundError
 from app.types.module import Module
 from app.utils.communication.notifications import NotificationManager, NotificationTool
 from app.utils.tools import (
+    compress_image,
     delete_file_from_data,
+    ensure_file_properties,
     get_file_from_data,
     is_user_member_of_an_association,
     is_user_member_of_any_group,
+    save_bytes_as_data,
     save_file_as_data,
 )
 
@@ -239,6 +242,32 @@ async def create_event_image(
             ContentType.png,
             ContentType.webp,
         ],
+    )
+
+    await ensure_file_properties(
+        upload_file=image,
+        accepted_content_types=[
+            ContentType.jpg,
+            ContentType.png,
+            ContentType.webp,
+        ],
+        max_file_size=1024 * 1024 * 5,  # 5 MB
+    )
+
+    file_bytes = await compress_image(
+        file_bytes=await image.read(),
+        # TODO: change size
+        height=300,
+        width=300,
+        quality=85,
+        output_format=PillowImageFormat.webp,
+    )
+
+    await save_bytes_as_data(
+        file_bytes=file_bytes,
+        directory="events",
+        filename=event_id,
+        extension=ContentType.webp,
     )
 
 

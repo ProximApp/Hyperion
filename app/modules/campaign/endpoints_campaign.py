@@ -25,11 +25,14 @@ from app.modules.campaign import (
 from app.modules.campaign.factory_campaign import CampaignFactory
 from app.modules.campaign.types_campaign import ListType, StatusType
 from app.types import standard_responses
-from app.types.content_type import ContentType
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.module import Module
 from app.utils.tools import (
+    compress_image,
+    ensure_file_properties,
     get_file_from_data,
     is_user_member_of_any_group,
+    save_bytes_as_data,
     save_file_as_data,
 )
 
@@ -816,16 +819,30 @@ async def create_campaigns_logo(
             detail="The list does not exist.",
         )
 
-    await save_file_as_data(
+    await ensure_file_properties(
         upload_file=image,
-        directory="campaigns",
-        filename=str(list_id),
-        max_file_size=4 * 1024 * 1024,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
+        max_file_size=1024 * 1024 * 5,  # 5 MB
+    )
+
+    file_bytes = await compress_image(
+        file_bytes=await image.read(),
+        # TODO: change size
+        height=300,
+        width=300,
+        quality=85,
+        output_format=PillowImageFormat.webp,
+    )
+
+    await save_bytes_as_data(
+        file_bytes=file_bytes,
+        directory="campaigns",
+        filename=str(list_id),
+        extension=ContentType.webp,
     )
 
     return standard_responses.Result(success=True)
