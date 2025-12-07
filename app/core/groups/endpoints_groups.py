@@ -32,7 +32,6 @@ from app.utils.tools import (
     get_file_from_data,
     is_user_member_of_any_group,
     save_bytes_as_data,
-    save_file_as_data,
 )
 
 router = APIRouter(tags=["Groups"])

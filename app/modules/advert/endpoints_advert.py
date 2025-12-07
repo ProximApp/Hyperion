@@ -34,7 +34,6 @@ from app.utils.tools import (
     is_user_member_of_an_association,
     is_user_member_of_an_association_id,
     save_bytes_as_data,
-    save_file_as_data,
 )
 
 root = "advert"
