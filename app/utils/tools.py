@@ -538,7 +538,10 @@ def compress_image(
         width = image.width
 
     # Preserve aspect ratio
-    ratio = min(width / image.width, height / image.height)
+    if fit:
+        ratio = max(width / image.width, height / image.height)
+    else:
+        ratio = min(width / image.width, height / image.height)
     new_size = (int(image.width * ratio), int(image.height * ratio))
     resized_image = image.resize(new_size)
 
