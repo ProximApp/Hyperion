@@ -273,7 +273,7 @@ async def test_compress(height: int, width: int) -> None:
 async def test_compress_and_save_image_file() -> None:
     valid_uuid = str(uuid.uuid4())
     with Path("assets/images/default_profile_picture.png").open("rb") as file:
-        compress_and_save_image_file(
+        await compress_and_save_image_file(
             upload_file=UploadFile(
                 file,
                 headers=Headers({"content-type": "image/png"}),
