@@ -1,5 +1,7 @@
 from enum import Enum
 
+from app.types.exceptions import UnknownContentTypeExtensionError
+
 
 class ContentType(str, Enum):
     """
@@ -24,7 +26,7 @@ class ContentType(str, Enum):
             return "webp"
         if self == ContentType.pdf:
             return "pdf"
-        raise ValueError(f"Unknown content type: {self}")
+        raise UnknownContentTypeExtensionError(content_type=self.value)
 
 
 class PillowImageFormat(str, Enum):
