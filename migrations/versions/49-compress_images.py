@@ -41,11 +41,13 @@ data_sources: dict[str, dict[str, int]] = {
         "height": 315,
         "width": 851,
         "quality": 85,
+        "fit": 1,
     },
-    "events": {
+    "event": {
         "height": 315,
         "width": 851,
         "quality": 85,
+        "fit": 1,
     },
     "campaigns": {
         "height": 300,
@@ -56,6 +58,7 @@ data_sources: dict[str, dict[str, int]] = {
         "height": 750,
         "width": 500,
         "quality": 85,
+        "fit": 1,
     },
     "recommendations": {
         "height": 300,
@@ -72,31 +75,42 @@ def upgrade() -> None:
         height = params.get("height")
         width = params.get("width")
         quality = params.get("quality", 85)
-        for filename in Path("data/" + data_folder).iterdir():
-            print(" - ", filename)  # noqa: T201
-            if filename.suffix in (".png", ".jpg", ".webp"):
-                with Path(f"{data_folder}/{filename}").open("rb") as file:
-                    file_bytes = file.read()
+        fit = bool(params.get("fit", 0))
+        if Path("data/" + data_folder).exists():
+            for file_path in Path("data/" + data_folder).iterdir():
+                print(" - ", file_path)  # noqa: T201
+                if file_path.suffix in (".png", ".jpg", ".webp"):
+                    with Path(file_path).open("rb") as file:
+                        file_bytes = file.read()
 
-                    # Save the original file
-                    with Path(f"{Path(data_folder)}/original/{filename}").open(
-                        "wb",
-                    ) as out_file:
-                        out_file.write(file_bytes)
+                        Path(f"data/{data_folder}/original/").mkdir(
+                            parents=True,
+                            exist_ok=True,
+                        )
 
-                    # Compress and save the image
-                    res = compress_image(
-                        file_bytes,
-                        height=height,
-                        width=width,
-                        quality=quality,
-                        output_format=PillowImageFormat.webp,
-                    )
+                        # Save the original file
+                        with Path(f"data/{data_folder}/original/{file_path.name}").open(
+                            "wb",
+                        ) as out_file:
+                            out_file.write(file_bytes)
 
-                    with Path(f"{data_folder}/{filename.stem}.webp").open(
-                        "wb",
-                    ) as out_file:
-                        out_file.write(res)
+                        # Compress and save the image
+                        res = compress_image(
+                            file_bytes,
+                            height=height,
+                            width=width,
+                            quality=quality,
+                            output_format=PillowImageFormat.webp,
+                            fit=fit,
+                        )
+
+                        # Delete the original file
+                        Path(f"data/{data_folder}/{file_path.name}").unlink()
+
+                        with Path(f"data/{data_folder}/{file_path.stem}.webp").open(
+                            "wb",
+                        ) as out_file:
+                            out_file.write(res)
 
 
 def downgrade() -> None:

@@ -42,7 +42,6 @@ from app.utils.tools import (
     get_file_from_data,
     is_user_member_of_an_association,
     is_user_member_of_any_group,
-    save_file_as_data,
 )
 
 module = Module(
