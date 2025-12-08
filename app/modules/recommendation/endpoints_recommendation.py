@@ -197,7 +197,6 @@ async def create_recommendation_image(
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-        # TODO: change size
         height=300,
         width=300,
         quality=85,

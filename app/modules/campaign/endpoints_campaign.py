@@ -826,7 +826,6 @@ async def create_campaigns_logo(
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-        # TODO: change size
         height=300,
         width=300,
         quality=85,

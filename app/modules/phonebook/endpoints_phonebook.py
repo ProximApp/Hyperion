@@ -653,6 +653,7 @@ async def delete_membership(
     await cruds_phonebook.delete_membership(membership_id, db)
 
 
+# TODO: is this endpoint used?
 @module.router.post(
     "/phonebook/associations/{association_id}/picture",
     response_model=standard_responses.Result,
@@ -700,10 +701,6 @@ async def create_association_logo(
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-        # TODO: change size
-        height=300,
-        width=300,
-        quality=85,
     )
 
     return standard_responses.Result(success=True)
