@@ -242,7 +242,7 @@ async def create_event_image(
         ],
     )
 
-    await compress_and_save_image_file(
+    compress_and_save_image_file(
         upload_file=image,
         directory="events",
         filename=event_id,

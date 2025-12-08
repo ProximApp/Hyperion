@@ -1114,7 +1114,7 @@ async def create_current_user_profile_picture(
     **The user must be authenticated to use this endpoint**
     """
 
-    await compress_and_save_image_file(
+    compress_and_save_image_file(
         upload_file=image,
         directory="profile-pictures",
         filename=user.id,

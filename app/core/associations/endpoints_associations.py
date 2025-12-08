@@ -176,7 +176,7 @@ async def create_association_logo(
     if not association:
         raise HTTPException(status_code=404, detail="Association not found")
 
-    await compress_and_save_image_file(
+    compress_and_save_image_file(
         upload_file=image,
         directory="associations/logos",
         filename=association_id,

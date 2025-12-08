@@ -256,7 +256,7 @@ def test_delete_file_raise_a_value_error_if_filename_isnt_an_uuid() -> None:
 async def test_compress(height: int, width: int) -> None:
     with Path("assets/images/default_profile_picture.png").open("rb") as file:
         file_bytes = file.read()
-        res = await compress_image(
+        res = compress_image(
             file_bytes,
             height=height,
             width=width,
@@ -273,7 +273,7 @@ async def test_compress(height: int, width: int) -> None:
 async def test_compress_and_save_image_file() -> None:
     valid_uuid = str(uuid.uuid4())
     with Path("assets/images/default_profile_picture.png").open("rb") as file:
-        await compress_and_save_image_file(
+        compress_and_save_image_file(
             upload_file=UploadFile(
                 file,
                 headers=Headers({"content-type": "image/png"}),

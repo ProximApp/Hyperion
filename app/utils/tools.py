@@ -509,7 +509,7 @@ async def save_pdf_first_page_as_image(
         )
 
 
-async def compress_image(
+def compress_image(
     file_bytes: bytes,
     height: int | None = None,
     width: int | None = None,
@@ -611,7 +611,7 @@ async def compress_and_save_image_file(
         extension=ContentType(upload_file.content_type).extension,
     )
 
-    file_bytes = await compress_image(
+    file_bytes = compress_image(
         file_bytes=original_file_bytes,
         height=height,
         width=width,
