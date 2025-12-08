@@ -374,7 +374,7 @@ async def create_group_logo(
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="groups/logos",
         filename=group_id,

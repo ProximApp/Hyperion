@@ -816,7 +816,7 @@ async def create_campaigns_logo(
             detail="The list does not exist.",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="campaigns",
         filename=str(list_id),

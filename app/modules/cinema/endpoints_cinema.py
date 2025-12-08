@@ -217,7 +217,7 @@ async def create_campaigns_logo(
             detail="The session does not exist.",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="cinemasessions",
         filename=str(session_id),
@@ -230,6 +230,7 @@ async def create_campaigns_logo(
         height=750,
         width=500,
         quality=85,
+        fit=True,
     )
 
     return standard_responses.Result(success=True)

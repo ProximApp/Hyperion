@@ -515,6 +515,7 @@ def compress_image(
     width: int | None = None,
     quality: int = 85,
     output_format: PillowImageFormat = PillowImageFormat.webp,
+    fit: bool = False,
 ) -> bytes:
     """
     Resize, crop and compress an image using Pillow.
@@ -522,6 +523,9 @@ def compress_image(
     - If `height` or `width` is None, the original image dimension will be used.
     - The image aspect ratio will be preserved.
     - The resulting image will be centered if cropping is needed.
+
+    If `fit` is True, the image will be enlarged to fit the whole area defined by `height` and `width`.
+    Otherwise, the image will be reduced to fit inside the area defined by `height` and `width` without cropping.
 
     Don't forget to take into account the output format when saving the image.
     """
@@ -567,6 +571,7 @@ async def compress_and_save_image_file(
     height: int | None = None,
     width: int | None = None,
     quality: int = 85,
+    fit: bool = False,
 ):
     """
     Save a compressed webp version of an input image in the data folder.
@@ -587,6 +592,9 @@ async def compress_and_save_image_file(
     - If `height` or `width` is None, the original image dimension will be used.
     - The image aspect ratio will be preserved.
     - The resulting image will be centered if cropping is needed.
+
+    If `fit` is True, the image will be enlarged to fit the whole area defined by `height` and `width`.
+    Otherwise, the image will be reduced to fit inside the area defined by `height` and `width` without cropping.
 
     An HTTP Exception will be raised if an error occurs.
 
@@ -617,6 +625,7 @@ async def compress_and_save_image_file(
         width=width,
         quality=quality,
         output_format=PillowImageFormat.webp,
+        fit=fit,
     )
 
     await save_bytes_as_data(

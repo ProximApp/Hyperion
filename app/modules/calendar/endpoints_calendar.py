@@ -230,7 +230,7 @@ async def create_event_image(
             detail="You are not allowed to access this event",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="event",
         filename=event_id,
@@ -243,6 +243,7 @@ async def create_event_image(
         height=315,
         width=851,
         quality=85,
+        fit=True,
     )
 
 

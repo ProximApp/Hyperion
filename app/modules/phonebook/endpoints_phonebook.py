@@ -691,7 +691,7 @@ async def create_association_logo(
             detail="The Association does not exist.",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="associations",
         filename=association_id,

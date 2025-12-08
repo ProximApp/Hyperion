@@ -229,7 +229,7 @@ async def create_current_raffle_logo(
             detail=f"Raffle {raffle_id} is not in Creation Mode",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="raffle-pictures",
         filename=str(raffle_id),
@@ -239,6 +239,7 @@ async def create_current_raffle_logo(
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
+        fit=True,
     )
 
     return standard_responses.Result(success=True)

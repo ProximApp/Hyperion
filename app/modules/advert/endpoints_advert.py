@@ -323,7 +323,7 @@ async def create_advert_image(
             detail=f"Unauthorized to manage {advert.advertiser_id} adverts",
         )
 
-    compress_and_save_image_file(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="adverts",
         filename=advert_id,
@@ -336,4 +336,5 @@ async def create_advert_image(
         height=315,
         width=851,
         quality=85,
+        fit=True,
     )
