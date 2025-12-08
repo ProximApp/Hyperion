@@ -265,8 +265,10 @@ async def test_compress(height: int, width: int) -> None:
         )
 
         res_image = Image.open(BytesIO(res))
-        assert res_image.height == height
-        assert res_image.width == width
+        if height is not None:
+            assert res_image.height == height
+        if width is not None:
+            assert res_image.width == width
         assert res_image.format == "WEBP"
 
 
