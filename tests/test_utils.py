@@ -290,8 +290,8 @@ async def test_compress_and_save_image_file() -> None:
             width=300,
             quality=85,
         )
-        assert Path(f"data/test/compressed/{valid_uuid}.webp").is_file()
-        assert Path(f"data/test/compressed/original/{valid_uuid}.png").is_file()
+        assert Path(f"data/test/compressed/{valid_uuid}.webp").exists()
+        assert Path(f"data/test/compressed/original/{valid_uuid}.png").exists()
 
 
 async def test_save_pdf_first_page_as_image() -> None:
