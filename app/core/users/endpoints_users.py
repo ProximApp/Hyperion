@@ -42,18 +42,16 @@ from app.dependencies import (
     is_user_super_admin,
 )
 from app.types import standard_responses
-from app.types.content_type import ContentType, PillowImageFormat
+from app.types.content_type import ContentType
 from app.types.exceptions import UserWithEmailAlreadyExistError
 from app.types.module import CoreModule
 from app.types.s3_access import S3Access
 from app.utils.communication.notifications import NotificationManager
 from app.utils.mail.mailworker import send_email
 from app.utils.tools import (
-    compress_image,
+    compress_and_save_image_file,
     create_and_send_email_migration,
-    ensure_file_properties,
     get_file_from_data,
-    save_bytes_as_data,
     sort_user,
 )
 
@@ -1116,29 +1114,19 @@ async def create_current_user_profile_picture(
     **The user must be authenticated to use this endpoint**
     """
 
-    await ensure_file_properties(
+    await compress_and_save_image_file(
         upload_file=image,
+        directory="profile-pictures",
+        filename=user.id,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-    )
-
-    file_bytes = await compress_image(
-        file_bytes=await image.read(),
         height=300,
         width=300,
         quality=85,
-        output_format=PillowImageFormat.webp,
-    )
-
-    await save_bytes_as_data(
-        file_bytes=file_bytes,
-        directory="profile-pictures",
-        filename=user.id,
-        extension=ContentType.webp,
     )
 
     return standard_responses.Result(success=True)

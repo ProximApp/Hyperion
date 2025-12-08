@@ -558,6 +558,75 @@ async def compress_image(
     return output.getvalue()
 
 
+async def compress_and_save_image_file(
+    upload_file: UploadFile,
+    directory: str,
+    filename: str | UUID,
+    accepted_content_types: list[ContentType] | None = None,
+    max_file_size: int = 1024 * 1024 * 5,  # 5 MB
+    height: int | None = None,
+    width: int | None = None,
+    quality: int = 85,
+):
+    """
+    Save a compressed webp version of an input image in the data folder.
+
+    The filename should be a uuid.
+    No verifications will be made about the content of the file, it is up to the caller to ensure the content is valid and safe.
+
+    - The file will be saved in the `data` folder: "data/{directory}/{filename}.webp"
+    - An original copy of the file will be saved in "data/{directory}/original/{filename}.{upload_file extension}"
+
+    Ensure that the provided file respects the properties:
+    - Maximum size is 5 MB by default, it can be changed using `max_file_size` (in bytes) parameter.
+    - `accepted_content_types` is a list of accepted content types. By default, all format are accepted.
+        Use: `["image/jpeg", "image/png", "image/webp"]` to accept only images.
+
+    The image will be resized, cropped and compressed using Pillow.
+
+    - If `height` or `width` is None, the original image dimension will be used.
+    - The image aspect ratio will be preserved.
+    - The resulting image will be centered if cropping is needed.
+
+    An HTTP Exception will be raised if an error occurs.
+
+    WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
+    """
+    await ensure_file_properties(
+        upload_file=upload_file,
+        accepted_content_types=accepted_content_types,
+        max_file_size=max_file_size,
+    )
+
+    original_file_bytes = await upload_file.read()
+
+    original_directory = (
+        f"{directory}{'/' if not directory.endswith('/') else ''}original"
+    )
+
+    await save_bytes_as_data(
+        file_bytes=original_file_bytes,
+        directory=original_directory,
+        filename=filename,
+        extension=ContentType(upload_file.content_type).extension,
+    )
+
+    file_bytes = await compress_image(
+        file_bytes=original_file_bytes,
+        height=height,
+        width=width,
+        quality=quality,
+        output_format=PillowImageFormat.webp,
+    )
+
+    await save_bytes_as_data(
+        file_bytes=file_bytes,
+        directory=directory,
+        filename=filename,
+        extension=ContentType.webp,
+    )
+
+
 def get_random_string(length: int = 5) -> str:
     return "".join(
         secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(length)

@@ -22,7 +22,7 @@ from app.dependencies import (
 from app.modules.cinema import cruds_cinema, schemas_cinema
 from app.modules.cinema.factory_cinema import CinemaFactory
 from app.types import standard_responses
-from app.types.content_type import ContentType, PillowImageFormat
+from app.types.content_type import ContentType
 from app.types.module import Module
 from app.types.scheduler import Scheduler
 from app.utils.communication.date_manager import (
@@ -32,11 +32,8 @@ from app.utils.communication.date_manager import (
 )
 from app.utils.communication.notifications import NotificationTool
 from app.utils.tools import (
-    compress_image,
-    ensure_file_properties,
+    compress_and_save_image_file,
     get_file_from_data,
-    save_bytes_as_data,
-    save_file_as_data,
 )
 
 root = "cinema"
@@ -220,42 +217,20 @@ async def create_campaigns_logo(
             detail="The session does not exist.",
         )
 
-    await save_file_as_data(
+    await compress_and_save_image_file(
         upload_file=image,
         directory="cinemasessions",
         filename=str(session_id),
-        max_file_size=4 * 1024 * 1024,
-        accepted_content_types=[
-            ContentType.jpg,
-            ContentType.png,
-            ContentType.webp,
-        ],
-    )
-
-    await ensure_file_properties(
-        upload_file=image,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-    )
-
-    file_bytes = await compress_image(
-        file_bytes=await image.read(),
         # TODO: change size
         height=300,
         width=300,
         quality=85,
-        output_format=PillowImageFormat.webp,
-    )
-
-    await save_bytes_as_data(
-        file_bytes=file_bytes,
-        directory="cinemasessions",
-        filename=str(session_id),
-        extension=ContentType.webp,
     )
 
     return standard_responses.Result(success=True)

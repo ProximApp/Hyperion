@@ -10,10 +10,11 @@ from PIL import Image
 from starlette.datastructures import Headers
 
 from app.core.core_endpoints import models_core
-from app.types.content_type import PillowImageFormat
+from app.types.content_type import ContentType, PillowImageFormat
 from app.types.core_data import BaseCoreData
 from app.types.exceptions import CoreDataNotFoundError, FileNameIsNotAnUUIDError
 from app.utils.tools import (
+    compress_and_save_image_file,
     compress_image,
     delete_file_from_data,
     get_core_data,
@@ -267,6 +268,28 @@ async def test_compress(height: int, width: int) -> None:
         assert res_image.height == height
         assert res_image.width == width
         assert res_image.format == "WEBP"
+
+
+async def test_compress_and_save_image_file() -> None:
+    valid_uuid = str(uuid.uuid4())
+    with Path("assets/images/default_profile_picture.png").open("rb") as file:
+        await compress_and_save_image_file(
+            upload_file=UploadFile(
+                file,
+                headers=Headers({"content-type": "image/png"}),
+            ),
+            directory="test/compressed",
+            filename=valid_uuid,
+            accepted_content_types=[
+                ContentType.png,
+            ],
+            max_file_size=1024 * 1024 * 5,  # 5 MB
+            height=300,
+            width=300,
+            quality=85,
+        )
+        assert Path(f"data/test/compressed/{valid_uuid}.webp").is_file()
+        assert Path(f"data/test/compressed/original/{valid_uuid}.png").is_file()
 
 
 async def test_save_pdf_first_page_as_image() -> None:

@@ -17,13 +17,11 @@ from app.dependencies import (
     is_user,
     is_user_in,
 )
-from app.types.content_type import ContentType, PillowImageFormat
+from app.types.content_type import ContentType
 from app.types.module import CoreModule
 from app.utils.tools import (
-    compress_image,
-    ensure_file_properties,
+    compress_and_save_image_file,
     get_file_from_data,
-    save_bytes_as_data,
 )
 
 router = APIRouter(tags=["Associations"])
@@ -178,29 +176,19 @@ async def create_association_logo(
     if not association:
         raise HTTPException(status_code=404, detail="Association not found")
 
-    await ensure_file_properties(
+    await compress_and_save_image_file(
         upload_file=image,
+        directory="associations/logos",
+        filename=association_id,
         accepted_content_types=[
             ContentType.jpg,
             ContentType.png,
             ContentType.webp,
         ],
         max_file_size=1024 * 1024 * 5,  # 5 MB
-    )
-
-    file_bytes = await compress_image(
-        file_bytes=await image.read(),
         height=300,
         width=300,
         quality=85,
-        output_format=PillowImageFormat.webp,
-    )
-
-    await save_bytes_as_data(
-        file_bytes=file_bytes,
-        directory="associations/logos",
-        filename=association_id,
-        extension=ContentType.webp,
     )
 
 
