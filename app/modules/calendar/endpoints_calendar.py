@@ -230,21 +230,9 @@ async def create_event_image(
             detail="You are not allowed to access this event",
         )
 
-    await save_file_as_data(
-        upload_file=image,
-        directory="event",
-        filename=event_id,
-        max_file_size=4 * 1024 * 1024,
-        accepted_content_types=[
-            ContentType.jpg,
-            ContentType.png,
-            ContentType.webp,
-        ],
-    )
-
     compress_and_save_image_file(
         upload_file=image,
-        directory="events",
+        directory="event",
         filename=event_id,
         accepted_content_types=[
             ContentType.jpg,
