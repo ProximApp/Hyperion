@@ -653,7 +653,6 @@ async def delete_membership(
     await cruds_phonebook.delete_membership(membership_id, db)
 
 
-# TODO: is this endpoint used?
 @module.router.post(
     "/phonebook/associations/{association_id}/picture",
     response_model=standard_responses.Result,
