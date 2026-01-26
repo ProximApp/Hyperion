@@ -51,6 +51,7 @@ def init_module_list(settings: Settings):
         if hasattr(endpoint_module, "core_module"):
             core_module: CoreModule = endpoint_module.core_module
             _core_module_list.append(core_module)
+            _all_modules.append(core_module)
         else:
             hyperion_error_logger.error(
                 f"Core module {endpoints_file} does not declare a core module. It won't be enabled.",
@@ -66,4 +67,4 @@ def get_core_module_list() -> list[CoreModule]:
 
 
 def get_all_modules() -> list[Module | CoreModule]:
-    return get_module_list() + get_core_module_list()
+    return _all_modules
