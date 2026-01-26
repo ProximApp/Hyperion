@@ -28,6 +28,9 @@ class ContentType(str, Enum):
             return "pdf"
         raise UnknownContentTypeExtensionError(content_type=self.value)
 
+    def __str__(self):
+        return self.extension
+
 
 class PillowImageFormat(str, Enum):
     """
