@@ -12,7 +12,7 @@ import alembic.config as alembic_config
 import alembic.migration as alembic_migration
 import redis
 from calypsso import get_calypsso_app
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app import api
 from app.core.core_endpoints import coredata_core, models_core
 from app.core.google_api.google_api import GoogleAPI
 from app.core.groups import models_groups
@@ -41,7 +40,7 @@ from app.dependencies import (
     get_redis_client,
     init_state,
 )
-from app.module import all_modules, module_list
+from app.module import get_all_modules, get_module_list, init_module_list
 from app.types.exceptions import (
     ContentHTTPException,
     GoogleAPIInvalidCredentialsError,
@@ -240,7 +239,7 @@ async def run_factories(
     hyperion_error_logger.info("Startup: Factories enabled")
     # Importing the core_factory at the beginning of the factories.
     factories_list: list[Factory] = []
-    for module in all_modules:
+    for module in get_all_modules():
         if module.factory:
             factories_list.append(module.factory)
             hyperion_error_logger.info(
@@ -299,10 +298,11 @@ def initialize_module_visibility(
             coredata_core.ModuleVisibilityAwareness,
             db,
         )
+        known_roots = module_awareness.roots
 
         new_modules = [
             module
-            for module in module_list
+            for module in get_module_list()
             if module.root not in module_awareness.roots
         ]
         # Is run to create default module visibilities or when the table is empty
@@ -311,6 +311,7 @@ def initialize_module_visibility(
                 f"Startup: Some modules visibility settings are empty, initializing them ({[module.root for module in new_modules]})",
             )
             for module in new_modules:
+                known_roots.append(module.root)
                 if module.default_allowed_groups_ids is not None:
                     for group_id in module.default_allowed_groups_ids:
                         module_group_visibility = models_core.ModuleGroupVisibility(
@@ -344,9 +345,7 @@ def initialize_module_visibility(
                                 f"Startup: Could not add module visibility {module.root} in the database: {error}",
                             )
             initialization.set_core_data_sync(
-                coredata_core.ModuleVisibilityAwareness(
-                    roots=[module.root for module in module_list],
-                ),
+                coredata_core.ModuleVisibilityAwareness(roots=known_roots),
                 db,
             )
             hyperion_error_logger.info(
@@ -365,7 +364,7 @@ async def initialize_notification_topics(
 ) -> None:
     existing_topics = await get_notification_topic(db=db)
     existing_topics_id = [topic.id for topic in existing_topics]
-    for module in all_modules:
+    for module in get_all_modules():
         if module.registred_topics:
             for registred_topic in module.registred_topics:
                 if registred_topic.id not in existing_topics_id:
@@ -623,13 +622,18 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             hyperion_error_logger=hyperion_error_logger,
         )
 
+    init_module_list(settings=settings)
+
     # Initialize app
     app = FastAPI(
         title="Hyperion",
         version=settings.HYPERION_VERSION,
         lifespan=lifespan,
     )
-    app.include_router(api.api_router)
+    api_router = APIRouter()
+    for module in get_all_modules():
+        api_router.include_router(module.router)
+    app.include_router(api_router)
     use_route_path_as_operation_ids(app)
 
     app.add_middleware(
