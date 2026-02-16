@@ -215,7 +215,8 @@ def test_create_user_corresponding_to_school(
     user = next(
         user
         for user in users.json()
-        if user["firstname"] == "new_user_firstname" and user["name"] == "new_user_name"
+        if user["firstname"] == "new_user_firstname".title()
+        and user["name"] == "new_user_name".title()
     )
 
     user_detail = client.get(

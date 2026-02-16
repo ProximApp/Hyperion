@@ -46,6 +46,15 @@ def email_normalizer(email: str) -> str:
     return email.lower().strip()
 
 
+def name_normalizer(name: str) -> str:
+    """
+    Normalize a name by changing its capitalization. We also remove trailing spaces.
+    This function is intended to be used as a Pydantic validator:
+    https://pydantic-docs.helpmanual.io/usage/validators/#reuse-validators
+    """
+    return name.strip().title()
+
+
 def trailing_spaces_remover(value: str | None) -> str | None:
     """
     Remove trailing spaces.
