@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from fastapi.testclient import TestClient
 from pytest_mock import MockerFixture
 
+from app.core.associations import models_associations
 from app.core.groups import models_groups
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
@@ -62,6 +63,8 @@ ecl_user2_wallet: models_mypayment.Wallet
 ecl_user2_wallet_device: models_mypayment.WalletDevice
 ecl_user2_payment: models_mypayment.UserPayment
 
+core_association: models_associations.CoreAssociation
+
 association_membership: models_memberships.CoreAssociationMembership
 association_membership_user: models_memberships.CoreAssociationUserMembership
 structure: models_mypayment.Structure
@@ -112,6 +115,13 @@ async def init_objects() -> None:
     global admin_user, admin_user_token
     admin_user = await create_user_with_groups(groups=[GroupType.admin])
     admin_user_token = create_api_access_token(admin_user)
+
+    global core_association
+    core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="Association",
+        group_id=GroupType.admin,
+    )
 
     global association_membership
     association_membership = models_memberships.CoreAssociationMembership(
@@ -306,7 +316,7 @@ async def init_objects() -> None:
         name="Test Store",
         structure_id=structure.id,
         creation=datetime.now(UTC),
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(store)
     store2 = models_mypayment.Store(
@@ -315,7 +325,7 @@ async def init_objects() -> None:
         name="Test Store 2",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(store2)
     store3 = models_mypayment.Store(
@@ -324,7 +334,7 @@ async def init_objects() -> None:
         name="Test Store 3",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(store3)
 
@@ -801,7 +811,7 @@ async def test_transfer_structure_manager_as_manager(
         wallet_id=new_wallet.id,
         name="Test Store Structure 2",
         structure_id=new_structure.id,
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(new_store)
     new_wallet2 = models_mypayment.Wallet(
@@ -816,7 +826,7 @@ async def test_transfer_structure_manager_as_manager(
         wallet_id=new_wallet2.id,
         name="Test Store Structure 2 Where New Manager Already Seller",
         structure_id=new_structure.id,
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(new_store2_where_new_manager_already_seller)
     seller = models_mypayment.Seller(
@@ -1246,7 +1256,7 @@ async def test_delete_store(client: TestClient):
         wallet_id=new_wallet.id,
         name="Test Store to Delete",
         structure_id=structure.id,
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(new_store)
     sellet = models_mypayment.Seller(
@@ -1281,7 +1291,7 @@ async def test_update_store(client: TestClient):
         wallet_id=new_wallet.id,
         name="Test Store Update",
         structure_id=structure.id,
-        association_id=association_membership.id,
+        association_id=core_association.id,
     )
     await add_object_to_db(new_store)
     response = client.patch(
