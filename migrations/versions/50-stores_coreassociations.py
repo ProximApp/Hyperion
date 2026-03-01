@@ -3,17 +3,14 @@
 Create Date: 2026-03-01 11:41:22.994301
 """
 
-import uuid
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
 
 import sqlalchemy as sa
 from alembic import op
-
-from app.types.sqlalchemy import TZDateTime
 
 # revision identifiers, used by Alembic.
 revision: str = "146db8dcb23e"
@@ -34,7 +31,7 @@ def upgrade() -> None:
     ).fetchall()
 
     if len(stores) > 0:
-        raise Exception(
+        raise Exception(  # noqa: TRY002, TRY003
             "There are already stores in database, we cannot safely migrate to add association_id to store",
         )
 
