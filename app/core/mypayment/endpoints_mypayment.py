@@ -20,6 +20,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.associations import cruds_associations
 from app.core.auth import schemas_auth
 from app.core.checkout import schemas_checkout
 from app.core.checkout.payment_tool import PaymentTool
@@ -91,6 +92,7 @@ from app.utils.tools import (
     generate_pdf_from_template,
     get_core_data,
     get_file_from_data,
+    is_user_member_of_an_association,
     patch_identity_in_text,
     set_core_data,
 )
@@ -500,6 +502,7 @@ async def create_store(
     Stores name should be unique, as an user need to be able to identify a store by its name.
 
     **The user must be the manager for this structure**
+    **The user must be a member of the associated CoreAssociation**
     """
     structure = await cruds_mypayment.get_structure_by_id(
         structure_id=structure_id,
@@ -526,6 +529,24 @@ async def create_store(
             detail="Store with this name already exists in this structure",
         )
 
+    association = await cruds_associations.get_association_by_id(
+        db=db,
+        association_id=store.association_id,
+    )
+    if not association:
+        raise HTTPException(
+            status_code=404,
+            detail="Association not found",
+        )
+    if not is_user_member_of_an_association(
+        user=user,
+        association=association,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to create stores for this association",
+        )
+
     # Create new wallet for store
     wallet_id = uuid.uuid4()
     await cruds_mypayment.create_wallet(
@@ -541,6 +562,7 @@ async def create_store(
         structure_id=structure_id,
         wallet_id=wallet_id,
         creation=datetime.now(tz=UTC),
+        association_id=store.association_id,
     )
     await cruds_mypayment.create_store(
         store=store_db,
@@ -574,6 +596,7 @@ async def create_store(
         wallet_id=store_db.wallet_id,
         creation=store_db.creation,
         structure=structure,
+        association_id=store_db.association_id,
     )
 
 
@@ -845,6 +868,7 @@ async def get_user_stores(
                     can_see_history=seller.can_see_history,
                     can_cancel=seller.can_cancel,
                     can_manage_sellers=seller.can_manage_sellers,
+                    association_id=store.association_id,
                 ),
             )
 
