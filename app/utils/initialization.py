@@ -341,7 +341,9 @@ async def use_lock_for_workers(
 
     elif redis_client.set(key, "1", nx=True, ex=120):
         # We acquired the lock, we execute the function
-        logger.info(f"Running {job_function.__name__}")  # ty:ignore[unresolved-attribute]
+        logger.info(
+            f"Running {job_function.__name__}",  # ty:ignore[unresolved-attribute]
+        )
 
         await execute_async_or_sync_method(job_function, *args, **kwargs)
 
