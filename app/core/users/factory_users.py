@@ -33,7 +33,9 @@ class CoreUsersFactory(Factory):
     @classmethod
     def init_demo_users(cls, settings: Settings) -> None:
         cls.demo_users = (
-            settings.FACTORIES_DEMO_USERS or [
+            settings.FACTORIES_DEMO_USERS
+            if settings.FACTORIES_DEMO_USERS
+            else [
                 UserDemoFactoryConfig(
                     firstname="Alice",
                     name="Dupont",

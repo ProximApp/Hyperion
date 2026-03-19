@@ -301,7 +301,7 @@ async def test_save_pdf_first_page_as_image() -> None:
         input_pdf_directory="test/pdf",
         output_image_directory="test/image",
         filename=valid_uuid,
-        default_pdf_path="assets/pdf/default_PDF.pdf",
+        default_pdf_path="assets/pdf/default_pdf.pdf",
     )
     assert Path(f"data/test/image/{valid_uuid}.jpg").is_file()
 

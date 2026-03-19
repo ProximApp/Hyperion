@@ -145,7 +145,7 @@ def test_update_paper(client: TestClient) -> None:
 
 
 def test_delete_paper(client: TestClient) -> None:
-    with Path("assets/pdf/default_PDF.pdf").open("rb") as pdf:
+    with Path("assets/pdf/default_pdf.pdf").open("rb") as pdf:
         client.post(
             f"/ph/{paper.id}/pdf",
             files={"pdf": ("test_paper.pdf", pdf, "application/pdf")},
