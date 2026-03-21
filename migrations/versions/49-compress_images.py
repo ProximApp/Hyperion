@@ -104,10 +104,6 @@ def upgrade() -> None:
 
                     Path(f"data/{data_folder}/{file_path.stem}.webp").write_bytes(res)
 
-                    with Path(f"data/{data_folder}/{file_path.stem}.webp").open(
-                        "wb",
-                    ) as out_file:
-                        out_file.write(res)
     print()  # noqa: T201
 
 
