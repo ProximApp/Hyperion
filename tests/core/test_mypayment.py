@@ -21,7 +21,6 @@ from app.core.mypayment import cruds_mypayment, models_mypayment
 from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountHolder,
 )
-from app.core.mypayment.cruds_mypayment import delete_store
 from app.core.mypayment.schemas_mypayment import QRCodeContentData
 from app.core.mypayment.endpoints_mypayment import MyPaymentPermissions
 from app.core.mypayment.schemas_mypayment import (
