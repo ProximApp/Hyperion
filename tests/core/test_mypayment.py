@@ -78,6 +78,7 @@ ecl_user2_wallet: models_mypayment.Wallet
 ecl_user2_wallet_device: models_mypayment.WalletDevice
 ecl_user2_payment: models_mypayment.UserPayment
 
+core_association_group: models_groups.CoreGroup
 core_association: models_associations.CoreAssociation
 
 association_membership: models_memberships.CoreAssociationMembership
@@ -144,11 +145,15 @@ async def init_objects() -> None:
     admin_user = await create_user_with_groups(groups=[GroupType.admin])
     admin_user_token = create_api_access_token(admin_user)
 
-    global core_association
+    global core_association_group, core_association
+    core_association_group = await create_groups_with_permissions(
+        group_name="Core Association Group",
+        permissions=[],
+    )
     core_association = models_associations.CoreAssociation(
         id=uuid4(),
         name="Association",
-        group_id=GroupType.admin,
+        group_id=core_association_group.id,
     )
     await add_object_to_db(core_association)
 
@@ -982,10 +987,66 @@ async def test_create_store_for_non_existing_structure(client: TestClient):
     assert response.json()["detail"] == "Structure does not exist"
 
 
-async def test_create_store(client: TestClient):
+async def test_create_store_for_non_existing_association(client: TestClient):
     response = client.post(
         f"/mypayment/structures/{structure.id}/stores",
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        json={
+            "name": "test_create_store Test Store",
+            "association_id": str(uuid4()),
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Association not found"
+
+
+async def test_create_store_as_non_association_manager_member(client: TestClient):
+    response = client.post(
+        f"/mypayment/structures/{structure.id}/stores",
+        headers={
+            "Authorization": f"Bearer {structure_manager_user_token}",
+        },
+        json={
+            "name": "test_create_store Test Store",
+            "association_id": str(core_association.id),
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"]
+        == "You are not allowed to create stores for this association"
+    )
+
+
+async def test_create_store(client: TestClient):
+    structure_manager_and_association_member_user = await create_user_with_groups(
+        groups=[core_association_group.id],
+    )
+    structure_manager_and_association_member_user_token = create_api_access_token(
+        structure_manager_and_association_member_user,
+    )
+    structure = models_mypayment.Structure(
+        id=uuid4(),
+        name="Test Structure",
+        creation=datetime.now(UTC),
+        association_membership_id=association_membership.id,
+        manager_user_id=structure_manager_and_association_member_user.id,
+        short_id="DEF",
+        siege_address_street="123 Test Street",
+        siege_address_city="Test City",
+        siege_address_zipcode="12345",
+        siege_address_country="Test Country",
+        siret="12345678901234",
+        iban="FR76 1234 5678 9012 3456 7890 123",
+        bic="AZERTYUIOP",
+    )
+    await add_object_to_db(structure)
+
+    response = client.post(
+        f"/mypayment/structures/{structure.id}/stores",
+        headers={
+            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}"
+        },
         json={
             "name": "test_create_store Test Store",
             "association_id": str(core_association.id),
@@ -996,7 +1057,9 @@ async def test_create_store(client: TestClient):
 
     stores = client.get(
         "/mypayment/users/me/stores",
-        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        headers={
+            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}"
+        },
     )
     stores_ids = [store["id"] for store in stores.json()]
     assert response.json()["id"] in stores_ids
@@ -1269,7 +1332,7 @@ async def test_get_stores_as_manager(client: TestClient):
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
     )
     assert response.status_code == 200
-    assert len(response.json()) > 1
+    assert len(response.json()) == 1
 
 
 async def test_update_store_non_existing(client: TestClient):
