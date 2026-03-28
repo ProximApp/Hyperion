@@ -68,6 +68,7 @@ class MyPaymentFactory(Factory):
 
     @classmethod
     async def create_other_structures_stores(cls, db: AsyncSession):
+        association_id_index = 0
         for structure_id in cls.other_structures_id:
             structure_store_ids = []
             structure_wallet_ids = []
@@ -89,10 +90,13 @@ class MyPaymentFactory(Factory):
                         name=faker.company(),
                         creation=datetime.now(UTC),
                         wallet_id=wallet_id,
-                        association_id=AssociationsFactory.association_ids[0],
+                        association_id=AssociationsFactory.association_ids[
+                            association_id_index
+                        ],
                     ),
                     db,
                 )
+                association_id_index += 1
             cls.other_stores_id.append(structure_store_ids)
             cls.other_stores_wallet_id.append(structure_wallet_ids)
 
