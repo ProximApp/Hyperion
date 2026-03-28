@@ -956,7 +956,7 @@ async def test_create_store(client: TestClient):
     response = client.post(
         f"/mypayment/structures/{structure.id}/stores",
         headers={
-            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}"
+            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}",
         },
         json={
             "name": "test_create_store Test Store",
@@ -969,7 +969,7 @@ async def test_create_store(client: TestClient):
     stores = client.get(
         "/mypayment/users/me/stores",
         headers={
-            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}"
+            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}",
         },
     )
     stores_ids = [store["id"] for store in stores.json()]
