@@ -150,6 +150,7 @@ async def init_objects() -> None:
         name="Association",
         group_id=GroupType.admin,
     )
+    await add_object_to_db(core_association)
 
     global association_membership
     association_membership = models_memberships.CoreAssociationMembership(
@@ -974,6 +975,7 @@ async def test_create_store_for_non_existing_structure(client: TestClient):
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "test_create_store Test Store",
+            "association_id": str(core_association.id),
         },
     )
     assert response.status_code == 404
@@ -986,6 +988,7 @@ async def test_create_store(client: TestClient):
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "test_create_store Test Store",
+            "association_id": str(core_association.id),
         },
     )
     assert response.status_code == 201
@@ -1005,6 +1008,7 @@ async def test_create_store_when_user_not_manager_of_structure(client: TestClien
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json={
             "name": "test_create_store Test Store",
+            "association_id": str(core_association.id),
         },
     )
     assert response.status_code == 403
@@ -1017,6 +1021,7 @@ async def test_create_store_with_name_already_exist(client: TestClient):
         headers={"Authorization": f"Bearer {structure_manager_user_token}"},
         json={
             "name": "Test Store",
+            "association_id": str(core_association.id),
         },
     )
     assert response.status_code == 400
