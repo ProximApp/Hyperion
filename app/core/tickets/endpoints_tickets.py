@@ -11,6 +11,7 @@ from fastapi import (
     HTTPException,
     Response,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.mypayment import cruds_mypayment
@@ -82,10 +83,41 @@ async def get_event(
     Get an event public details
     """
     event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+
     # TODO: indicate if the event is sold out
     if event is None:
         raise HTTPException(404, "Event not found")
-    return event
+
+    return schemas_tickets.EventPublic(
+        id=event.id,
+        name=event.name,
+        store_id=event.store_id,
+        sessions=[
+            schemas_tickets.SessionPublic(
+                event_id=session.event_id,
+                id=session.id,
+                name=session.name,
+                start_time=session.start_time,
+                end_time=session.end_time,
+                sold_out=await cruds_tickets.is_session_sold_out(session.id, db),
+            )
+            for session in event.sessions
+        ],
+        categories=[
+            schemas_tickets.CategoryPublic(
+                event_id=category.event_id,
+                id=category.id,
+                name=category.name,
+                price=category.price,
+                required_membership=category.required_membership,
+                sold_out=await cruds_tickets.is_category_sold_out(category.id, db),
+            )
+            for category in event.categories
+        ],
+        sold_out=await cruds_tickets.is_event_sold_out(event.id, db),
+        open_datetime=event.open_datetime,
+        close_datetime=event.close_datetime,
+    )
 
 
 @router.post(
@@ -106,6 +138,7 @@ async def create_checkout(
     """
     Create a checkout for an open event
     """
+    # TODO: can we ask for multiple tickets?
     category = await cruds_tickets.get_category_by_id(
         category_id=checkout.category_id,
         db=db,
@@ -128,9 +161,11 @@ async def create_checkout(
     expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)
 
     # TODO: indicate if the event is sold out
+    # TODO: check required membership
 
     await cruds_tickets.create_checkout(
         checkout_id=uuid.uuid4(),
+        event_id=event_id,
         user_id=user.id,
         category_id=checkout.category_id,
         session_id=checkout.session_id,
@@ -270,7 +305,7 @@ async def get_event_tickets(
 
 @router.get(
     "/tickets/admin/events/{event_id}/tickets/csv",
-    response_model=list[schemas_tickets.Ticket],
+    response_class=FileResponse,
     status_code=200,
 )
 async def get_event_tickets_csv(
@@ -307,6 +342,11 @@ async def get_event_tickets_csv(
             "Category Name",
             "Price (€)",
             "Scanned",
+            "User ID",
+            "User Name",
+            "User Firstname",
+            "User Account Type",
+            "User School ID",
         ],
     )
 
@@ -321,6 +361,11 @@ async def get_event_tickets_csv(
                 ticket.category.name,
                 f"{ticket.price / 100:.2f}€",
                 ticket.scanned,
+                ticket.user_id,
+                ticket.user.name,
+                ticket.user.firstname,
+                ticket.user.account_type,
+                ticket.user.school_id,
             ],
         )
 
@@ -337,6 +382,61 @@ async def get_event_tickets_csv(
         headers=headers,
         media_type="text/csv; charset=utf-8",
     )
+
+
+@router.post(
+    "/tickets/admin/tickets/{ticket_id}/check",
+    response_model=schemas_tickets.Ticket,
+    status_code=200,
+)
+async def check_ticket(
+    ticket_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Check a ticket
+
+    **The user should have the right to manage the event seller**
+    """
+
+    ticket = await cruds_tickets.get_ticket_by_id(ticket_id=ticket_id, db=db)
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found")
+
+    # TODO: check if user has the right to manage the seller
+
+    return ticket
+
+
+@router.post(
+    "/tickets/admin/tickets/{ticket_id}/scan",
+    status_code=204,
+)
+async def scan_ticket(
+    ticket_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark a ticket as scanned
+
+    **The user should have the right to manage the event seller**
+    """
+
+    ticket = await cruds_tickets.get_ticket_by_id(ticket_id=ticket_id, db=db)
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found")
+
+    # TODO: check if user has the right to manage the seller
+
+    await cruds_tickets.mark_ticket_as_scanned(ticket_id=ticket_id, db=db)
+
+    return ticket
 
 
 @router.get(

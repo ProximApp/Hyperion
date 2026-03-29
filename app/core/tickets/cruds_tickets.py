@@ -3,12 +3,13 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from app.core.tickets import models_tickets, schemas_tickets
+from app.core.users import schemas_users
 
 
 async def get_tickets_by_user_id(
@@ -37,12 +38,20 @@ async def get_tickets_by_user_id(
                 event_id=ticket.category.event_id,
             ),
             session=schemas_tickets.Session(
+                id=ticket.session.id,
                 name=ticket.session.name,
                 start_time=ticket.session.start_time,
                 end_time=ticket.session.end_time,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
+            user=schemas_users.CoreUserSimple(
+                id=ticket.user.id,
+                name=ticket.user.name,
+                firstname=ticket.user.firstname,
+                account_type=ticket.user.account_type,
+                school_id=ticket.user.school_id,
+            ),
             price=ticket.price,
         )
         for ticket in result.scalars().all()
@@ -59,6 +68,7 @@ async def get_tickets_by_event_id(
         .options(
             selectinload(models_tickets.Ticket.category),
             selectinload(models_tickets.Ticket.session),
+            selectinload(models_tickets.Ticket.user),
         ),
     )
     return [
@@ -75,16 +85,82 @@ async def get_tickets_by_event_id(
                 event_id=ticket.category.event_id,
             ),
             session=schemas_tickets.Session(
+                id=ticket.session.id,
                 name=ticket.session.name,
                 start_time=ticket.session.start_time,
                 end_time=ticket.session.end_time,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
+            user=schemas_users.CoreUserSimple(
+                id=ticket.user.id,
+                name=ticket.user.name,
+                firstname=ticket.user.firstname,
+                account_type=ticket.user.account_type,
+                school_id=ticket.user.school_id,
+            ),
             price=ticket.price,
         )
         for ticket in result.scalars().all()
     ]
+
+
+async def get_ticket_by_id(
+    ticket_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.Ticket | None:
+    result = await db.execute(
+        select(models_tickets.Ticket)
+        .where(models_tickets.Ticket.id == ticket_id)
+        .options(
+            selectinload(models_tickets.Ticket.category),
+            selectinload(models_tickets.Ticket.session),
+        ),
+    )
+    ticket = result.scalars().first()
+    if ticket is None:
+        return None
+
+    return schemas_tickets.Ticket(
+        id=ticket.id,
+        category_id=ticket.category_id,
+        session_id=ticket.session_id,
+        scanned=ticket.scanned,
+        category=schemas_tickets.Category(
+            id=ticket.category.id,
+            name=ticket.category.name,
+            price=ticket.category.price,
+            required_membership=ticket.category.required_membership,
+            event_id=ticket.category.event_id,
+        ),
+        session=schemas_tickets.Session(
+            id=ticket.session.id,
+            name=ticket.session.name,
+            start_time=ticket.session.start_time,
+            end_time=ticket.session.end_time,
+            event_id=ticket.session.event_id,
+        ),
+        user_id=ticket.user_id,
+        user=schemas_users.CoreUserSimple(
+            id=ticket.user.id,
+            name=ticket.user.name,
+            firstname=ticket.user.firstname,
+            account_type=ticket.user.account_type,
+            school_id=ticket.user.school_id,
+        ),
+        price=ticket.price,
+    )
+
+
+async def mark_ticket_as_scanned(
+    ticket_id: UUID,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Ticket)
+        .where(models_tickets.Ticket.id == ticket_id)
+        .values(scanned=True),
+    )
 
 
 async def get_open_events(
@@ -108,6 +184,8 @@ async def get_open_events(
             id=association.id,
             name=association.name,
             store_id=association.store_id,
+            open_datetime=association.open_datetime,
+            close_datetime=association.close_datetime,
         )
         for association in result.scalars().all()
     ]
@@ -129,6 +207,8 @@ async def get_events_by_store_id(
             id=association.id,
             name=association.name,
             store_id=association.store_id,
+            open_datetime=association.open_datetime,
+            close_datetime=association.close_datetime,
         )
         for association in result.scalars().all()
     ]
@@ -137,9 +217,7 @@ async def get_events_by_store_id(
 async def get_event_by_id(
     event_id: UUID,
     db: AsyncSession,
-) -> schemas_tickets.EventAdmin | None:
-    """Return one open event with public details from database"""
-
+) -> schemas_tickets.EventComplete | None:
     result = await db.execute(
         select(models_tickets.TicketEvent)
         .where(
@@ -155,7 +233,7 @@ async def get_event_by_id(
     if event is None:
         return None
 
-    return schemas_tickets.EventAdmin(
+    return schemas_tickets.EventComplete(
         id=event.id,
         name=event.name,
         open_datetime=event.open_datetime,
@@ -171,6 +249,7 @@ async def get_event_by_id(
                 start_time=session.start_time,
                 end_time=session.end_time,
                 event_id=session.event_id,
+                quota=session.quota,
             )
             for session in sorted(event.sessions, key=lambda item: item.start_time)
         ],
@@ -181,6 +260,7 @@ async def get_event_by_id(
                 price=category.price,
                 required_membership=category.required_membership,
                 event_id=category.event_id,
+                quota=category.quota,
             )
             for category in sorted(event.categories, key=lambda item: item.name)
         ],
@@ -202,7 +282,7 @@ async def create_event(
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         sessions=[
-            models_tickets.Session(
+            models_tickets.EventSession(
                 id=uuid.uuid4(),
                 event_id=event_id,
                 name=session.name,
@@ -249,6 +329,7 @@ async def get_category_by_id(
         price=category.price,
         required_membership=category.required_membership,
         event_id=category.event_id,
+        quota=category.quota,
     )
 
 
@@ -259,8 +340,8 @@ async def get_session_by_id(
     """Return one session from database"""
 
     result = await db.execute(
-        select(models_tickets.Session).where(
-            models_tickets.Session.id == session_id,
+        select(models_tickets.EventSession).where(
+            models_tickets.EventSession.id == session_id,
         ),
     )
 
@@ -274,12 +355,14 @@ async def get_session_by_id(
         start_time=session.start_time,
         end_time=session.end_time,
         event_id=session.event_id,
+        quota=session.quota,
     )
 
 
 async def create_checkout(
     checkout_id: UUID,
     user_id: str,
+    event_id: UUID,
     category_id: UUID,
     session_id: UUID,
     price: int,
@@ -288,6 +371,7 @@ async def create_checkout(
 ):
     db_checkout = models_tickets.Checkout(
         id=checkout_id,
+        event_id=event_id,
         user_id=user_id,
         category_id=category_id,
         session_id=session_id,
