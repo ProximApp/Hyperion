@@ -12,7 +12,7 @@ class Session(BaseModel):
     id: UUID
     event_id: UUID
     name: str
-    start_time: datetime
+    start_datetime: datetime
 
 
 class SessionComplete(Session):
@@ -34,7 +34,7 @@ class SessionAdmin(SessionComplete):
 
 class SessionCreate(BaseModel):
     name: str
-    start_time: datetime
+    start_datetime: datetime
 
     quota: int | None
 
