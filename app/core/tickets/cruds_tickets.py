@@ -3,164 +3,13 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import or_, update
+from sqlalchemy import func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
 from app.core.tickets import models_tickets, schemas_tickets
 from app.core.users import schemas_users
-
-
-async def get_tickets_by_user_id(
-    user_id: str,
-    db: AsyncSession,
-) -> Sequence[schemas_tickets.Ticket]:
-    result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.user_id == user_id)
-        .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
-        ),
-    )
-    return [
-        schemas_tickets.Ticket(
-            id=ticket.id,
-            category_id=ticket.category_id,
-            session_id=ticket.session_id,
-            scanned=ticket.scanned,
-            category=schemas_tickets.Category(
-                id=ticket.category.id,
-                name=ticket.category.name,
-                price=ticket.category.price,
-                required_membership=ticket.category.required_membership,
-                event_id=ticket.category.event_id,
-            ),
-            session=schemas_tickets.Session(
-                id=ticket.session.id,
-                name=ticket.session.name,
-                start_time=ticket.session.start_time,
-                end_time=ticket.session.end_time,
-                event_id=ticket.session.event_id,
-            ),
-            user_id=ticket.user_id,
-            user=schemas_users.CoreUserSimple(
-                id=ticket.user.id,
-                name=ticket.user.name,
-                firstname=ticket.user.firstname,
-                account_type=ticket.user.account_type,
-                school_id=ticket.user.school_id,
-            ),
-            price=ticket.price,
-        )
-        for ticket in result.scalars().all()
-    ]
-
-
-async def get_tickets_by_event_id(
-    event_id: UUID,
-    db: AsyncSession,
-) -> Sequence[schemas_tickets.Ticket]:
-    result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.category.event_id == event_id)
-        .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
-            selectinload(models_tickets.Ticket.user),
-        ),
-    )
-    return [
-        schemas_tickets.Ticket(
-            id=ticket.id,
-            category_id=ticket.category_id,
-            session_id=ticket.session_id,
-            scanned=ticket.scanned,
-            category=schemas_tickets.Category(
-                id=ticket.category.id,
-                name=ticket.category.name,
-                price=ticket.category.price,
-                required_membership=ticket.category.required_membership,
-                event_id=ticket.category.event_id,
-            ),
-            session=schemas_tickets.Session(
-                id=ticket.session.id,
-                name=ticket.session.name,
-                start_time=ticket.session.start_time,
-                end_time=ticket.session.end_time,
-                event_id=ticket.session.event_id,
-            ),
-            user_id=ticket.user_id,
-            user=schemas_users.CoreUserSimple(
-                id=ticket.user.id,
-                name=ticket.user.name,
-                firstname=ticket.user.firstname,
-                account_type=ticket.user.account_type,
-                school_id=ticket.user.school_id,
-            ),
-            price=ticket.price,
-        )
-        for ticket in result.scalars().all()
-    ]
-
-
-async def get_ticket_by_id(
-    ticket_id: UUID,
-    db: AsyncSession,
-) -> schemas_tickets.Ticket | None:
-    result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.id == ticket_id)
-        .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
-        ),
-    )
-    ticket = result.scalars().first()
-    if ticket is None:
-        return None
-
-    return schemas_tickets.Ticket(
-        id=ticket.id,
-        category_id=ticket.category_id,
-        session_id=ticket.session_id,
-        scanned=ticket.scanned,
-        category=schemas_tickets.Category(
-            id=ticket.category.id,
-            name=ticket.category.name,
-            price=ticket.category.price,
-            required_membership=ticket.category.required_membership,
-            event_id=ticket.category.event_id,
-        ),
-        session=schemas_tickets.Session(
-            id=ticket.session.id,
-            name=ticket.session.name,
-            start_time=ticket.session.start_time,
-            end_time=ticket.session.end_time,
-            event_id=ticket.session.event_id,
-        ),
-        user_id=ticket.user_id,
-        user=schemas_users.CoreUserSimple(
-            id=ticket.user.id,
-            name=ticket.user.name,
-            firstname=ticket.user.firstname,
-            account_type=ticket.user.account_type,
-            school_id=ticket.user.school_id,
-        ),
-        price=ticket.price,
-    )
-
-
-async def mark_ticket_as_scanned(
-    ticket_id: UUID,
-    db: AsyncSession,
-):
-    await db.execute(
-        update(models_tickets.Ticket)
-        .where(models_tickets.Ticket.id == ticket_id)
-        .values(scanned=True),
-    )
 
 
 async def get_open_events(
@@ -379,3 +228,235 @@ async def create_checkout(
         expiration=expiration,
     )
     db.add(db_checkout)
+
+
+async def get_tickets_by_user_id(
+    user_id: str,
+    db: AsyncSession,
+) -> Sequence[schemas_tickets.Ticket]:
+    result = await db.execute(
+        select(models_tickets.Ticket)
+        .where(models_tickets.Ticket.user_id == user_id)
+        .options(
+            selectinload(models_tickets.Ticket.category),
+            selectinload(models_tickets.Ticket.session),
+        ),
+    )
+    return [
+        schemas_tickets.Ticket(
+            id=ticket.id,
+            category_id=ticket.category_id,
+            session_id=ticket.session_id,
+            scanned=ticket.scanned,
+            category=schemas_tickets.Category(
+                id=ticket.category.id,
+                name=ticket.category.name,
+                price=ticket.category.price,
+                required_membership=ticket.category.required_membership,
+                event_id=ticket.category.event_id,
+            ),
+            session=schemas_tickets.Session(
+                id=ticket.session.id,
+                name=ticket.session.name,
+                start_time=ticket.session.start_time,
+                end_time=ticket.session.end_time,
+                event_id=ticket.session.event_id,
+            ),
+            user_id=ticket.user_id,
+            user=schemas_users.CoreUserSimple(
+                id=ticket.user.id,
+                name=ticket.user.name,
+                firstname=ticket.user.firstname,
+                account_type=ticket.user.account_type,
+                school_id=ticket.user.school_id,
+            ),
+            price=ticket.price,
+        )
+        for ticket in result.scalars().all()
+    ]
+
+
+async def get_tickets_by_event_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> Sequence[schemas_tickets.Ticket]:
+    result = await db.execute(
+        select(models_tickets.Ticket)
+        .where(models_tickets.Ticket.category.event_id == event_id)
+        .options(
+            selectinload(models_tickets.Ticket.category),
+            selectinload(models_tickets.Ticket.session),
+            selectinload(models_tickets.Ticket.user),
+        ),
+    )
+    return [
+        schemas_tickets.Ticket(
+            id=ticket.id,
+            category_id=ticket.category_id,
+            session_id=ticket.session_id,
+            scanned=ticket.scanned,
+            category=schemas_tickets.Category(
+                id=ticket.category.id,
+                name=ticket.category.name,
+                price=ticket.category.price,
+                required_membership=ticket.category.required_membership,
+                event_id=ticket.category.event_id,
+            ),
+            session=schemas_tickets.Session(
+                id=ticket.session.id,
+                name=ticket.session.name,
+                start_time=ticket.session.start_time,
+                end_time=ticket.session.end_time,
+                event_id=ticket.session.event_id,
+            ),
+            user_id=ticket.user_id,
+            user=schemas_users.CoreUserSimple(
+                id=ticket.user.id,
+                name=ticket.user.name,
+                firstname=ticket.user.firstname,
+                account_type=ticket.user.account_type,
+                school_id=ticket.user.school_id,
+            ),
+            price=ticket.price,
+        )
+        for ticket in result.scalars().all()
+    ]
+
+
+async def get_ticket_by_id(
+    ticket_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.Ticket | None:
+    result = await db.execute(
+        select(models_tickets.Ticket)
+        .where(models_tickets.Ticket.id == ticket_id)
+        .options(
+            selectinload(models_tickets.Ticket.category),
+            selectinload(models_tickets.Ticket.session),
+        ),
+    )
+    ticket = result.scalars().first()
+    if ticket is None:
+        return None
+
+    return schemas_tickets.Ticket(
+        id=ticket.id,
+        category_id=ticket.category_id,
+        session_id=ticket.session_id,
+        scanned=ticket.scanned,
+        category=schemas_tickets.Category(
+            id=ticket.category.id,
+            name=ticket.category.name,
+            price=ticket.category.price,
+            required_membership=ticket.category.required_membership,
+            event_id=ticket.category.event_id,
+        ),
+        session=schemas_tickets.Session(
+            id=ticket.session.id,
+            name=ticket.session.name,
+            start_time=ticket.session.start_time,
+            end_time=ticket.session.end_time,
+            event_id=ticket.session.event_id,
+        ),
+        user_id=ticket.user_id,
+        user=schemas_users.CoreUserSimple(
+            id=ticket.user.id,
+            name=ticket.user.name,
+            firstname=ticket.user.firstname,
+            account_type=ticket.user.account_type,
+            school_id=ticket.user.school_id,
+        ),
+        price=ticket.price,
+    )
+
+
+async def mark_ticket_as_scanned(
+    ticket_id: UUID,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Ticket)
+        .where(models_tickets.Ticket.id == ticket_id)
+        .values(scanned=True),
+    )
+
+
+async def count_tickets_by_event_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Ticket.event_id == event_id,
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_tickets_by_category_id(
+    category_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Ticket.category_id == category_id,
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_tickets_by_session_id(
+    session_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Ticket.session_id == session_id,
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_by_event_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.event_id == event_id,
+            models_tickets.Checkout.expiration >= datetime.now(UTC),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_by_category_id(
+    category_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.category_id == category_id,
+            models_tickets.Checkout.expiration >= datetime.now(UTC),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_by_session_id(
+    session_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.session_id == session_id,
+            models_tickets.Checkout.expiration >= datetime.now(UTC),
+        ),
+    )
+
+    return result.scalar() or 0
