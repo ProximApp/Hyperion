@@ -474,6 +474,7 @@ async def confirm_structure_manager_transfer(
                 can_see_history=True,
                 can_cancel=True,
                 can_manage_sellers=True,
+                can_manage_events=True,
                 db=db,
             )
         else:
@@ -602,6 +603,7 @@ async def create_store(
         can_see_history=True,
         can_cancel=True,
         can_manage_sellers=True,
+        can_manage_events=True,
         db=db,
     )
 
@@ -1084,6 +1086,7 @@ async def create_store_seller(
         can_see_history=seller.can_see_history,
         can_cancel=seller.can_cancel,
         can_manage_sellers=seller.can_manage_sellers,
+        can_manage_events=seller.can_manage_events,
         db=db,
     )
 

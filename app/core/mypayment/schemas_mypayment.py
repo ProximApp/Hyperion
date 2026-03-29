@@ -99,6 +99,7 @@ class SellerCreation(BaseModel):
     can_see_history: bool
     can_cancel: bool
     can_manage_sellers: bool
+    can_manage_events: bool = False
 
 
 class SellerUpdate(BaseModel):
@@ -106,6 +107,7 @@ class SellerUpdate(BaseModel):
     can_see_history: bool | None = None
     can_cancel: bool | None = None
     can_manage_sellers: bool | None = None
+    can_manage_events: bool | None = None
 
 
 class Seller(BaseModel):
