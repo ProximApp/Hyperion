@@ -118,6 +118,7 @@ class Ticket(BaseModel):
     price: int
     user_id: UUID
 
+    event_id: UUID
     category_id: UUID
     session_id: UUID
 
