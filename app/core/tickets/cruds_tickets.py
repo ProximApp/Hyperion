@@ -97,7 +97,7 @@ async def get_event_by_id(
                 event_id=session.event_id,
                 quota=session.quota,
             )
-            for session in sorted(event.sessions, key=lambda item: item.start_time)
+            for session in event.sessions
         ],
         categories=[
             schemas_tickets.CategoryComplete(
@@ -108,7 +108,7 @@ async def get_event_by_id(
                 event_id=category.event_id,
                 quota=category.quota,
             )
-            for category in sorted(event.categories, key=lambda item: item.name)
+            for category in event.categories
         ],
     )
 
@@ -315,7 +315,7 @@ async def get_tickets_by_event_id(
 ) -> Sequence[schemas_tickets.Ticket]:
     result = await db.execute(
         select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.category.event_id == event_id)
+        .where(models_tickets.Ticket.event_id == event_id)
         .options(
             selectinload(models_tickets.Ticket.category),
             selectinload(models_tickets.Ticket.session),

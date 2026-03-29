@@ -183,6 +183,7 @@ async def create_checkout(
     # By putting this lock:
     # - we unsure that if an other endpoint execution acquired the lock before, this one will wait.
     # - we guarantee that any other endpoint execution that tries to acquire the lock will need to wait until the end of this transaction.
+    # Two endpoints require this lock: create a checkout and convert a checkout to ticket (in a payment callback)
     event = await cruds_tickets.acquire_event_lock_for_update(
         event_id=event_id,
         db=db,
@@ -197,19 +198,19 @@ async def create_checkout(
     price = category.price
     expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)
 
-    if utils_tickets.is_event_sold_out(
+    if await utils_tickets.is_event_sold_out(
         event_id=event_id,
         quota=event.quota,
         db=db,
     ):
         raise HTTPException(400, "Event is sold out")
-    if utils_tickets.is_category_sold_out(
+    if await utils_tickets.is_category_sold_out(
         category_id=category.id,
         quota=category.quota,
         db=db,
     ):
         raise HTTPException(400, "Category is sold out")
-    if utils_tickets.is_session_sold_out(
+    if await utils_tickets.is_session_sold_out(
         session_id=session.id,
         quota=session.quota,
         db=db,
@@ -240,7 +241,6 @@ async def create_checkout(
     status_code=200,
 )
 async def get_user_tickets(
-    event_id: UUID,
     user: CoreUser = Depends(
         is_user_allowed_to(
             [TicketsPermissions.buy_tickets],

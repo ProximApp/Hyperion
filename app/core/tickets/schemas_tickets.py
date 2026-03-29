@@ -97,7 +97,7 @@ class EventPublic(EventSimple):
     sold_out: bool
 
 
-class EventAdmin(EventComplete):
+class EventAdmin(EventWithoutSessionsAndCategories):
     sessions: list[SessionAdmin]
     categories: list[CategoryAdmin]
 
