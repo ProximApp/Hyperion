@@ -31,6 +31,9 @@ class SessionAdmin(SessionComplete):
     sold: int
     waiting: int
 
+    tickets_in_checkout: int
+    tickets_sold: int
+
 
 class SessionCreate(BaseModel):
     name: str
@@ -62,6 +65,9 @@ class CategoryPublic(Category):
 class CategoryAdmin(CategoryComplete):
     sold: int
     waiting: int
+
+    tickets_in_checkout: int
+    tickets_sold: int
 
 
 class CategoryCreate(BaseModel):
@@ -99,7 +105,8 @@ class EventAdmin(EventComplete):
     sessions: list[SessionAdmin]
     categories: list[CategoryAdmin]
 
-    quota: int | None
+    tickets_in_checkout: int
+    tickets_sold: int
 
 
 class EventCreate(BaseModel):
