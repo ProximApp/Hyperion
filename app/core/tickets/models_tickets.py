@@ -49,7 +49,7 @@ class EventSession(Base):
 
     quota: Mapped[int | None] = mapped_column(default=None)
 
-    # event: Mapped["TicketEvent"] = relationship(back_populates="sessions", init=False)
+    event: Mapped["TicketEvent"] = relationship(back_populates="sessions", init=False)
 
 
 class Category(Base):
@@ -67,7 +67,7 @@ class Category(Base):
         ForeignKey("core_association_membership.id"),
     )
 
-    # event: Mapped["TicketEvent"] = relationship(back_populates="categories", init=False)
+    event: Mapped["TicketEvent"] = relationship(back_populates="categories", init=False)
 
 
 class Ticket(Base):
