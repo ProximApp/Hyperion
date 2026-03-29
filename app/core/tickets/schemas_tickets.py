@@ -5,12 +5,32 @@ from pydantic import (
     BaseModel,
 )
 
+from app.core.users import schemas_users
+
 
 class Session(BaseModel):
+    id: UUID
+    event_id: UUID
     name: str
     start_time: datetime
     end_time: datetime
-    event_id: UUID
+
+
+class SessionComplete(Session):
+    """
+    Correspond to a Session in the database
+    """
+
+    quota: int | None
+
+
+class SessionPublic(Session):
+    sold_out: bool
+
+
+class SessionAdmin(SessionComplete):
+    sold: int
+    waiting: int
 
 
 class SessionCreate(BaseModel):
@@ -20,16 +40,29 @@ class SessionCreate(BaseModel):
     quota: int | None
 
 
-class SessionComplete(Session):
-    id: UUID
-
-
 class Category(BaseModel):
     id: UUID
+    event_id: UUID
     name: str
     price: int
     required_membership: UUID | None
-    event_id: UUID
+
+
+class CategoryComplete(Category):
+    """
+    Correspond to a Category in the database
+    """
+
+    quota: int | None
+
+
+class CategoryPublic(Category):
+    sold_out: bool
+
+
+class CategoryAdmin(CategoryComplete):
+    sold: int
+    waiting: int
 
 
 class CategoryCreate(BaseModel):
@@ -39,26 +72,36 @@ class CategoryCreate(BaseModel):
     required_membership: UUID | None
 
 
-class CategoryComplete(Category):
-    id: UUID
-
-
 class EventSimple(BaseModel):
     id: UUID
     name: str
 
     store_id: UUID
 
-
-class EventPublic(EventSimple):
-    sessions: list[Session]
-    categories: list[Category]
-
     open_datetime: datetime
     close_datetime: datetime | None
 
 
-class EventAdmin(EventPublic):
+class EventComplete(EventSimple):
+    sessions: list[SessionComplete]
+    categories: list[CategoryComplete]
+
+    quota_per_user: int | None
+    quota_per_checkout: int | None
+    quota: int | None
+
+
+class EventPublic(EventSimple):
+    sessions: list[SessionPublic]
+    categories: list[CategoryPublic]
+
+    sold_out: bool
+
+
+class EventAdmin(EventComplete):
+    sessions: list[SessionAdmin]
+    categories: list[CategoryAdmin]
+
     quota_per_user: int | None
     quota_per_checkout: int | None
     quota: int | None
@@ -88,6 +131,7 @@ class Ticket(BaseModel):
 
     category: Category
     session: Session
+    user: schemas_users.CoreUserSimple
 
 
 class Checkout(BaseModel):
