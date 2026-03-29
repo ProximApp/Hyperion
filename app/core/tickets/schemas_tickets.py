@@ -81,11 +81,13 @@ class EventSimple(BaseModel):
     close_datetime: datetime | None
 
 
-class EventComplete(EventSimple):
+class EventWithoutSessionsAndCategories(EventSimple):
+    quota: int | None
+
+
+class EventComplete(EventWithoutSessionsAndCategories):
     sessions: list[SessionComplete]
     categories: list[CategoryComplete]
-
-    quota: int | None
 
 
 class EventPublic(EventSimple):

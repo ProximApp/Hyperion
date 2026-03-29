@@ -113,6 +113,46 @@ async def get_event_by_id(
     )
 
 
+async def acquire_event_lock_for_update(
+    event_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.EventWithoutSessionsAndCategories | None:
+    """
+    Acquire a lock FOR UPDATE on the event row.
+    Until the end of the transaction, other:
+    - update
+    - delete
+    - and select FOR UPDATE
+    queries on the same row will be blocked until the lock is released.
+
+    > FOR UPDATE causes the rows retrieved by the SELECT statement to be locked as though for update. This prevents them from being locked, modified or deleted by other transactions until the current transaction ends.
+
+    By putting this lock on the beginning of an endpoint,
+    we unsure that all endpoint trying to acquire the same lock
+    will wait for the first lock to be released
+    """
+    result = await db.execute(
+        select(models_tickets.TicketEvent)
+        .where(
+            models_tickets.TicketEvent.id == event_id,
+        )
+        .with_for_update(),
+    )
+
+    event = result.scalars().first()
+    if event is None:
+        return None
+
+    return schemas_tickets.EventWithoutSessionsAndCategories(
+        id=event.id,
+        name=event.name,
+        open_datetime=event.open_datetime,
+        close_datetime=event.close_datetime,
+        quota=event.quota,
+        store_id=event.store_id,
+    )
+
+
 async def create_event(
     event_id: UUID,
     event: schemas_tickets.EventCreate,
@@ -240,6 +280,7 @@ async def get_tickets_by_user_id(
             id=ticket.id,
             category_id=ticket.category_id,
             session_id=ticket.session_id,
+            event_id=ticket.event_id,
             scanned=ticket.scanned,
             category=schemas_tickets.Category(
                 id=ticket.category.id,
@@ -286,6 +327,7 @@ async def get_tickets_by_event_id(
             id=ticket.id,
             category_id=ticket.category_id,
             session_id=ticket.session_id,
+            event_id=ticket.event_id,
             scanned=ticket.scanned,
             category=schemas_tickets.Category(
                 id=ticket.category.id,
@@ -334,6 +376,7 @@ async def get_ticket_by_id(
         id=ticket.id,
         category_id=ticket.category_id,
         session_id=ticket.session_id,
+        event_id=ticket.event_id,
         scanned=ticket.scanned,
         category=schemas_tickets.Category(
             id=ticket.category.id,
