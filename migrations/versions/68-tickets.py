@@ -26,12 +26,10 @@ def upgrade() -> None:
     op.create_table(
         "tickets_event",
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("store_id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
+        sa.Column("store_id", sa.Uuid(), nullable=False),
         sa.Column("open_datetime", TZDateTime(), nullable=False),
         sa.Column("close_datetime", TZDateTime(), nullable=True),
-        sa.Column("quota_per_user", sa.Integer(), nullable=True),
-        sa.Column("quota_per_checkout", sa.Integer(), nullable=True),
         sa.Column("quota", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(
             ["store_id"],
@@ -62,8 +60,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("start_time", TZDateTime(), nullable=False),
-        sa.Column("end_time", TZDateTime(), nullable=False),
+        sa.Column("start_datetime", TZDateTime(), nullable=False),
         sa.Column("quota", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(
             ["event_id"],
@@ -76,12 +73,17 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("category_id", sa.Uuid(), nullable=False),
         sa.Column("session_id", sa.Uuid(), nullable=False),
+        sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("price", sa.Integer(), nullable=False),
         sa.Column("expiration", TZDateTime(), nullable=False),
         sa.Column("user_id", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(
             ["category_id"],
             ["tickets_category.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["event_id"],
+            ["tickets_event.id"],
         ),
         sa.ForeignKeyConstraint(
             ["session_id"],
@@ -98,12 +100,17 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("category_id", sa.Uuid(), nullable=False),
         sa.Column("session_id", sa.Uuid(), nullable=False),
+        sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("price", sa.Integer(), nullable=False),
         sa.Column("scanned", sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint(
             ["category_id"],
             ["tickets_category.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["event_id"],
+            ["tickets_event.id"],
         ),
         sa.ForeignKeyConstraint(
             ["session_id"],
