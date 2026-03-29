@@ -22,13 +22,8 @@ class TicketEvent(Base):
     open_datetime: Mapped[datetime]
     close_datetime: Mapped[datetime | None]
 
-    # Number of tickets a user can buy for this event
-    quota_per_user: Mapped[int | None]
-    # Number of tickets that can be bought in a single checkout for this event
-    quota_per_checkout: Mapped[int | None]
-    # Total number of tickets available
+    # Total number of tickets available, None means unlimited
     quota: Mapped[int | None]
-    # None means unlimited
 
     store: Mapped[models_mypayment.Store] = relationship(init=False)
 
@@ -45,7 +40,6 @@ class EventSession(Base):
     name: Mapped[str]
 
     start_time: Mapped[datetime]
-    end_time: Mapped[datetime]
 
     quota: Mapped[int | None] = mapped_column(default=None)
 

@@ -88,15 +88,12 @@ async def get_event_by_id(
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         quota=event.quota,
-        quota_per_checkout=event.quota_per_checkout,
-        quota_per_user=event.quota_per_user,
         store_id=event.store_id,
         sessions=[
             schemas_tickets.SessionComplete(
                 id=session.id,
                 name=session.name,
                 start_time=session.start_time,
-                end_time=session.end_time,
                 event_id=session.event_id,
                 quota=session.quota,
             )
@@ -125,8 +122,6 @@ async def create_event(
         id=event_id,
         store_id=event.store_id,
         name=event.name,
-        quota_per_user=event.quota_per_user,
-        quota_per_checkout=event.quota_per_checkout,
         quota=event.quota,
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
@@ -136,7 +131,6 @@ async def create_event(
                 event_id=event_id,
                 name=session.name,
                 start_time=session.start_time,
-                end_time=session.end_time,
                 quota=session.quota,
             )
             for session in event.sessions
@@ -202,7 +196,6 @@ async def get_session_by_id(
         id=session.id,
         name=session.name,
         start_time=session.start_time,
-        end_time=session.end_time,
         event_id=session.event_id,
         quota=session.quota,
     )
@@ -259,7 +252,6 @@ async def get_tickets_by_user_id(
                 id=ticket.session.id,
                 name=ticket.session.name,
                 start_time=ticket.session.start_time,
-                end_time=ticket.session.end_time,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
@@ -306,7 +298,6 @@ async def get_tickets_by_event_id(
                 id=ticket.session.id,
                 name=ticket.session.name,
                 start_time=ticket.session.start_time,
-                end_time=ticket.session.end_time,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
@@ -355,7 +346,6 @@ async def get_ticket_by_id(
             id=ticket.session.id,
             name=ticket.session.name,
             start_time=ticket.session.start_time,
-            end_time=ticket.session.end_time,
             event_id=ticket.session.event_id,
         ),
         user_id=ticket.user_id,
