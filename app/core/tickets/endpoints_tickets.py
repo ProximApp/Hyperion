@@ -97,7 +97,7 @@ async def get_event(
                 event_id=session.event_id,
                 id=session.id,
                 name=session.name,
-                start_time=session.start_time,
+                start_datetime=session.start_datetime,
                 sold_out=await utils_tickets.is_session_sold_out(
                     session_id=session.id,
                     quota=session.quota,
@@ -237,7 +237,59 @@ async def get_event_admin(
         raise HTTPException(404, "Event not found")
 
     # TODO: check if user has the right to manage the seller
-    return event
+    return schemas_tickets.EventAdmin(
+        id=event.id,
+        name=event.name,
+        store_id=event.store_id,
+        open_datetime=event.open_datetime,
+        close_datetime=event.close_datetime,
+        sessions=[
+            schemas_tickets.SessionAdmin(
+                id=session.id,
+                event_id=session.event_id,
+                name=session.name,
+                start_datetime=session.start_datetime,
+                quota=session.quota,
+                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
+                    event_id=event_id,
+                    db=db,
+                ),
+                tickets_sold=await cruds_tickets.count_tickets_by_event_id(
+                    event_id=event_id,
+                    db=db,
+                ),
+            )
+            for session in event.sessions
+        ],
+        categories=[
+            schemas_tickets.CategoryAdmin(
+                id=category.id,
+                event_id=category.event_id,
+                name=category.name,
+                price=category.price,
+                required_membership=category.required_membership,
+                quota=category.quota,
+                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_category_id(
+                    category_id=category.id,
+                    db=db,
+                ),
+                tickets_sold=await cruds_tickets.count_tickets_by_category_id(
+                    category_id=category.id,
+                    db=db,
+                ),
+            )
+            for category in event.categories
+        ],
+        quota=event.quota,
+        tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
+            event_id=event_id,
+            db=db,
+        ),
+        tickets_sold=await cruds_tickets.count_tickets_by_event_id(
+            event_id=event_id,
+            db=db,
+        ),
+    )
 
 
 @router.post(
