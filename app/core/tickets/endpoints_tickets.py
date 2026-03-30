@@ -84,7 +84,7 @@ async def get_event(
     """
     Get an event public details
     """
-    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+    event = await cruds_tickets.get_event_complete_by_id(event_id=event_id, db=db)
 
     if event is None:
         raise HTTPException(404, "Event not found")
@@ -274,7 +274,7 @@ async def get_event_admin(
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+    event = await cruds_tickets.get_event_complete_by_id(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -288,58 +288,9 @@ async def get_event_admin(
             detail="User is not authorized to manage store events",
         )
 
-    return schemas_tickets.EventAdmin(
-        id=event.id,
-        name=event.name,
-        store_id=event.store_id,
-        open_datetime=event.open_datetime,
-        close_datetime=event.close_datetime,
-        sessions=[
-            schemas_tickets.SessionAdmin(
-                id=session.id,
-                event_id=session.event_id,
-                name=session.name,
-                start_datetime=session.start_datetime,
-                quota=session.quota,
-                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
-                    event_id=event_id,
-                    db=db,
-                ),
-                tickets_sold=await cruds_tickets.count_tickets_by_event_id(
-                    event_id=event_id,
-                    db=db,
-                ),
-            )
-            for session in event.sessions
-        ],
-        categories=[
-            schemas_tickets.CategoryAdmin(
-                id=category.id,
-                event_id=category.event_id,
-                name=category.name,
-                price=category.price,
-                required_membership=category.required_membership,
-                quota=category.quota,
-                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_category_id(
-                    category_id=category.id,
-                    db=db,
-                ),
-                tickets_sold=await cruds_tickets.count_tickets_by_category_id(
-                    category_id=category.id,
-                    db=db,
-                ),
-            )
-            for category in event.categories
-        ],
-        quota=event.quota,
-        tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
-            event_id=event_id,
-            db=db,
-        ),
-        tickets_sold=await cruds_tickets.count_tickets_by_event_id(
-            event_id=event_id,
-            db=db,
-        ),
+    return await utils_tickets.convert_to_event_admin(
+        event=event,
+        db=db,
     )
 
 
@@ -378,8 +329,17 @@ async def create_event(
         db=db,
     )
 
-    return await cruds_tickets.get_event_by_id(
+    event_complete = await cruds_tickets.get_event_complete_by_id(
         event_id=event_id,
+        db=db,
+    )
+    if event_complete is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Event",
+            object_id=event_id,
+        )
+    return await utils_tickets.convert_to_event_admin(
+        event=event_complete,
         db=db,
     )
 
@@ -421,7 +381,7 @@ async def get_event_tickets(
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -455,7 +415,7 @@ async def get_event_tickets_csv(
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -547,7 +507,7 @@ async def check_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    event = await cruds_tickets.get_event_by_id(event_id=ticket.event_id, db=db)
+    event = await cruds_tickets.get_event_simple_by_id(event_id=ticket.event_id, db=db)
     if event is None:
         raise ObjectExpectedInDbNotFoundError(
             object_name="Event",
@@ -588,7 +548,7 @@ async def scan_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    event = await cruds_tickets.get_event_by_id(event_id=ticket.event_id, db=db)
+    event = await cruds_tickets.get_event_simple_by_id(event_id=ticket.event_id, db=db)
     if event is None:
         raise ObjectExpectedInDbNotFoundError(
             object_name="Event",
@@ -605,9 +565,13 @@ async def scan_ticket(
             detail="User is not authorized to manage store events",
         )
 
-    await cruds_tickets.mark_ticket_as_scanned(ticket_id=ticket_id, db=db)
+    if ticket.scanned:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is already scanned",
+        )
 
-    return ticket
+    await cruds_tickets.mark_ticket_as_scanned(ticket_id=ticket_id, db=db)
 
 
 @router.get(

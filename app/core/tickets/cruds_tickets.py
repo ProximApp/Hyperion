@@ -63,10 +63,16 @@ async def get_events_by_store_id(
     ]
 
 
-async def get_event_by_id(
+async def get_event_complete_by_id(
     event_id: UUID,
     db: AsyncSession,
 ) -> schemas_tickets.EventComplete | None:
+    """
+    Return an EventComplete, loading complete sessions and categories objets from the database.
+
+    If relationships are not needed, prefer `get_event_simple_by_id`
+    If a FOR UPDATE lock is needed, prefer `acquire_event_lock_for_update`
+    """
     result = await db.execute(
         select(models_tickets.TicketEvent)
         .where(
@@ -110,6 +116,35 @@ async def get_event_by_id(
             )
             for category in event.categories
         ],
+    )
+
+
+async def get_event_simple_by_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.EventSimple | None:
+    """
+    Return an EventSimple, loading only the basic event information from the database.
+
+    If relationships are needed, prefer `get_event_complete_by_id`
+    If a FOR UPDATE lock is needed, prefer `acquire_event_lock_for_update`
+    """
+    result = await db.execute(
+        select(models_tickets.TicketEvent).where(
+            models_tickets.TicketEvent.id == event_id,
+        ),
+    )
+
+    event = result.scalars().first()
+    if event is None:
+        return None
+
+    return schemas_tickets.EventSimple(
+        id=event.id,
+        name=event.name,
+        open_datetime=event.open_datetime,
+        close_datetime=event.close_datetime,
+        store_id=event.store_id,
     )
 
 
@@ -366,6 +401,7 @@ async def get_ticket_by_id(
         .options(
             selectinload(models_tickets.Ticket.category),
             selectinload(models_tickets.Ticket.session),
+            selectinload(models_tickets.Ticket.user),
         ),
     )
     ticket = result.scalars().first()

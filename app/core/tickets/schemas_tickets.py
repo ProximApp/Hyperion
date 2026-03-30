@@ -118,7 +118,7 @@ class EventCreate(BaseModel):
 class Ticket(BaseModel):
     id: UUID
     price: int
-    user_id: UUID
+    user_id: str
 
     event_id: UUID
     category_id: UUID
