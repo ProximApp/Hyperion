@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
-from app.core.mypayment.models_mypayment import Store, Structure, Wallet
+from app.core.mypayment import models_mypayment
 from app.core.mypayment.types_mypayment import WalletType
 from app.core.tickets import models_tickets
 from app.core.tickets.endpoints_tickets import TicketsPermissions
@@ -24,10 +24,13 @@ user_token: str
 
 membership: models_memberships.CoreAssociationMembership
 structure_manager_user: models_users.CoreUser
-structure: Structure
-wallet: Wallet
+structure: models_mypayment.Structure
+wallet: models_mypayment.Wallet
 core_association: CoreAssociation
-store: Store
+store: models_mypayment.Store
+
+seller_can_manage_event_user: models_users.CoreUser
+seller_can_manage_event_user_token: str
 
 
 global_event: models_tickets.TicketEvent
@@ -39,7 +42,7 @@ event_sold_out_session: models_tickets.EventSession
 sold_out_event: models_tickets.TicketEvent
 session_sold_out_event: models_tickets.EventSession
 category_sold_out_event: models_tickets.Category
-
+ticket_sold_out_event: models_tickets.Ticket
 
 ticket: models_tickets.Ticket
 
@@ -68,7 +71,7 @@ async def init_objects() -> None:
     )
     await add_object_to_db(membership)
     structure_manager_user = await create_user_with_groups(groups=[])
-    structure = Structure(
+    structure = models_mypayment.Structure(
         id=uuid.uuid4(),
         short_id="test",
         name="Test Structure",
@@ -84,9 +87,9 @@ async def init_objects() -> None:
         association_membership_id=membership.id,
     )
     await add_object_to_db(structure)
-    wallet = Wallet(
+    wallet = models_mypayment.Wallet(
         id=uuid.uuid4(),
-        type=WalletType.STORE,
+        type=models_mypayment.WalletType.STORE,
         balance=0,
     )
     await add_object_to_db(wallet)
@@ -96,7 +99,7 @@ async def init_objects() -> None:
         group_id=GroupType.admin,
     )
     await add_object_to_db(core_association)
-    store = Store(
+    store = models_mypayment.Store(
         id=uuid.uuid4(),
         name="Test Store",
         structure_id=structure.id,
@@ -105,6 +108,22 @@ async def init_objects() -> None:
         association_id=core_association.id,
     )
     await add_object_to_db(store)
+
+    global seller_can_manage_event_user, seller_can_manage_event_user_token
+    seller_can_manage_event_user = await create_user_with_groups(groups=[])
+    seller_can_manage_event_user_token = create_api_access_token(
+        seller_can_manage_event_user,
+    )
+    seller = models_mypayment.Seller(
+        store_id=store.id,
+        user_id=seller_can_manage_event_user.id,
+        can_bank=False,
+        can_see_history=False,
+        can_cancel=False,
+        can_manage_sellers=False,
+        can_manage_events=True,
+    )
+    await add_object_to_db(seller)
 
     global global_event, event_session, event_category
     ticket_event_id = uuid.uuid4()
@@ -174,7 +193,11 @@ async def init_objects() -> None:
     )
     await add_object_to_db(ticket_sold_out_session)
 
-    global sold_out_event, session_sold_out_event, category_sold_out_event
+    global \
+        sold_out_event, \
+        session_sold_out_event, \
+        category_sold_out_event, \
+        ticket_sold_out_event
     ticket_sold_out_event_id = uuid.uuid4()
     session_sold_out_event = models_tickets.EventSession(
         id=uuid.uuid4(),
@@ -356,6 +379,250 @@ def test_get_user_tickets(client: TestClient):
     response = client.get(
         "/tickets/user/me/tickets",
         headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 200
+    assert len(response.json()) > 1
+
+
+# get_event_admin
+
+
+def test_get_event_admin_invalid_event_id(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_get_event_admin_as_non_authorised_seller(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_get_event_admin(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{sold_out_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 200
+    event = response.json()
+    assert event["id"] == str(sold_out_event.id)
+    assert len(event["sessions"]) > 0
+    assert len(event["categories"]) > 0
+    assert event["tickets_sold"] == 1
+    assert event["tickets_in_checkout"] == 0
+
+
+# create_event
+
+
+def test_create_event_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 10,
+            "sessions": [],
+            "categories": [],
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_create_event(client: TestClient):
+    response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 11,
+            "sessions": [
+                {
+                    "name": "Test Session",
+                    "start_datetime": (
+                        datetime.now(tz=UTC) + timedelta(days=1)
+                    ).isoformat(),
+                    "quota": 10,
+                },
+            ],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 1000,
+                    "quota": 10,
+                    "required_membership": None,
+                },
+            ],
+        },
+    )
+    assert response.status_code == 201
+    event = response.json()
+    assert len(event["sessions"]) == 1
+    assert len(event["categories"]) == 1
+    assert event["quota"] == 11
+    assert event["tickets_sold"] == 0
+    assert event["tickets_in_checkout"] == 0
+
+
+# get_event_tickets
+
+
+def test_get_event_tickets_with_invalid_event_id(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{uuid.uuid4()}/tickets",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_get_event_tickets_as_non_authorised_seller(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{global_event.id}/tickets",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_get_event_tickets(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{global_event.id}/tickets",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 200
+    tickets = response.json()
+    assert len(tickets) > 0
+    assert tickets[0]["event_id"] == str(global_event.id)
+
+
+# get_event_tickets_csv
+
+
+def test_get_event_tickets_csv_with_invalid_event_id(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{uuid.uuid4()}/tickets/csv",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_get_event_tickets_csv_as_non_authorised_seller(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{global_event.id}/tickets/csv",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_get_event_tickets_csv(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/events/{global_event.id}/tickets/csv",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 200
+
+
+# check_ticket
+
+
+def test_check_ticket_with_invalid_ticket_id(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{uuid.uuid4()}/check",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ticket not found"
+
+
+def test_check_ticket_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{ticket_sold_out_event.id}/check",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_check_ticket(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{ticket_sold_out_event.id}/check",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 200
+    checked_ticket = response.json()
+    assert checked_ticket["id"] == str(ticket_sold_out_event.id)
+    assert checked_ticket["scanned"] is False
+
+
+# scan_ticket
+
+
+def test_scan_ticket_with_invalid_ticket_id(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{uuid.uuid4()}/scan",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ticket not found"
+
+
+def test_scan_ticket_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{ticket_sold_out_event.id}/scan",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_scan_ticket(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/tickets/{ticket_sold_out_event.id}/scan",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 204
+
+    response = client.post(
+        f"/tickets/admin/tickets/{ticket_sold_out_event.id}/scan",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Ticket is already scanned"
+
+
+# get_events_by_association
+
+
+def test_get_events_by_association_as_non_authorised_seller(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/association/{core_association.id}/events",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not authorized to manage store events"
+
+
+def test_get_events_by_association(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/association/{core_association.id}/events",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
     )
     assert response.status_code == 200
     assert len(response.json()) > 1
