@@ -557,6 +557,15 @@ async def create_store(
             status_code=403,
             detail="You are not allowed to create stores for this association",
         )
+    existing_store_for_association = await cruds_mypayment.get_store_by_association_id(
+        association_id=store.association_id,
+        db=db,
+    )
+    if existing_store_for_association is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Store for this association already exists",
+        )
 
     # Create new wallet for store
     wallet_id = uuid.uuid4()

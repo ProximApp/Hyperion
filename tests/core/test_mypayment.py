@@ -21,6 +21,7 @@ from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypaym
 from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountHolder,
 )
+from app.core.mypayment.cruds_mypayment import delete_store
 from app.core.mypayment.endpoints_mypayment import MyPaymentPermissions
 from app.core.mypayment.schemas_mypayment import (
     QRCodeContentData,
@@ -351,22 +352,34 @@ async def init_objects() -> None:
         association_id=core_association.id,
     )
     await add_object_to_db(store)
+    core_association2 = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="core_association2",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(core_association2)
     store2 = models_mypayment.Store(
         id=uuid4(),
         wallet_id=store2_wallet.id,
         name="Test Store 2",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association.id,
+        association_id=core_association2.id,
     )
     await add_object_to_db(store2)
+    core_association3 = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="core_association3",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(core_association3)
     store3 = models_mypayment.Store(
         id=uuid4(),
         wallet_id=store3_wallet.id,
         name="Test Store 3",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association.id,
+        association_id=core_association3.id,
     )
     await add_object_to_db(store3)
 
@@ -898,13 +911,19 @@ async def test_transfer_structure_manager_as_manager(
         balance=5000,
     )
     await add_object_to_db(new_wallet)
+    new_core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="new_core_association",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(new_core_association)
     new_store = models_mypayment.Store(
         id=uuid4(),
         creation=datetime.now(UTC),
         wallet_id=new_wallet.id,
         name="Test Store Structure 2",
         structure_id=new_structure.id,
-        association_id=core_association.id,
+        association_id=new_core_association.id,
     )
     await add_object_to_db(new_store)
     new_wallet2 = models_mypayment.Wallet(
@@ -913,13 +932,19 @@ async def test_transfer_structure_manager_as_manager(
         balance=5000,
     )
     await add_object_to_db(new_wallet2)
+    new2_core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="new2_core_association",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(new2_core_association)
     new_store2_where_new_manager_already_seller = models_mypayment.Store(
         id=uuid4(),
         creation=datetime.now(UTC),
         wallet_id=new_wallet2.id,
         name="Test Store Structure 2 Where New Manager Already Seller",
         structure_id=new_structure.id,
-        association_id=core_association.id,
+        association_id=new2_core_association.id,
     )
     await add_object_to_db(new_store2_where_new_manager_already_seller)
     seller = models_mypayment.Seller(
@@ -1039,6 +1064,12 @@ async def test_create_store(client: TestClient):
         bic="AZERTYUIOP",
     )
     await add_object_to_db(structure)
+    create_store_core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="create_store_core_association",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(create_store_core_association)
 
     response = client.post(
         f"/mypayment/structures/{structure.id}/stores",
@@ -1047,7 +1078,7 @@ async def test_create_store(client: TestClient):
         },
         json={
             "name": "test_create_store Test Store",
-            "association_id": str(core_association.id),
+            "association_id": str(create_store_core_association.id),
         },
     )
     assert response.status_code == 201
@@ -1405,13 +1436,19 @@ async def test_delete_store(client: TestClient):
         balance=5000,
     )
     await add_object_to_db(new_wallet)
+    delete_store_core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="delete_store_core_association",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(delete_store_core_association)
     new_store = models_mypayment.Store(
         id=store_id,
         creation=datetime.now(UTC),
         wallet_id=new_wallet.id,
         name="Test Store to Delete",
         structure_id=structure.id,
-        association_id=core_association.id,
+        association_id=delete_store_core_association.id,
     )
     await add_object_to_db(new_store)
     sellet = models_mypayment.Seller(
@@ -1440,13 +1477,19 @@ async def test_update_store(client: TestClient):
         balance=5000,
     )
     await add_object_to_db(new_wallet)
+    update_store_core_association = models_associations.CoreAssociation(
+        id=uuid4(),
+        name="update_store_core_association",
+        group_id=core_association_group.id,
+    )
+    await add_object_to_db(update_store_core_association)
     new_store = models_mypayment.Store(
         id=uuid4(),
         creation=datetime.now(UTC),
         wallet_id=new_wallet.id,
         name="Test Store Update",
         structure_id=structure.id,
-        association_id=core_association.id,
+        association_id=update_store_core_association.id,
     )
     await add_object_to_db(new_store)
     response = client.patch(
