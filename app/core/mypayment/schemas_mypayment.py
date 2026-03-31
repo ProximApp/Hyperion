@@ -115,6 +115,9 @@ class Seller(BaseModel):
     can_cancel: bool
     can_manage_sellers: bool
 
+    # Event module
+    can_manage_events: bool
+
     user: schemas_users.CoreUserSimple
 
 

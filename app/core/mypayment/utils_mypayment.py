@@ -465,3 +465,16 @@ def invoice_model_to_schema(
             for detail in invoice.details
         ],
     )
+
+
+async def can_user_manage_events(
+    user_id: str,
+    store_id: UUID,
+    db: AsyncSession,
+):
+    seller = await cruds_mypayment.get_seller(
+        user_id=user_id,
+        store_id=store_id,
+        db=db,
+    )
+    return seller is not None and seller.can_manage_events
