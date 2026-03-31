@@ -332,6 +332,7 @@ async def init_objects() -> None:
         name="Test Store",
         structure_id=structure.id,
         creation=datetime.now(UTC),
+        association_id=association_membership.id,
     )
     await add_object_to_db(store)
     store2 = models_mypayment.Store(
@@ -340,6 +341,7 @@ async def init_objects() -> None:
         name="Test Store 2",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
+        association_id=association_membership.id,
     )
     await add_object_to_db(store2)
     store3 = models_mypayment.Store(
@@ -348,6 +350,7 @@ async def init_objects() -> None:
         name="Test Store 3",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
+        association_id=association_membership.id,
     )
     await add_object_to_db(store3)
 
@@ -885,6 +888,7 @@ async def test_transfer_structure_manager_as_manager(
         wallet_id=new_wallet.id,
         name="Test Store Structure 2",
         structure_id=new_structure.id,
+        association_id=association_membership.id,
     )
     await add_object_to_db(new_store)
     new_wallet2 = models_mypayment.Wallet(
@@ -899,6 +903,7 @@ async def test_transfer_structure_manager_as_manager(
         wallet_id=new_wallet2.id,
         name="Test Store Structure 2 Where New Manager Already Seller",
         structure_id=new_structure.id,
+        association_id=association_membership.id,
     )
     await add_object_to_db(new_store2_where_new_manager_already_seller)
     seller = models_mypayment.Seller(
@@ -1328,6 +1333,7 @@ async def test_delete_store(client: TestClient):
         wallet_id=new_wallet.id,
         name="Test Store to Delete",
         structure_id=structure.id,
+        association_id=association_membership.id,
     )
     await add_object_to_db(new_store)
     sellet = models_mypayment.Seller(
@@ -1362,6 +1368,7 @@ async def test_update_store(client: TestClient):
         wallet_id=new_wallet.id,
         name="Test Store Update",
         structure_id=structure.id,
+        association_id=association_membership.id,
     )
     await add_object_to_db(new_store)
     response = client.patch(
