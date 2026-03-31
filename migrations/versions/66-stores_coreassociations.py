@@ -50,6 +50,7 @@ def upgrade() -> None:
         ["association_id"],
         ["id"],
     )
+    op.create_unique_constraint(None, "mypayment_store", ["association_id"])
 
 
 def downgrade() -> None:
