@@ -208,6 +208,18 @@ async def get_store_by_association_id(
     return result.scalars().first()
 
 
+async def get_store_by_id(
+    store_id: UUID,
+    db: AsyncSession,
+) -> models_mypayment.Store | None:
+    result = await db.execute(
+        select(models_mypayment.Store).where(
+            models_mypayment.Store.id == store_id,
+        ),
+    )
+    return result.scalars().first()
+
+
 async def get_stores_by_structure_id(
     db: AsyncSession,
     structure_id: UUID,

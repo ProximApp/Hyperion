@@ -575,6 +575,30 @@ async def scan_ticket(
 
 
 @router.get(
+    "/tickets/admin/store/{store_id}/events",
+    response_model=list[schemas_tickets.EventSimple],
+    status_code=200,
+)
+async def get_events_by_store(
+    store_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    store = await cruds_mypayment.get_store_by_id(
+        store_id=store_id,
+        db=db,
+    )
+
+    return await utils_tickets.get_events_from_store(
+        store=store,
+        user_id=user.id,
+        db=db,
+    )
+
+
+@router.get(
     "/tickets/admin/association/{association_id}/events",
     response_model=list[schemas_tickets.EventSimple],
     status_code=200,
@@ -595,21 +619,9 @@ async def get_events_by_association(
         association_id=association_id,
         db=db,
     )
-    # TODO: maybe return an empty list
-    if store is None:
-        raise HTTPException(400, "No seller associated with this association")
 
-    if not await utils_mypayment.can_user_manage_events(
+    return await utils_tickets.get_events_from_store(
+        store=store,
         user_id=user.id,
-        store_id=store.id,
-        db=db,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="User is not authorized to manage store events",
-        )
-
-    return await cruds_tickets.get_events_by_store_id(
-        store_id=store.id,
         db=db,
     )
