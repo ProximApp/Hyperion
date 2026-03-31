@@ -28,9 +28,6 @@ class SessionPublic(Session):
 
 
 class SessionAdmin(SessionComplete):
-    sold: int
-    waiting: int
-
     tickets_in_checkout: int
     tickets_sold: int
 
@@ -63,9 +60,6 @@ class CategoryPublic(Category):
 
 
 class CategoryAdmin(CategoryComplete):
-    sold: int
-    waiting: int
-
     tickets_in_checkout: int
     tickets_sold: int
 
