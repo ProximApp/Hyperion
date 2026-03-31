@@ -93,7 +93,7 @@ async def get_event_by_id(
             schemas_tickets.SessionComplete(
                 id=session.id,
                 name=session.name,
-                start_time=session.start_time,
+                start_datetime=session.start_datetime,
                 event_id=session.event_id,
                 quota=session.quota,
             )
@@ -130,7 +130,7 @@ async def create_event(
                 id=uuid.uuid4(),
                 event_id=event_id,
                 name=session.name,
-                start_time=session.start_time,
+                start_datetime=session.start_datetime,
                 quota=session.quota,
             )
             for session in event.sessions
@@ -195,7 +195,7 @@ async def get_session_by_id(
     return schemas_tickets.SessionComplete(
         id=session.id,
         name=session.name,
-        start_time=session.start_time,
+        start_datetime=session.start_datetime,
         event_id=session.event_id,
         quota=session.quota,
     )
@@ -251,7 +251,7 @@ async def get_tickets_by_user_id(
             session=schemas_tickets.Session(
                 id=ticket.session.id,
                 name=ticket.session.name,
-                start_time=ticket.session.start_time,
+                start_datetime=ticket.session.start_datetime,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
@@ -297,7 +297,7 @@ async def get_tickets_by_event_id(
             session=schemas_tickets.Session(
                 id=ticket.session.id,
                 name=ticket.session.name,
-                start_time=ticket.session.start_time,
+                start_datetime=ticket.session.start_datetime,
                 event_id=ticket.session.event_id,
             ),
             user_id=ticket.user_id,
@@ -345,7 +345,7 @@ async def get_ticket_by_id(
         session=schemas_tickets.Session(
             id=ticket.session.id,
             name=ticket.session.name,
-            start_time=ticket.session.start_time,
+            start_datetime=ticket.session.start_datetime,
             event_id=ticket.session.event_id,
         ),
         user_id=ticket.user_id,
