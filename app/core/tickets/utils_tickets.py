@@ -23,6 +23,11 @@ async def is_event_sold_out(
         db=db,
     )
 
+    tickets = await cruds_tickets.get_tickets_by_event_id(
+        event_id=event_id,
+        db=db,
+    )
+
     return (nb_valid_checkout_for_event + nb_tickets_sold_for_event) >= quota
 
 

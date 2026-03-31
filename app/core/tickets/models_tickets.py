@@ -73,15 +73,15 @@ class Ticket(Base):
     session_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_session.id"))
     event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
 
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("core_user.id"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"))
 
     price: Mapped[int]  # in cents
 
     scanned: Mapped[bool]
 
-    category: Mapped["Category"] = relationship()
-    session: Mapped["EventSession"] = relationship()
-    user: Mapped[models_users.CoreUser] = relationship()
+    category: Mapped["Category"] = relationship(init=False)
+    session: Mapped["EventSession"] = relationship(init=False)
+    user: Mapped[models_users.CoreUser] = relationship(init=False)
 
 
 class Checkout(Base):
