@@ -15,9 +15,9 @@ class TicketEvent(Base):
     __tablename__ = "tickets_event"
 
     id: Mapped[PrimaryKey]
-    store_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_store.id"))
-
     name: Mapped[str]
+
+    store_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_store.id"))
 
     open_datetime: Mapped[datetime]
     close_datetime: Mapped[datetime | None]
@@ -49,7 +49,7 @@ class EventSession(Base):
 
     quota: Mapped[int | None] = mapped_column(default=None)
 
-    event: Mapped["TicketEvent"] = relationship(back_populates="sessions", init=False)
+    # event: Mapped["TicketEvent"] = relationship(back_populates="sessions", init=False)
 
 
 class Category(Base):
@@ -65,10 +65,9 @@ class Category(Base):
     price: Mapped[int]  # in cents
     required_membership: Mapped[UUID | None] = mapped_column(
         ForeignKey("core_association_membership.id"),
-        default=None,
     )
 
-    event: Mapped["TicketEvent"] = relationship(back_populates="categories", init=False)
+    # event: Mapped["TicketEvent"] = relationship(back_populates="categories", init=False)
 
 
 class Ticket(Base):
@@ -97,6 +96,8 @@ class Checkout(Base):
 
     category_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_category.id"))
     session_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_session.id"))
+
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
 
     price: Mapped[int]  # in cents
     expiration: Mapped[datetime]
