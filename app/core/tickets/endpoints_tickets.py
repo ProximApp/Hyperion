@@ -14,6 +14,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, utils_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
@@ -167,11 +168,53 @@ async def create_checkout(
     if session.event_id != event_id:
         raise HTTPException(400, "Session does not belong to the event")
 
+    if category.required_membership is not None:
+        membership = await utils_memberships.get_user_active_membership_to_association_membership(
+            association_membership_id=category.required_membership,
+            user_id=user.id,
+            db=db,
+        )
+        if membership is None:
+            raise HTTPException(
+                400,
+                "User does not have required membership to choose this category",
+            )
+
+    # By putting this lock:
+    # - we unsure that if an other endpoint execution acquired the lock before, this one will wait.
+    # - we guarantee that any other endpoint execution that tries to acquire the lock will need to wait until the end of this transaction.
+    event = await cruds_tickets.acquire_event_lock_for_update(
+        event_id=event_id,
+        db=db,
+    )
+
+    if event is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Event",
+            object_id=event_id,
+        )
+
     price = category.price
     expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)
 
-    # TODO: indicate if the event is sold out
-    # TODO: check required membership
+    if utils_tickets.is_event_sold_out(
+        event_id=event_id,
+        quota=event.quota,
+        db=db,
+    ):
+        raise HTTPException(400, "Event is sold out")
+    if utils_tickets.is_category_sold_out(
+        category_id=category.id,
+        quota=category.quota,
+        db=db,
+    ):
+        raise HTTPException(400, "Category is sold out")
+    if utils_tickets.is_session_sold_out(
+        session_id=session.id,
+        quota=session.quota,
+        db=db,
+    ):
+        raise HTTPException(400, "Session is sold out")
 
     await cruds_tickets.create_checkout(
         checkout_id=uuid.uuid4(),
