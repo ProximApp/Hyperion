@@ -8,7 +8,6 @@ from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
-from app.core.mypayment.types_mypayment import WalletType
 from app.core.tickets import models_tickets
 from app.core.tickets.endpoints_tickets import TicketsPermissions
 from app.core.users import models_users
@@ -605,6 +604,18 @@ def test_scan_ticket(client: TestClient):
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Ticket is already scanned"
+
+
+# get_events_by_store
+
+
+def test_get_events_by_store(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/store/{store.id}/events",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 200
+    assert len(response.json()) > 1
 
 
 # get_events_by_association

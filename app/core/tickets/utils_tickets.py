@@ -1,7 +1,11 @@
 from uuid import UUID
 
+from fastapi import (
+    HTTPException,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.mypayment import utils_mypayment
 from app.core.tickets import cruds_tickets, schemas_tickets
 
 
@@ -19,11 +23,6 @@ async def is_event_sold_out(
     )
 
     nb_tickets_sold_for_event = await cruds_tickets.count_tickets_by_event_id(
-        event_id=event_id,
-        db=db,
-    )
-
-    tickets = await cruds_tickets.get_tickets_by_event_id(
         event_id=event_id,
         db=db,
     )
@@ -133,4 +132,29 @@ async def convert_to_event_admin(
             event_id=event.id,
             db=db,
         ),
+    )
+
+
+async def get_events_from_store(
+    store: schemas_tickets.Store | None,
+    user_id: str,
+    db: AsyncSession,
+):
+    # TODO: maybe return an empty list
+    if store is None:
+        raise HTTPException(400, "No seller associated with this association")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user_id,
+        store_id=store.id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
+
+    return await cruds_tickets.get_events_by_store_id(
+        store_id=store.id,
+        db=db,
     )
