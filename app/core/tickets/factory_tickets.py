@@ -5,9 +5,8 @@ from app.types.factory import Factory
 
 
 class TicketsFactory(Factory):
-
     depends_on = []
-    
+
     @classmethod
     async def run(cls, db: AsyncSession, settings: Settings) -> None:
         pass

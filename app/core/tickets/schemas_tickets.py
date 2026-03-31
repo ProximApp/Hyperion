@@ -13,7 +13,6 @@ class Session(BaseModel):
     event_id: UUID
     name: str
     start_time: datetime
-    end_time: datetime
 
 
 class SessionComplete(Session):
@@ -36,7 +35,7 @@ class SessionAdmin(SessionComplete):
 class SessionCreate(BaseModel):
     name: str
     start_time: datetime
-    end_time: datetime
+
     quota: int | None
 
 
@@ -86,8 +85,6 @@ class EventComplete(EventSimple):
     sessions: list[SessionComplete]
     categories: list[CategoryComplete]
 
-    quota_per_user: int | None
-    quota_per_checkout: int | None
     quota: int | None
 
 
@@ -102,16 +99,12 @@ class EventAdmin(EventComplete):
     sessions: list[SessionAdmin]
     categories: list[CategoryAdmin]
 
-    quota_per_user: int | None
-    quota_per_checkout: int | None
     quota: int | None
 
 
 class EventCreate(BaseModel):
     store_id: UUID
     name: str
-    quota_per_user: int | None
-    quota_per_checkout: int | None
     quota: int | None
     open_datetime: datetime
     close_datetime: datetime | None

@@ -98,7 +98,6 @@ async def get_event(
                 id=session.id,
                 name=session.name,
                 start_time=session.start_time,
-                end_time=session.end_time,
                 sold_out=await utils_tickets.is_session_sold_out(
                     session_id=session.id,
                     quota=session.quota,
