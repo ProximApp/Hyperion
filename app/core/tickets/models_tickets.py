@@ -39,7 +39,7 @@ class EventSession(Base):
 
     name: Mapped[str]
 
-    start_time: Mapped[datetime]
+    start_datetime: Mapped[datetime]
 
     quota: Mapped[int | None] = mapped_column(default=None)
 
