@@ -390,6 +390,7 @@ async def init_objects() -> None:
         can_see_history=True,
         can_cancel=True,
         can_manage_sellers=True,
+        can_manage_events=True,
     )
     await add_object_to_db(manager_as_admin)
 
@@ -535,6 +536,7 @@ async def init_objects() -> None:
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(store_seller_no_permission)
 
@@ -552,6 +554,7 @@ async def init_objects() -> None:
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(store_seller_can_bank)
 
@@ -569,6 +572,7 @@ async def init_objects() -> None:
         can_see_history=False,
         can_cancel=True,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(store_seller_can_cancel)
 
@@ -586,6 +590,7 @@ async def init_objects() -> None:
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=True,
+        can_manage_events=True,
     )
     await add_object_to_db(store_seller_can_manage_sellers)
 
@@ -600,6 +605,7 @@ async def init_objects() -> None:
         can_see_history=True,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(store_seller_can_see_history_seller)
     store_seller_can_see_history_user_access_token = create_api_access_token(
@@ -954,6 +960,7 @@ async def test_transfer_structure_manager_as_manager(
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(seller)
 
@@ -1458,6 +1465,7 @@ async def test_delete_store(client: TestClient):
         can_see_history=True,
         can_cancel=True,
         can_manage_sellers=True,
+        can_manage_events=True,
     )
     await add_object_to_db(sellet)
 
@@ -1523,6 +1531,7 @@ async def test_add_seller_for_non_existing_store(client: TestClient):
             "can_see_history": True,
             "can_cancel": True,
             "can_manage_sellers": True,
+            "can_manage_events": True,
         },
     )
     assert response.status_code == 404
@@ -1539,6 +1548,7 @@ async def test_add_seller_as_lambda(client: TestClient):
             "can_see_history": True,
             "can_cancel": True,
             "can_manage_sellers": True,
+            "can_manage_events": True,
         },
     )
     assert response.status_code == 403
@@ -1563,6 +1573,7 @@ async def test_add_seller_as_seller_with_permission(client: TestClient):
             "can_see_history": True,
             "can_cancel": True,
             "can_manage_sellers": True,
+            "can_manage_events": True,
         },
     )
     assert response.status_code == 201
@@ -1583,6 +1594,7 @@ async def test_add_seller_as_seller_without_permission(client: TestClient):
             "can_see_history": True,
             "can_cancel": True,
             "can_manage_sellers": True,
+            "can_manage_events": True,
         },
     )
     assert response.status_code == 403
@@ -1603,6 +1615,7 @@ async def test_add_already_existing_seller(client: TestClient):
         can_see_history=True,
         can_cancel=True,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(seller)
 
@@ -1617,6 +1630,7 @@ async def test_add_already_existing_seller(client: TestClient):
             "can_see_history": True,
             "can_cancel": True,
             "can_manage_sellers": True,
+            "can_manage_events": True,
         },
     )
     assert response.status_code == 400
@@ -1678,6 +1692,7 @@ async def test_update_seller_of_non_existing_store(client: TestClient):
             "can_see_history": True,
             "can_cancel": False,
             "can_manage_sellers": False,
+            "can_manage_events": False,
         },
     )
     assert response.status_code == 404
@@ -1693,6 +1708,7 @@ async def test_update_seller_as_lambda(client: TestClient):
             "can_see_history": True,
             "can_cancel": False,
             "can_manage_sellers": False,
+            "can_manage_events": False,
         },
     )
     assert response.status_code == 403
@@ -1713,6 +1729,7 @@ async def test_update_seller_as_seller_without_permission(client: TestClient):
             "can_see_history": False,
             "can_cancel": False,
             "can_manage_sellers": False,
+            "can_manage_events": False,
         },
     )
     assert response.status_code == 403
@@ -1733,6 +1750,7 @@ async def test_update_non_existing_seller(client: TestClient):
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(seller)
     response = client.patch(
@@ -1760,6 +1778,7 @@ async def test_update_seller_as_seller_with_permission(client: TestClient):
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(seller)
     response = client.patch(
@@ -1868,6 +1887,7 @@ async def test_delete_seller_as_seller_with_permission(client: TestClient):
         can_see_history=False,
         can_cancel=False,
         can_manage_sellers=False,
+        can_manage_events=True,
     )
     await add_object_to_db(seller)
     response = client.delete(
