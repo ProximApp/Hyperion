@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.mypayment import cruds_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
-from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
 from app.core.users.models_users import CoreUser
 from app.dependencies import (
@@ -99,7 +99,11 @@ async def get_event(
                 name=session.name,
                 start_time=session.start_time,
                 end_time=session.end_time,
-                sold_out=await cruds_tickets.is_session_sold_out(session.id, db),
+                sold_out=await utils_tickets.is_session_sold_out(
+                    session_id=session.id,
+                    quota=session.quota,
+                    db=db,
+                ),
             )
             for session in event.sessions
         ],
@@ -110,11 +114,19 @@ async def get_event(
                 name=category.name,
                 price=category.price,
                 required_membership=category.required_membership,
-                sold_out=await cruds_tickets.is_category_sold_out(category.id, db),
+                sold_out=await utils_tickets.is_category_sold_out(
+                    category_id=category.id,
+                    quota=category.quota,
+                    db=db,
+                ),
             )
             for category in event.categories
         ],
-        sold_out=await cruds_tickets.is_event_sold_out(event.id, db),
+        sold_out=await utils_tickets.is_event_sold_out(
+            event_id=event.id,
+            quota=event.quota,
+            db=db,
+        ),
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
     )

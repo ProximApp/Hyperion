@@ -77,6 +77,7 @@ class Ticket(Base):
 
     category_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_category.id"))
     session_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_session.id"))
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("core_user.id"))
 
