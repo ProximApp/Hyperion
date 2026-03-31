@@ -14,7 +14,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.mypayment import cruds_mypayment
+from app.core.mypayment import cruds_mypayment, utils_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
@@ -24,6 +24,7 @@ from app.dependencies import (
     is_user,
     is_user_allowed_to,
 )
+from app.types.exceptions import ObjectExpectedInDbNotFoundError
 from app.types.module import CoreModule
 
 router = APIRouter(tags=["Tickets"])
@@ -84,7 +85,6 @@ async def get_event(
     """
     event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
 
-    # TODO: indicate if the event is sold out
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -149,7 +149,6 @@ async def create_checkout(
     """
     Create a checkout for an open event
     """
-    # TODO: can we ask for multiple tickets?
     category = await cruds_tickets.get_category_by_id(
         category_id=checkout.category_id,
         db=db,
@@ -236,7 +235,16 @@ async def get_event_admin(
     if event is None:
         raise HTTPException(404, "Event not found")
 
-    # TODO: check if user has the right to manage the seller
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
+
     return schemas_tickets.EventAdmin(
         id=event.id,
         name=event.name,
@@ -309,7 +317,16 @@ async def create_event(
 
     **The user should have the right to manage the event seller**
     """
-    # TODO: check if user has the right to manage the seller
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event_create.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
+
     event_id = uuid.uuid4()
 
     await cruds_tickets.create_event(
@@ -361,7 +378,19 @@ async def get_event_tickets(
 
     **The user should have the right to manage the event seller**
     """
-    # TODO: check if user has the right to manage the seller
+    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
 
     return await cruds_tickets.get_tickets_by_event_id(event_id=event_id, db=db)
 
@@ -383,13 +412,19 @@ async def get_event_tickets_csv(
 
     **The user should have the right to manage the event seller**
     """
-    # TODO: check if user has the right to manage the seller
-    event = await cruds_tickets.get_event_by_id(
-        event_id=event_id,
-        db=db,
-    )
+    event = await cruds_tickets.get_event_by_id(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
 
     csv_io = StringIO()
 
@@ -469,7 +504,22 @@ async def check_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    # TODO: check if user has the right to manage the seller
+    event = await cruds_tickets.get_event_by_id(event_id=ticket.event_id, db=db)
+    if event is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Event",
+            object_id=ticket.event_id,
+        )
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
 
     return ticket
 
@@ -495,7 +545,22 @@ async def scan_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    # TODO: check if user has the right to manage the seller
+    event = await cruds_tickets.get_event_by_id(event_id=ticket.event_id, db=db)
+    if event is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Event",
+            object_id=ticket.event_id,
+        )
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
 
     await cruds_tickets.mark_ticket_as_scanned(ticket_id=ticket_id, db=db)
 
@@ -519,7 +584,6 @@ async def get_events_by_association(
 
     **The user should have the right to manage the event seller**
     """
-    # TODO: check if user has the right to manage the association
     store = await cruds_mypayment.get_store_by_association_id(
         association_id=association_id,
         db=db,
@@ -527,6 +591,16 @@ async def get_events_by_association(
     # TODO: maybe return an empty list
     if store is None:
         raise HTTPException(400, "No seller associated with this association")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=store.id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
 
     return await cruds_tickets.get_events_by_store_id(
         store_id=store.id,
