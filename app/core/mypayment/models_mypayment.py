@@ -170,7 +170,7 @@ class Store(Base):
     )
     creation: Mapped[datetime]
 
-    association_id: Mapped[UUID] = mapped_column(
+    association_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("associations_associations.id"),
         unique=True,
     )

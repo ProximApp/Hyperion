@@ -325,34 +325,23 @@ async def init_objects() -> None:
         association_id=core_association.id,
     )
     await add_object_to_db(store)
-    core_association2 = models_associations.CoreAssociation(
-        id=uuid4(),
-        name="core_association2",
-        group_id=core_association_group.id,
-    )
-    await add_object_to_db(core_association2)
     store2 = models_mypayment.Store(
         id=uuid4(),
         wallet_id=store2_wallet.id,
         name="Test Store 2",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association2.id,
+        association_id=None,
     )
     await add_object_to_db(store2)
-    core_association3 = models_associations.CoreAssociation(
-        id=uuid4(),
-        name="core_association3",
-        group_id=core_association_group.id,
-    )
-    await add_object_to_db(core_association3)
+
     store3 = models_mypayment.Store(
         id=uuid4(),
         wallet_id=store3_wallet.id,
         name="Test Store 3",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association3.id,
+        association_id=None,
     )
     await add_object_to_db(store3)
 
