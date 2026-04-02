@@ -529,32 +529,35 @@ async def create_store(
             detail="Store with this name already exists in this structure",
         )
 
-    association = await cruds_associations.get_association_by_id(
-        db=db,
-        association_id=store.association_id,
-    )
-    if not association:
-        raise HTTPException(
-            status_code=404,
-            detail="Association not found",
+    if store.association_id is not None:
+        association = await cruds_associations.get_association_by_id(
+            db=db,
+            association_id=store.association_id,
         )
-    if not is_user_member_of_an_association(
-        user=user,
-        association=association,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You are not allowed to create stores for this association",
+        if not association:
+            raise HTTPException(
+                status_code=404,
+                detail="Association not found",
+            )
+        if not is_user_member_of_an_association(
+            user=user,
+            association=association,
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="You are not allowed to create stores for this association",
+            )
+        existing_store_for_association = (
+            await cruds_mypayment.get_store_by_association_id(
+                association_id=store.association_id,
+                db=db,
+            )
         )
-    existing_store_for_association = await cruds_mypayment.get_store_by_association_id(
-        association_id=store.association_id,
-        db=db,
-    )
-    if existing_store_for_association is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Store for this association already exists",
-        )
+        if existing_store_for_association is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Store for this association already exists",
+            )
 
     # Create new wallet for store
     wallet_id = uuid.uuid4()
