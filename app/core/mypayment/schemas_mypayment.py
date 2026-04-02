@@ -68,7 +68,7 @@ class StructureTranfert(BaseModel):
 
 class StoreBase(BaseModel):
     name: str
-    association_id: UUID
+    association_id: UUID | None = None
 
 
 class StoreSimple(StoreBase):

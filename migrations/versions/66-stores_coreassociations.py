@@ -20,27 +20,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    store_table = sa.table(
-        "mypayment_store",
-        sa.column("id", sa.String),
-    )
-
-    conn = op.get_bind()
-    stores = conn.execute(
-        sa.select(store_table.c.id),
-    ).fetchall()
-
-    if len(stores) > 0:
-        raise Exception(  # noqa: TRY002, TRY003
-            "There are already stores in database, we cannot safely migrate to add association_id to store",
-        )
-
     op.add_column(
         "mypayment_store",
         sa.Column(
             "association_id",
             sa.Uuid(),
-            nullable=False,
+            nullable=True,
         ),
     )
     op.create_foreign_key(
