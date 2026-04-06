@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -10,6 +11,7 @@ from pydantic import (
 from app.core.memberships import schemas_memberships
 from app.core.mypayment.types_mypayment import (
     HistoryType,
+    MyPaymentCallType,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -352,13 +354,22 @@ class RequestEdit(BaseModel):
 
 
 class RequestInfo(BaseModel):
-    user_id: str
     store_id: UUID
     total: int
     name: str
     note: str | None
     module: str
     object_id: UUID
+
+
+class PaymentInfo(BaseModel):
+    store_id: UUID
+    total: int
+    name: str
+    note: str | None
+    module: str
+    object_id: UUID
+    redirect_url: str
 
 
 class SecuredContentData(BaseModel):
