@@ -16,18 +16,16 @@ from app.core.checkout import schemas_checkout
 from app.core.groups import models_groups
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.memberships import models_memberships
-from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
+from app.core.mypayment import cruds_mypayment, models_mypayment
 from app.core.mypayment.coredata_mypayment import (
     MyPaymentBankAccountHolder,
 )
 from app.core.mypayment.endpoints_mypayment import MyPaymentPermissions
 from app.core.mypayment.schemas_mypayment import (
-    QRCodeContentData,
-    RequestValidation,
-    RequestValidationData,
+    SecuredContentData,
+    SignedContent,
 )
 from app.core.mypayment.types_mypayment import (
-    MyPaymentCallType,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -35,7 +33,11 @@ from app.core.mypayment.types_mypayment import (
     WalletDeviceStatus,
     WalletType,
 )
-from app.core.mypayment.utils_mypayment import LATEST_TOS, validate_transfer_callback
+from app.core.mypayment.utils_mypayment import (
+    LATEST_TOS,
+    REQUEST_EXPIRATION,
+    validate_transfer_callback,
+)
 from app.core.permissions import models_permissions
 from app.core.users import models_users
 from app.types.module import Module
@@ -2476,7 +2478,7 @@ def test_store_scan_store_invalid_signature(client: TestClient):
 def test_store_scan_store_with_non_store_qr_code(client: TestClient):
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=-1,
         iat=datetime.now(UTC),
@@ -2511,7 +2513,7 @@ def test_store_scan_store_with_non_store_qr_code(client: TestClient):
 def test_store_scan_store_negative_total(client: TestClient):
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=-1,
         iat=datetime.now(UTC),
@@ -2553,7 +2555,7 @@ def test_store_scan_store_missing_wallet(
 
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=100,
         iat=datetime.now(UTC),
@@ -2589,7 +2591,7 @@ def test_store_scan_store_missing_wallet(
 def test_store_scan_store_from_store_wallet(client: TestClient):
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=1100,
         iat=datetime.now(UTC),
@@ -2659,7 +2661,7 @@ async def test_store_scan_store_from_wallet_with_old_tos_version(client: TestCli
 
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=1100,
         iat=datetime.now(UTC),
@@ -2692,7 +2694,7 @@ async def test_store_scan_store_from_wallet_with_old_tos_version(client: TestCli
 def test_store_scan_store_insufficient_ballance(client: TestClient):
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=3000,
         iat=datetime.now(UTC),
@@ -2725,7 +2727,7 @@ def test_store_scan_store_insufficient_ballance(client: TestClient):
 async def test_store_scan_store_successful_scan(client: TestClient):
     qr_code_id = uuid4()
 
-    qr_code_content = QRCodeContentData(
+    qr_code_content = SecuredContentData(
         id=qr_code_id,
         tot=500,
         iat=datetime.now(UTC),
@@ -3330,6 +3332,88 @@ async def test_get_request_with_used_filter(
     assert len(response.json()) == 3
 
 
+async def test_accept_request_with_invalid_signature(
+    client: TestClient,
+):
+    response = client.post(
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=SignedContent(
+            id=proposed_request.id,
+            key=ecl_user_wallet_device.id,
+            iat=datetime.now(UTC),
+            tot=proposed_request.total,
+            store=True,
+            signature="invalid signature",
+        ).model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid signature"
+
+
+async def test_accept_expired_request(
+    client: TestClient,
+    mocker: MockerFixture,
+):
+    # We patch the callback to be able to check if it was called
+    mocked_callback = mocker.patch(
+        "tests.core.test_mypayment.mypayment_callback",
+    )
+
+    # We patch the module_list to inject our custom test module
+    test_module = Module(
+        root=TEST_MODULE_ROOT,
+        tag="Tests",
+        default_allowed_groups_ids=[],
+        mypayment_callback=mypayment_callback,
+        factory=None,
+        permissions=None,
+    )
+    mocker.patch(
+        "app.core.mypayment.utils_mypayment.all_modules",
+        [test_module],
+    )
+
+    expired_request = models_mypayment.Request(
+        id=uuid4(),
+        wallet_id=ecl_user_wallet.id,
+        store_id=store.id,
+        name="Test request",
+        store_note="",
+        module=TEST_MODULE_ROOT,
+        object_id=uuid4(),
+        transaction_id=None,
+        total=1000,
+        status=RequestStatus.PROPOSED,
+        creation=datetime.now(UTC) - timedelta(minutes=REQUEST_EXPIRATION + 1),
+    )
+    await add_object_to_db(expired_request)
+
+    validation_data = SecuredContentData(
+        id=expired_request.id,
+        key=ecl_user_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=expired_request.total,
+        store=True,
+    )
+    validation_data_signature = ecl_user_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{expired_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only pending requests can be confirmed"
+
+    mocked_callback.assert_not_called()
+
+
 async def test_accept_request(
     mocker: MockerFixture,
     client: TestClient,
@@ -3353,16 +3437,17 @@ async def test_accept_request(
         [test_module],
     )
 
-    validation_data = RequestValidationData(
-        request_id=proposed_request.id,
+    validation_data = SecuredContentData(
+        id=proposed_request.id,
         key=ecl_user_wallet_device.id,
         iat=datetime.now(UTC),
         tot=proposed_request.total,
+        store=True,
     )
     validation_data_signature = ecl_user_wallet_device_private_key.sign(
         validation_data.model_dump_json().encode("utf-8"),
     )
-    validation = RequestValidation(
+    validation = SignedContent(
         **validation_data.model_dump(),
         signature=base64.b64encode(validation_data_signature).decode("utf-8"),
     )
@@ -3389,6 +3474,69 @@ async def test_accept_request(
     assert accepted is not None
     assert accepted["status"] == RequestStatus.ACCEPTED
     mocked_callback.assert_called_once()
+
+
+async def test_refuse_request(
+    client: TestClient,
+    mocker: MockerFixture,
+):
+    # We patch the callback to be able to check if it was called
+    mocked_callback = mocker.patch(
+        "tests.core.test_mypayment.mypayment_callback",
+    )
+
+    # We patch the module_list to inject our custom test module
+    test_module = Module(
+        root=TEST_MODULE_ROOT,
+        tag="Tests",
+        default_allowed_groups_ids=[],
+        mypayment_callback=mypayment_callback,
+        factory=None,
+        permissions=None,
+    )
+    mocker.patch(
+        "app.core.mypayment.utils_mypayment.all_modules",
+        [test_module],
+    )
+
+    new_request = models_mypayment.Request(
+        id=uuid4(),
+        wallet_id=ecl_user_wallet.id,
+        store_id=store.id,
+        name="Test request",
+        store_note="",
+        module=TEST_MODULE_ROOT,
+        object_id=uuid4(),
+        transaction_id=None,
+        total=1000,
+        status=RequestStatus.PROPOSED,
+        creation=datetime.now(UTC),
+    )
+    await add_object_to_db(new_request)
+
+    response = client.post(
+        f"/mypayment/requests/{new_request.id}/refuse",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+    )
+    assert response.status_code == 204
+
+    mocked_callback.assert_not_called()
+
+    responser = client.get(
+        "/mypayment/requests?used=true",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+    )
+    assert responser.status_code == 200
+    refused = next(
+        (
+            request
+            for request in responser.json()
+            if request["id"] == str(new_request.id)
+        ),
+        None,
+    )
+    assert refused is not None
+    assert refused["status"] == RequestStatus.REFUSED
 
 
 async def test_direct_transfer_callback(

@@ -2660,7 +2660,7 @@ async def get_user_requests(
 )
 async def accept_request(
     request_id: UUID,
-    request_validation: schemas_mypayment.RequestValidation,
+    request_validation: schemas_mypayment.SignedContent,
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user_allowed_to([MyPaymentPermissions.access_payment])),
     http_request_id: str = Depends(get_request_id),
@@ -2676,7 +2676,7 @@ async def accept_request(
         db=db,
     )
     await db.flush()
-    if request_id != request_validation.request_id:
+    if request_id != request_validation.id:
         raise HTTPException(
             status_code=400,
             detail="Request ID in the path and in the body do not match",

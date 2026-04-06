@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout import schemas_checkout
 from app.core.groups.groups_type import AccountType, GroupType
-from app.core.mypayment import schemas_mypayment
 from app.core.notification.schemas_notification import Topic
 from app.core.permissions.type_permissions import ModulePermissions
 from app.types.factory import Factory
