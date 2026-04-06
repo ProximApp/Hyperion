@@ -135,7 +135,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.add_column(
-        "calendar_events", sa.Column("ticket_event_id", sa.Uuid(), nullable=True),
+        "calendar_events",
+        sa.Column("ticket_event_id", sa.Uuid(), nullable=True),
     )
     op.create_foreign_key(
         "calendar_events_ticket_event_id_fkey",
