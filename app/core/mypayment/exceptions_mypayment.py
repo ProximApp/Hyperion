@@ -52,3 +52,10 @@ class TransferAlreadyConfirmedInCallbackError(Exception):
         super().__init__(
             f"User transfer {transfer_id} has already been confirmed",
         )
+
+
+class PaymentUserNotFoundError(Exception):
+    def __init__(self, user_id: str):
+        super().__init__(
+            f"User {user_id} does not have a payment account",
+        )

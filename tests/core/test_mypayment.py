@@ -520,7 +520,7 @@ async def init_objects() -> None:
         store_id=store.id,
         can_bank=True,
         can_see_history=False,
-        can_cancel=False,
+        can_cancel=True,
         can_manage_sellers=False,
     )
     await add_object_to_db(store_seller_can_bank)
@@ -3035,6 +3035,37 @@ async def test_transaction_refund_partial(client: TestClient):
     )
 
 
+async def test_cancel_transaction(
+    client: TestClient,
+):
+    recent_transaction = models_mypayment.Transaction(
+        id=uuid4(),
+        debited_wallet_id=ecl_user_wallet.id,
+        credited_wallet_id=store_wallet.id,
+        total=100,
+        status=TransactionStatus.CONFIRMED,
+        creation=datetime.now(UTC),
+        transaction_type=TransactionType.DIRECT,
+        seller_user_id=store_seller_can_bank_user.id,
+        debited_wallet_device_id=ecl_user_wallet_device.id,
+        store_note="",
+        qr_code_id=None,
+    )
+    await add_object_to_db(recent_transaction)
+    response = client.post(
+        f"/mypayment/transactions/{recent_transaction.id}/cancel",
+        headers={"Authorization": f"Bearer {store_seller_can_bank_user_access_token}"},
+    )
+    assert response.status_code == 204, response.text
+    async with get_TestingSessionLocal()() as db:
+        transaction_after_cancel = await cruds_mypayment.get_transaction(
+            db=db,
+            transaction_id=recent_transaction.id,
+        )
+    assert transaction_after_cancel is not None
+    assert transaction_after_cancel.status == TransactionStatus.CANCELED
+
+
 async def test_get_invoices_as_random_user(client: TestClient):
     response = client.get(
         "/mypayment/invoices",
@@ -3351,49 +3382,58 @@ async def test_accept_request_with_invalid_signature(
     assert response.json()["detail"] == "Invalid signature"
 
 
-async def test_accept_expired_request(
+async def test_accept_request_with_wrong_wallet_device(
     client: TestClient,
-    mocker: MockerFixture,
 ):
-    # We patch the callback to be able to check if it was called
-    mocked_callback = mocker.patch(
-        "tests.core.test_mypayment.mypayment_callback",
-    )
-
-    # We patch the module_list to inject our custom test module
-    test_module = Module(
-        root=TEST_MODULE_ROOT,
-        tag="Tests",
-        default_allowed_groups_ids=[],
-        mypayment_callback=mypayment_callback,
-        factory=None,
-        permissions=None,
-    )
-    mocker.patch(
-        "app.core.mypayment.utils_mypayment.all_modules",
-        [test_module],
-    )
-
-    expired_request = models_mypayment.Request(
+    wrong_wallet_device_private_key = Ed25519PrivateKey.generate()
+    wrong_wallet_device = models_mypayment.WalletDevice(
         id=uuid4(),
-        wallet_id=ecl_user_wallet.id,
-        store_id=store.id,
-        name="Test request",
-        store_note="",
-        module=TEST_MODULE_ROOT,
-        object_id=uuid4(),
-        transaction_id=None,
-        total=1000,
-        status=RequestStatus.PROPOSED,
-        creation=datetime.now(UTC) - timedelta(minutes=REQUEST_EXPIRATION + 1),
+        name="Wrong device",
+        wallet_id=ecl_user2_wallet.id,
+        ed25519_public_key=wrong_wallet_device_private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        ),
+        creation=datetime.now(UTC),
+        status=WalletDeviceStatus.ACTIVE,
+        activation_token=str(uuid4()),
     )
-    await add_object_to_db(expired_request)
+    await add_object_to_db(wrong_wallet_device)
 
     validation_data = SecuredContentData(
-        id=expired_request.id,
+        id=proposed_request.id,
+        key=wrong_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=proposed_request.total,
+        store=True,
+    )
+    validation_data_signature = wrong_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Wallet device is not associated with the user wallet"
+    )
+
+
+async def test_accept_request_with_wrong_user(
+    client: TestClient,
+):
+    validation_data = SecuredContentData(
+        id=proposed_request.id,
         key=ecl_user_wallet_device.id,
         iat=datetime.now(UTC),
-        tot=expired_request.total,
+        tot=proposed_request.total,
         store=True,
     )
     validation_data_signature = ecl_user_wallet_device_private_key.sign(
@@ -3404,14 +3444,159 @@ async def test_accept_expired_request(
         signature=base64.b64encode(validation_data_signature).decode("utf-8"),
     )
     response = client.post(
-        f"/mypayment/requests/{expired_request.id}/accept",
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user2_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not allowed to confirm this request"
+
+
+async def test_accept_request_with_different_total(
+    client: TestClient,
+):
+    validation_data = SecuredContentData(
+        id=proposed_request.id,
+        key=ecl_user_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=proposed_request.total + 100,
+        store=True,
+    )
+    validation_data_signature = ecl_user_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Request total in the body do not match the request total in the database"
+    )
+
+
+async def test_accept_request_with_inexistant_wallet_device(
+    client: TestClient,
+):
+    validation_data = SecuredContentData(
+        id=proposed_request.id,
+        key=uuid4(),
+        iat=datetime.now(UTC),
+        tot=proposed_request.total,
+        store=True,
+    )
+    validation_data_signature = ecl_user_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Wallet device does not exist"
+
+
+async def test_accept_request_with_wallet_device_linked_to_another_wallet(
+    client: TestClient,
+):
+    other_wallet = models_mypayment.Wallet(
+        id=uuid4(),
+        type=WalletType.USER,
+        balance=1000,
+    )
+    await add_object_to_db(other_wallet)
+
+    other_wallet_device_private_key = Ed25519PrivateKey.generate()
+    other_wallet_device = models_mypayment.WalletDevice(
+        id=uuid4(),
+        name="Other device",
+        wallet_id=other_wallet.id,
+        ed25519_public_key=other_wallet_device_private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        ),
+        creation=datetime.now(UTC),
+        status=WalletDeviceStatus.ACTIVE,
+        activation_token=str(uuid4()),
+    )
+    await add_object_to_db(other_wallet_device)
+
+    validation_data = SecuredContentData(
+        id=proposed_request.id,
+        key=other_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=proposed_request.total,
+        store=True,
+    )
+    validation_data_signature = other_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{proposed_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Wallet device is not associated with the user wallet"
+    )
+
+
+async def test_accept_request_with_non_proposed_request(
+    client: TestClient,
+):
+    non_proposed_request = models_mypayment.Request(
+        id=uuid4(),
+        wallet_id=ecl_user_wallet.id,
+        store_id=store.id,
+        name="Test request",
+        store_note="",
+        module=TEST_MODULE_ROOT,
+        object_id=uuid4(),
+        transaction_id=None,
+        total=1000,
+        status=RequestStatus.ACCEPTED,
+        creation=datetime.now(UTC),
+    )
+    await add_object_to_db(non_proposed_request)
+
+    validation_data = SecuredContentData(
+        id=non_proposed_request.id,
+        key=ecl_user_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=non_proposed_request.total,
+        store=True,
+    )
+    validation_data_signature = ecl_user_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{non_proposed_request.id}/accept",
         headers={"Authorization": f"Bearer {ecl_user_access_token}"},
         json=validation.model_dump(mode="json"),
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Only pending requests can be confirmed"
-
-    mocked_callback.assert_not_called()
 
 
 async def test_accept_request(
@@ -3474,6 +3659,69 @@ async def test_accept_request(
     assert accepted is not None
     assert accepted["status"] == RequestStatus.ACCEPTED
     mocked_callback.assert_called_once()
+
+
+async def test_accept_expired_request(
+    client: TestClient,
+    mocker: MockerFixture,
+):
+    # We patch the callback to be able to check if it was called
+    mocked_callback = mocker.patch(
+        "tests.core.test_mypayment.mypayment_callback",
+    )
+
+    # We patch the module_list to inject our custom test module
+    test_module = Module(
+        root=TEST_MODULE_ROOT,
+        tag="Tests",
+        default_allowed_groups_ids=[],
+        mypayment_callback=mypayment_callback,
+        factory=None,
+        permissions=None,
+    )
+    mocker.patch(
+        "app.core.mypayment.utils_mypayment.all_modules",
+        [test_module],
+    )
+
+    expired_request = models_mypayment.Request(
+        id=uuid4(),
+        wallet_id=ecl_user_wallet.id,
+        store_id=store.id,
+        name="Test request",
+        store_note="",
+        module=TEST_MODULE_ROOT,
+        object_id=uuid4(),
+        transaction_id=None,
+        total=1000,
+        status=RequestStatus.PROPOSED,
+        creation=datetime.now(UTC) - timedelta(minutes=REQUEST_EXPIRATION + 1),
+    )
+    await add_object_to_db(expired_request)
+
+    validation_data = SecuredContentData(
+        id=expired_request.id,
+        key=ecl_user_wallet_device.id,
+        iat=datetime.now(UTC),
+        tot=expired_request.total,
+        store=True,
+    )
+    validation_data_signature = ecl_user_wallet_device_private_key.sign(
+        validation_data.model_dump_json().encode("utf-8"),
+    )
+    validation = SignedContent(
+        **validation_data.model_dump(),
+        signature=base64.b64encode(validation_data_signature).decode("utf-8"),
+    )
+    response = client.post(
+        f"/mypayment/requests/{expired_request.id}/accept",
+        headers={"Authorization": f"Bearer {ecl_user_access_token}"},
+        json=validation.model_dump(mode="json"),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only pending requests can be confirmed"
+
+    mocked_callback.assert_not_called()
 
 
 async def test_refuse_request(
@@ -3573,3 +3821,13 @@ async def test_direct_transfer_callback(
         )
 
     mocked_callback.assert_called_once()
+
+
+async def test_integrity_check(
+    client: TestClient,
+):
+    response = client.get(
+        "/mypayment/integrity-check",
+        headers={"x-data-verifier-token": "test_data_verifier_access_token"},
+    )
+    assert response.status_code == 200, response.text
