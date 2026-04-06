@@ -14,16 +14,22 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.checkout.payment_tool import PaymentTool
+from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.feed import schemas_feed, utils_feed
 from app.core.memberships import utils_memberships
-from app.core.mypayment import cruds_mypayment, utils_mypayment
+from app.core.mypayment import cruds_mypayment, schemas_mypayment, utils_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
+from app.core.users import schemas_users
 from app.core.users.models_users import CoreUser
+from app.core.utils.config import Settings
 from app.dependencies import (
     get_db,
     get_notification_tool,
+    get_payment_tool,
+    get_settings,
     is_user,
     is_user_allowed_to,
 )
@@ -174,6 +180,11 @@ async def create_checkout(
         ),
     ),
     db: AsyncSession = Depends(get_db),
+    notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
+    payment_tool: PaymentTool = Depends(
+        get_payment_tool(HelloAssoConfigName.MYPAYMENT),
+    ),
 ):
     """
     Create a checkout for an open event
@@ -263,6 +274,7 @@ async def create_checkout(
     ):
         raise HTTPException(400, "Session is sold out")
 
+    checkout_id = uuid.uuid4()
     await cruds_tickets.create_checkout(
         checkout_id=uuid.uuid4(),
         event_id=event_id,
@@ -274,6 +286,43 @@ async def create_checkout(
         answers=checkout.answers,
         db=db,
     )
+
+    if checkout.payment_method == "myempay":
+        await utils_mypayment.request_transaction(
+            request_info=schemas_mypayment.RequestInfo(
+                user_id=user.id,
+                store_id=event.store_id,
+                total=price,
+                name=f"Ticket for event {event.name}",
+                note="Ticket purchase",
+                module=core_module.root,
+                object_id=checkout_id,
+            ),
+            db=db,
+            notification_tool=notification_tool,
+            settings=settings,
+        )
+    else:
+        await utils_mypayment.request_store_transfer(
+            transfer_info=schemas_mypayment.StoreTransferInfo(
+                store_id=event.store_id,
+                module=core_module.root,
+                amount=price,
+                object_id=checkout_id,
+                redirect_url="",
+            ),
+            user=schemas_users.CoreUser(
+                id=user.id,
+                name=user.name,
+                firstname=user.firstname,
+                account_type=user.account_type,
+                school_id=user.school_id,
+                email=user.email,
+            ),
+            db=db,
+            settings=settings,
+            payment_tool=payment_tool,
+        )
 
     # TODO: return the payment id
     return schemas_tickets.CheckoutResponse(

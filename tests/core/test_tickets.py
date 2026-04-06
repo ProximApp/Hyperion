@@ -358,6 +358,7 @@ def test_create_checkout_with_invalid_category(client: TestClient):
             "category_id": str(uuid.uuid4()),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 404
@@ -372,6 +373,7 @@ def test_create_checkout_with_disabled_category(client: TestClient):
             "category_id": str(event_disabled_category.id),
             "session_id": str(event_session.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -386,6 +388,7 @@ def test_create_checkout_with_invalid_session(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(uuid.uuid4()),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 404
@@ -400,6 +403,7 @@ def test_create_checkout_with_disabled_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_disabled_session.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -449,6 +453,7 @@ async def test_create_checkout_with_disabled_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -498,6 +503,7 @@ async def test_create_checkout_with_not_open_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -547,6 +553,7 @@ async def test_create_checkout_with_closed_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -561,6 +568,7 @@ def test_create_checkout_with_category_from_another_event(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -575,6 +583,7 @@ def test_create_checkout_with_session_from_another_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(event_session.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -589,6 +598,7 @@ def test_create_checkout_with_sold_out_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -603,6 +613,7 @@ def test_create_checkout_with_sold_out_category(client: TestClient):
             "category_id": str(event_sold_out_category.id),
             "session_id": str(event_session.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -617,6 +628,7 @@ def test_create_checkout_with_sold_out_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_sold_out_session.id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -666,6 +678,7 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
             "category_id": str(event_with_required_membership_category_id),
             "session_id": str(event_with_required_membership_session_id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -694,6 +707,7 @@ def test_create_checkout_with_answer_present_multiple_times(client: TestClient):
                     "answer": "Test Answer 2",
                 },
             ],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -719,6 +733,7 @@ def test_create_checkout_with_invalid_question_id(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -742,6 +757,7 @@ def test_create_checkout_with_disabled_question(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -765,6 +781,7 @@ def test_create_checkout_with_invalid_answer_type(client: TestClient):
                     "answer": 3,
                 },
             ],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -830,6 +847,7 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
             "category_id": str(event_with_required_question_category_id),
             "session_id": str(event_with_required_question_session_id),
             "answers": [],
+            "payment_method": "myempay",
         },
     )
     assert response.status_code == 400
@@ -852,8 +870,11 @@ def test_create_checkout(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
+            "payment_method": "test",
         },
     )
+    # TODO
+    # assert response.json() == ""
     assert response.status_code == 201
     # Price of the event + price of the optionnal question
     assert response.json()["price"] == 1000 + 100

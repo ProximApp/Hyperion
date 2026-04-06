@@ -364,6 +364,7 @@ class RequestInfo(BaseModel):
     request_name: str
     store_note: str | None
     module: str
+    # Id of the object from the module, this id will be passed to the module in the transaction callback
     object_id: UUID
 
 

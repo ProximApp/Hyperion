@@ -225,6 +225,8 @@ class Checkout(BaseModel):
     category_id: UUID
     session_id: UUID
     answers: list[Answer]
+    # TODO: use an enum
+    payment_method: str
 
 
 class CheckoutResponse(BaseModel):
