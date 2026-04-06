@@ -146,6 +146,12 @@ class TransferInfo(BaseModel):
     redirect_url: str
 
 
+class StoreTransferInfo(TransferInfo):
+    store_id: UUID
+    module: str
+    object_id: UUID
+
+
 class RefundInfo(BaseModel):
     complete_refund: bool
     amount: int | None = None
@@ -256,6 +262,8 @@ class Transfer(BaseModel):
     total: int  # Stored in cents
     creation: datetime
     confirmed: bool
+    module: str | None
+    object_id: UUID | None
 
 
 class RefundBase(BaseModel):
