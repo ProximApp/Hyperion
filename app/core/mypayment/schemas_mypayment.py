@@ -383,3 +383,13 @@ class RequestValidationData(BaseModel):
 
 class RequestValidation(RequestValidationData):
     signature: str
+
+
+class RequestInfo(BaseModel):
+    user_id: str
+    store_id: UUID
+    total: int
+    name: str
+    note: str | None
+    module: str
+    object_id: UUID
