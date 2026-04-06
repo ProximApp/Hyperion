@@ -391,6 +391,8 @@ async def create_checkout(
             )
             for answer in answers
         ],
+        scanned=False,
+        paid=False,
     )
     db.add(db_checkout)
 
@@ -400,11 +402,11 @@ async def get_tickets_by_user_id(
     db: AsyncSession,
 ) -> Sequence[schemas_tickets.Ticket]:
     result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.user_id == user_id)
+        select(models_tickets.Checkout)
+        .where(models_tickets.Checkout.user_id == user_id)
         .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
+            selectinload(models_tickets.Checkout.category),
+            selectinload(models_tickets.Checkout.session),
         ),
     )
     return [
@@ -448,12 +450,12 @@ async def get_tickets_by_event_id(
     db: AsyncSession,
 ) -> Sequence[schemas_tickets.Ticket]:
     result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.event_id == event_id)
+        select(models_tickets.Checkout)
+        .where(models_tickets.Checkout.event_id == event_id)
         .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
-            selectinload(models_tickets.Ticket.user),
+            selectinload(models_tickets.Checkout.category),
+            selectinload(models_tickets.Checkout.session),
+            selectinload(models_tickets.Checkout.user),
         ),
     )
     return [
@@ -497,12 +499,12 @@ async def get_ticket_by_id(
     db: AsyncSession,
 ) -> schemas_tickets.Ticket | None:
     result = await db.execute(
-        select(models_tickets.Ticket)
-        .where(models_tickets.Ticket.id == ticket_id)
+        select(models_tickets.Checkout)
+        .where(models_tickets.Checkout.id == ticket_id)
         .options(
-            selectinload(models_tickets.Ticket.category),
-            selectinload(models_tickets.Ticket.session),
-            selectinload(models_tickets.Ticket.user),
+            selectinload(models_tickets.Checkout.category),
+            selectinload(models_tickets.Checkout.session),
+            selectinload(models_tickets.Checkout.user),
         ),
     )
     ticket = result.scalars().first()
@@ -547,8 +549,8 @@ async def mark_ticket_as_scanned(
     db: AsyncSession,
 ):
     await db.execute(
-        update(models_tickets.Ticket)
-        .where(models_tickets.Ticket.id == ticket_id)
+        update(models_tickets.Checkout)
+        .where(models_tickets.Checkout.id == ticket_id)
         .values(scanned=True),
     )
 
@@ -559,7 +561,8 @@ async def count_tickets_by_event_id(
 ) -> int:
     result = await db.execute(
         select(func.count()).where(
-            models_tickets.Ticket.event_id == event_id,
+            models_tickets.Checkout.event_id == event_id,
+            models_tickets.Checkout.paid,
         ),
     )
 
@@ -572,7 +575,8 @@ async def count_tickets_by_category_id(
 ) -> int:
     result = await db.execute(
         select(func.count()).where(
-            models_tickets.Ticket.category_id == category_id,
+            models_tickets.Checkout.category_id == category_id,
+            models_tickets.Checkout.paid,
         ),
     )
 
@@ -585,7 +589,8 @@ async def count_tickets_by_session_id(
 ) -> int:
     result = await db.execute(
         select(func.count()).where(
-            models_tickets.Ticket.session_id == session_id,
+            models_tickets.Checkout.session_id == session_id,
+            models_tickets.Checkout.paid,
         ),
     )
 
@@ -596,10 +601,14 @@ async def count_valid_checkouts_by_event_id(
     event_id: UUID,
     db: AsyncSession,
 ) -> int:
+    """
+    Count only unpaid checkouts that are not expired
+    """
     result = await db.execute(
         select(func.count()).where(
             models_tickets.Checkout.event_id == event_id,
             models_tickets.Checkout.expiration >= datetime.now(UTC),
+            not_(models_tickets.Checkout.paid),
         ),
     )
 
@@ -610,10 +619,14 @@ async def count_valid_checkouts_by_category_id(
     category_id: UUID,
     db: AsyncSession,
 ) -> int:
+    """
+    Count only unpaid checkouts that are not expired
+    """
     result = await db.execute(
         select(func.count()).where(
             models_tickets.Checkout.category_id == category_id,
             models_tickets.Checkout.expiration >= datetime.now(UTC),
+            not_(models_tickets.Checkout.paid),
         ),
     )
 
@@ -624,10 +637,74 @@ async def count_valid_checkouts_by_session_id(
     session_id: UUID,
     db: AsyncSession,
 ) -> int:
+    """
+    Count only unpaid checkouts that are not expired
+    """
     result = await db.execute(
         select(func.count()).where(
             models_tickets.Checkout.session_id == session_id,
             models_tickets.Checkout.expiration >= datetime.now(UTC),
+            not_(models_tickets.Checkout.paid),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_and_tickets_by_event_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> int:
+    """
+    Count unpaid checkouts that are not expired and paid tickets
+    """
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.event_id == event_id,
+            or_(
+                models_tickets.Checkout.paid,
+                models_tickets.Checkout.expiration >= datetime.now(UTC),
+            ),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_and_tickets_by_category_id(
+    category_id: UUID,
+    db: AsyncSession,
+) -> int:
+    """
+    Count unpaid checkouts that are not expired and paid tickets
+    """
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.category_id == category_id,
+            or_(
+                models_tickets.Checkout.paid,
+                models_tickets.Checkout.expiration >= datetime.now(UTC),
+            ),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_and_tickets_by_session_id(
+    session_id: UUID,
+    db: AsyncSession,
+) -> int:
+    """
+    Count unpaid checkouts that are not expired and paid tickets
+    """
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.session_id == session_id,
+            or_(
+                models_tickets.Checkout.paid,
+                models_tickets.Checkout.expiration >= datetime.now(UTC),
+            ),
         ),
     )
 

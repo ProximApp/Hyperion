@@ -49,9 +49,9 @@ global_event_disabled_question_id: uuid.UUID
 sold_out_event: models_tickets.TicketEvent
 session_sold_out_event: models_tickets.EventSession
 category_sold_out_event: models_tickets.Category
-ticket_sold_out_event: models_tickets.Ticket
+ticket_sold_out_event: models_tickets.Checkout
 
-ticket: models_tickets.Ticket
+ticket: models_tickets.Checkout
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
@@ -219,7 +219,7 @@ async def init_objects() -> None:
         required_membership=None,
     )
     await add_object_to_db(event_sold_out_category)
-    ticket_sold_out_category = models_tickets.Ticket(
+    ticket_sold_out_category = models_tickets.Checkout(
         id=uuid.uuid4(),
         category_id=event_sold_out_category.id,
         session_id=event_session.id,
@@ -227,6 +227,9 @@ async def init_objects() -> None:
         user_id=user.id,
         price=10,
         scanned=False,
+        paid=True,
+        expiration=datetime.now(tz=UTC) + timedelta(hours=1),
+        answers=[],
     )
     await add_object_to_db(ticket_sold_out_category)
     event_sold_out_session = models_tickets.EventSession(
@@ -238,7 +241,7 @@ async def init_objects() -> None:
         disabled=False,
     )
     await add_object_to_db(event_sold_out_session)
-    ticket_sold_out_session = models_tickets.Ticket(
+    ticket_sold_out_session = models_tickets.Checkout(
         id=uuid.uuid4(),
         category_id=event_category.id,
         session_id=event_sold_out_session.id,
@@ -246,6 +249,9 @@ async def init_objects() -> None:
         user_id=user.id,
         price=10,
         scanned=False,
+        paid=True,
+        expiration=datetime.now(tz=UTC) + timedelta(hours=1),
+        answers=[],
     )
     await add_object_to_db(ticket_sold_out_session)
 
@@ -286,7 +292,7 @@ async def init_objects() -> None:
     )
     await add_object_to_db(sold_out_event)
     user = await create_user_with_groups(groups=[])
-    ticket_sold_out_event = models_tickets.Ticket(
+    ticket_sold_out_event = models_tickets.Checkout(
         id=uuid.uuid4(),
         category_id=category_sold_out_event.id,
         session_id=session_sold_out_event.id,
@@ -294,6 +300,9 @@ async def init_objects() -> None:
         user_id=user.id,
         price=10,
         scanned=False,
+        paid=True,
+        expiration=datetime.now(tz=UTC) + timedelta(hours=1),
+        answers=[],
     )
     await add_object_to_db(ticket_sold_out_event)
 

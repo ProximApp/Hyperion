@@ -96,27 +96,11 @@ class Answer(Base):
     answer: Mapped[str]
 
 
-class Ticket(Base):
-    __tablename__ = "tickets_ticket"
-
-    id: Mapped[PrimaryKey]
-
-    category_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_category.id"))
-    session_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_session.id"))
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
-
-    user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"))
-
-    price: Mapped[int]  # in cents
-
-    scanned: Mapped[bool]
-
-    category: Mapped["Category"] = relationship(init=False)
-    session: Mapped["EventSession"] = relationship(init=False)
-    user: Mapped[models_users.CoreUser] = relationship(init=False)
-
-
 class Checkout(Base):
+    """
+    A checkout represents a pending or validated ticket purchase.
+    """
+
     __tablename__ = "tickets_checkout"
 
     id: Mapped[PrimaryKey]
@@ -131,7 +115,14 @@ class Checkout(Base):
 
     user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"))
 
+    # If a checkout is paid we should consider the user has a ticket
+    paid: Mapped[bool]
+    # We can mark the corresponding ticket as scanned
+    scanned: Mapped[bool]
+
     answers: Mapped[list[Answer]] = relationship()
 
     # Do we need this?
     user: Mapped[models_users.CoreUser] = relationship(init=False)
+    category: Mapped["Category"] = relationship(init=False)
+    session: Mapped["EventSession"] = relationship(init=False)
