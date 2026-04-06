@@ -42,6 +42,13 @@ class SessionCreate(BaseModel):
     quota: int | None
 
 
+class SessionUpdate(BaseModel):
+    name: str | None = None
+    start_datetime: datetime | None = None
+    quota: int | None = None
+    disabled: bool | None = None
+
+
 class Category(BaseModel):
     id: UUID
     event_id: UUID
@@ -73,6 +80,14 @@ class CategoryCreate(BaseModel):
     price: int
     quota: int | None
     required_membership: UUID | None
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = None
+    price: int | None = None
+    quota: int | None = None
+    required_membership: UUID | None = None
+    disabled: bool | None = None
 
 
 class Question(BaseModel):
@@ -148,6 +163,13 @@ class EventCreate(BaseModel):
     sessions: list[SessionCreate]
     categories: list[CategoryCreate]
     questions: list[QuestionCreate]
+
+
+class EventUpdate(BaseModel):
+    name: str | None = None
+    quota: int | None = None
+    open_datetime: datetime | None = None
+    close_datetime: datetime | None = None
 
 
 class Ticket(BaseModel):

@@ -963,6 +963,197 @@ def test_create_event(client: TestClient):
     assert event["tickets_in_checkout"] == 0
 
 
+# update_event
+
+
+def test_update_event_non_existing_event(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Event",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_update_event_as_non_authorised_seller(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "name": "Updated Test Event",
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_update_event(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Event",
+        },
+    )
+    assert response.status_code == 204
+
+
+# update_session
+
+
+def test_update_session_with_non_existing_event(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{uuid.uuid4()}/sessions/{event_session.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_update_session_as_non_authorised_seller(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{event_session.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_update_session_with_non_existing_session(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Session not found"
+
+
+def test_update_session_with_existing_tickets(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{event_session.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot update session with checkouts or tickets"
+    )
+
+
+async def test_update_session(client: TestClient):
+    session_without_tickets = models_tickets.EventSession(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        name="Test Session without tickets",
+        start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        quota=None,
+        disabled=False,
+    )
+    await add_object_to_db(session_without_tickets)
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{session_without_tickets.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 204
+
+
+# update_category
+
+
+def test_update_category_with_non_existing_event(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{uuid.uuid4()}/categories/{event_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_update_category_as_non_authorised_seller(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_update_category_with_non_existing_category(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Category not found"
+
+
+def test_update_category_with_existing_tickets(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot update category with checkouts or tickets"
+    )
+
+
+async def test_update_category(client: TestClient):
+    category_without_tickets = models_tickets.Category(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        name="Test Category without tickets",
+        quota=None,
+        disabled=False,
+        price=1000,
+        required_membership=None,
+    )
+    await add_object_to_db(category_without_tickets)
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{category_without_tickets.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 204
+
+
 # get_event_tickets
 
 

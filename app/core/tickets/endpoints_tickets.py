@@ -430,24 +430,150 @@ async def create_event(
     )
 
 
-# router.patch(
-#     "/tickets/admin/events/{event_id}",
-#     response_model=schemas_tickets.EventComplete,
-#     status_code=204,
-# )
-# async def edit_event(
-#     event_id: UUID,
-#     event_edit: schemas_tickets.EventCreate,
-#     user: CoreUser = Depends(
-#         is_user(),
-#     ),
-#     db: AsyncSession = Depends(get_db),
-# ):
-#     """
-#     Edit one event for admin
-#     """
-#     # TODO: an open event should not be editable
-#     pass
+@router.patch(
+    "/tickets/admin/events/{event_id}",
+    status_code=204,
+)
+async def update_event(
+    event_id: UUID,
+    event_update: schemas_tickets.EventUpdate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edit one event for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    await cruds_tickets.update_event(
+        event_id=event_id,
+        event_update=event_update,
+        db=db,
+    )
+
+
+@router.patch(
+    "/tickets/admin/events/{event_id}/sessions/{session_id}",
+    status_code=204,
+)
+async def update_session(
+    event_id: UUID,
+    session_id: UUID,
+    session_update: schemas_tickets.SessionUpdate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edit one event for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    session = await cruds_tickets.get_session_by_id(session_id=session_id, db=db)
+    if session is None or session.event_id != event_id:
+        raise HTTPException(404, "Session not found")
+
+    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_session_id(
+        session_id=session_id,
+        db=db,
+    )
+    nb_tickets = await cruds_tickets.count_tickets_by_session_id(
+        session_id=session_id,
+        db=db,
+    )
+    if nb_checkouts + nb_tickets > 0:
+        raise HTTPException(
+            400,
+            "Cannot update session with checkouts or tickets",
+        )
+
+    await cruds_tickets.update_session(
+        session_id=session_id,
+        session_update=session_update,
+        db=db,
+    )
+
+
+@router.patch(
+    "/tickets/admin/events/{event_id}/categories/{category_id}",
+    status_code=204,
+)
+async def update_category(
+    event_id: UUID,
+    category_id: UUID,
+    category_update: schemas_tickets.CategoryUpdate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Edit one event for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    category = await cruds_tickets.get_category_by_id(category_id=category_id, db=db)
+    if category is None or category.event_id != event_id:
+        raise HTTPException(404, "Category not found")
+
+    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
+        category_id=category_id,
+        db=db,
+    )
+    nb_tickets = await cruds_tickets.count_tickets_by_category_id(
+        category_id=category_id,
+        db=db,
+    )
+    if nb_checkouts + nb_tickets > 0:
+        raise HTTPException(
+            400,
+            "Cannot update category with checkouts or tickets",
+        )
+
+    await cruds_tickets.update_category(
+        category_id=category_id,
+        category_update=category_update,
+        db=db,
+    )
 
 
 @router.get(

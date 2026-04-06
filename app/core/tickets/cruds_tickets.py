@@ -607,3 +607,39 @@ async def count_valid_checkouts_by_session_id(
     )
 
     return result.scalar() or 0
+
+
+async def update_event(
+    event_id: UUID,
+    event_update: schemas_tickets.EventUpdate,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.TicketEvent)
+        .where(models_tickets.TicketEvent.id == event_id)
+        .values(**event_update.dict(exclude_unset=True)),
+    )
+
+
+async def update_session(
+    session_id: UUID,
+    session_update: schemas_tickets.SessionUpdate,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.EventSession)
+        .where(models_tickets.EventSession.id == session_id)
+        .values(**session_update.dict(exclude_unset=True)),
+    )
+
+
+async def update_category(
+    category_id: UUID,
+    category_update: schemas_tickets.CategoryUpdate,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Category)
+        .where(models_tickets.Category.id == category_id)
+        .values(**category_update.dict(exclude_unset=True)),
+    )

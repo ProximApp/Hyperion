@@ -9,8 +9,6 @@ from app.core.tickets.types_tickets import AnswerType
 from app.core.users import models_users
 from app.types.sqlalchemy import Base, PrimaryKey
 
-# TODO: do we want to be able to disable sessions or prices?
-
 
 class TicketEvent(Base):
     __tablename__ = "tickets_event"
