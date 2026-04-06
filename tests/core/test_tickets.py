@@ -835,12 +835,19 @@ def test_create_checkout(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
         json={
             "category_id": str(event_category.id),
-            "session_id": str(event_sold_out_session.id),
-            "answers": [],
+            "session_id": str(event_session.id),
+            "answers": [
+                {
+                    "question_id": str(global_event_optionnal_question_id),
+                    "answer_type": "text",
+                    "answer": "Test Answer",
+                },
+            ],
         },
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Session is sold out"
+    assert response.status_code == 201
+    # Price of the event + price of the optionnal question
+    assert response.json()["price"] == 1000 + 100
 
 
 def test_get_user_tickets(client: TestClient):
