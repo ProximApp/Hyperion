@@ -23,10 +23,7 @@ from app.core.mypayment.integrity_mypayment import (
     format_transfer_log,
 )
 from app.core.mypayment.models_mypayment import UserPayment
-from app.core.mypayment.schemas_mypayment import (
-    QRCodeContentData,
-    RequestValidationData,
-)
+from app.core.mypayment.schemas_mypayment import SecuredContentData
 from app.core.mypayment.types_mypayment import (
     MyPaymentCallType,
     RequestStatus,
@@ -58,7 +55,7 @@ MYPAYMENT_LOGS_S3_SUBFOLDER = "logs"
 def verify_signature(
     public_key_bytes: bytes,
     signature: str,
-    data: QRCodeContentData | RequestValidationData,
+    data: SecuredContentData,
     wallet_device_id: UUID,
     request_id: str,
 ) -> bool:
@@ -69,9 +66,9 @@ def verify_signature(
         loaded_public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
         loaded_public_key.verify(
             base64.decodebytes(signature.encode("utf-8")),
-            data.model_dump_json(exclude={"signature", "bypass_membership"}).encode(
-                "utf-8",
-            ),
+            data.model_dump_json(
+                include=set(SecuredContentData.model_fields.keys()),
+            ).encode("utf-8"),
         )
     except InvalidSignature:
         hyperion_security_logger.info(
