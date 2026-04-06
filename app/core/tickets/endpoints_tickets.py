@@ -592,7 +592,7 @@ async def get_events_by_store(
     )
 
     return await utils_tickets.get_events_from_store(
-        store=store,
+        store_id=store_id,
         user_id=user.id,
         db=db,
     )
@@ -620,8 +620,11 @@ async def get_events_by_association(
         db=db,
     )
 
+    if store is None:
+        raise HTTPException(404, "Store not found")
+
     return await utils_tickets.get_events_from_store(
-        store=store,
+        store_id=store.id,
         user_id=user.id,
         db=db,
     )

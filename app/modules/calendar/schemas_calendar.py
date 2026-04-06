@@ -26,13 +26,19 @@ class EventBase(BaseModel):
 
 class EventBaseCreation(EventBase):
     ticket_url: str | None = None
+    ticket_event_id: UUID | None = None
 
     @model_validator(mode="after")
     def check_ticket(self):
+        # Si ticket_event_id est fourni, on ignore les validations sur ticket_url
+        if self.ticket_event_id:
+            return self
+
+        # Validation existante : ticket_url et ticket_url_opening doivent être fournis ensemble
         if (self.ticket_url_opening and not self.ticket_url) or (
             self.ticket_url and not self.ticket_url_opening
         ):
-            raise ValueError
+            raise ValueError("ticket_url and ticket_url_opening must be provided together")
 
         return self
 
@@ -45,6 +51,7 @@ class EventComplete(EventBase):
 
 class EventCompleteTicketUrl(EventComplete):
     ticket_url: str | None = None
+    ticket_event_id: UUID | None = None
 
 
 class EventTicketUrl(BaseModel):
@@ -61,6 +68,7 @@ class EventEdit(BaseModel):
     recurrence_rule: str | None = None
     ticket_url_opening: datetime | None = None
     ticket_url: str | None = None
+    ticket_event_id: UUID | None = None
     notification: bool | None = None
 
 

@@ -136,17 +136,17 @@ async def convert_to_event_admin(
 
 
 async def get_events_from_store(
-    store: schemas_tickets.Store | None,
+    store_id: UUID,
     user_id: str,
     db: AsyncSession,
 ):
     # TODO: maybe return an empty list
-    if store is None:
+    if store_id is None:
         raise HTTPException(400, "No seller associated with this association")
 
     if not await utils_mypayment.can_user_manage_events(
         user_id=user_id,
-        store_id=store.id,
+        store_id=store_id,
         db=db,
     ):
         raise HTTPException(
@@ -155,6 +155,6 @@ async def get_events_from_store(
         )
 
     return await cruds_tickets.get_events_by_store_id(
-        store_id=store.id,
+        store_id=store_id,
         db=db,
     )

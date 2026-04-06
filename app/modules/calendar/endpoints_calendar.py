@@ -24,6 +24,7 @@ from app.dependencies import (
     is_user_allowed_to,
     is_user_in_association,
 )
+from app.core.tickets import cruds_tickets
 from app.modules.calendar import (
     cruds_calendar,
     models_calendar,
@@ -323,6 +324,20 @@ async def add_event(
     if settings.school.require_event_confirmation:
         decision = Decision.pending
 
+    # Gérer le cas où ticket_event_id est fourni
+    ticket_url_opening = event.ticket_url_opening
+    ticket_url = event.ticket_url
+
+    if event.ticket_event_id:
+        # Récupérer le TicketEvent pour obtenir l'open_datetime
+        ticket_event = await cruds_tickets.get_event_simple_by_id(
+            event_id=event.ticket_event_id,
+            db=db,
+        )
+        if ticket_event is None:
+            raise HTTPException(status_code=404, detail="Ticket event not found")
+        ticket_url_opening = ticket_event.open_datetime
+
     db_event = models_calendar.Event(
         id=event_id,
         name=event.name,
@@ -335,8 +350,9 @@ async def add_event(
         description=event.description,
         decision=decision,
         recurrence_rule=event.recurrence_rule,
-        ticket_url=event.ticket_url,
-        ticket_url_opening=event.ticket_url_opening,
+        ticket_url=ticket_url,
+        ticket_url_opening=ticket_url_opening,
+        ticket_event_id=event.ticket_event_id,
         notification=event.notification,
     )
 
@@ -349,15 +365,21 @@ async def add_event(
         raise NewlyAddedObjectInDbNotFoundError("event")
 
     if decision == Decision.approved:
+        # Déterminer les valeurs pour la feed news
+        feed_module = "tickets" if event.ticket_event_id else utils_calendar.root
+        feed_module_object_id = event.ticket_event_id if event.ticket_event_id else event_id
+
         await utils_calendar.add_event_to_feed(
             event=created_event,
             db=db,
             notification_tool=notification_tool,
+            feed_module=feed_module,
+            feed_module_object_id=feed_module_object_id,
         )
         if event.notification:
             ticket_date = (
-                f", SG le {event.ticket_url_opening.strftime('%d/%m/%Y à %H:%M')}"
-                if event.ticket_url_opening
+                f", SG le {ticket_url_opening.strftime('%d/%m/%Y à %H:%M')}"
+                if ticket_url_opening
                 else ""
             )
             message = Message(
@@ -501,10 +523,16 @@ async def confirm_event(
     )
 
     if decision == Decision.approved:
+        # Déterminer les valeurs pour la feed news
+        feed_module = "tickets" if event.ticket_event_id else utils_calendar.root
+        feed_module_object_id = event.ticket_event_id if event.ticket_event_id else event.id
+
         await utils_calendar.add_event_to_feed(
             event=event,
             db=db,
             notification_tool=notification_tool,
+            feed_module=feed_module,
+            feed_module_object_id=feed_module_object_id,
         )
         if event.notification:
             association = await cruds_associations.get_association_by_id(
