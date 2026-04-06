@@ -160,7 +160,7 @@ async def get_event(
 @router.post(
     "/tickets/events/{event_id}/checkout",
     response_model=schemas_tickets.CheckoutResponse,
-    status_code=200,
+    status_code=201,
 )
 async def create_checkout(
     event_id: UUID,
@@ -274,6 +274,11 @@ async def create_checkout(
 
     if event.disabled:
         raise HTTPException(400, "Event is disabled")
+
+    if event.open_datetime > datetime.now(UTC):
+        raise HTTPException(400, "Event is not open yet")
+    if event.close_datetime is not None and event.close_datetime <= datetime.now(UTC):
+        raise HTTPException(400, "Event is closed")
 
     price += category.price
     expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)
