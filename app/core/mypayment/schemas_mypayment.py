@@ -172,31 +172,6 @@ class History(BaseModel):
     refund: HistoryRefund | None = None
 
 
-class QRCodeContentData(BaseModel):
-    """
-    Format of the data stored in the QR code.
-
-    This data will be signed using ed25519 and the private key of the WalletDevice that generated the QR Code.
-
-    id: Unique identifier of the QR Code
-    tot: Total amount of the transaction, in cents
-    iat: Generation datetime of the QR Code
-    key: Id of the WalletDevice that generated the QR Code, will be used to verify the signature
-    store: If the QR Code is intended to be scanned for a Store Wallet, or for an other user Wallet
-    """
-
-    id: UUID
-    tot: int
-    iat: datetime
-    key: UUID
-    store: bool
-
-
-class ScanInfo(QRCodeContentData):
-    signature: str
-    bypass_membership: bool = False
-
-
 class WalletBase(BaseModel):
     id: UUID
     type: WalletType
@@ -376,17 +351,6 @@ class RequestEdit(BaseModel):
     transaction_id: UUID | None = None
 
 
-class RequestValidationData(BaseModel):
-    request_id: UUID
-    key: UUID
-    iat: datetime
-    tot: int
-
-
-class RequestValidation(RequestValidationData):
-    signature: str
-
-
 class RequestInfo(BaseModel):
     user_id: str
     store_id: UUID
@@ -395,3 +359,31 @@ class RequestInfo(BaseModel):
     note: str | None
     module: str
     object_id: UUID
+
+
+class SecuredContentData(BaseModel):
+    """
+    Format of the data stored in the payment order.
+
+    This data will be signed using ed25519 and the private key of the WalletDevice that generated the payment order
+
+    id: Unique identifier of the payment
+    tot: Total amount of the transaction, in cents
+    iat: Generation datetime of the payment order
+    key: Id of the WalletDevice that generated the payment order, will be used to get the public key to verify the signature
+    store: If the payment is destined to a store
+    """
+
+    id: UUID
+    tot: int
+    iat: datetime
+    key: UUID
+    store: bool
+
+
+class SignedContent(SecuredContentData):
+    signature: str
+
+
+class ScanInfo(SignedContent):
+    bypass_membership: bool = False
