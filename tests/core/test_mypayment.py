@@ -13,7 +13,6 @@ from pytest_mock import MockerFixture
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import models_associations
-from app.core.checkout import schemas_checkout
 from app.core.groups import models_groups
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.memberships import models_memberships
@@ -362,22 +361,17 @@ async def init_objects() -> None:
         name="Test Store 2",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association2.id,
+        association_id=None,
     )
     await add_object_to_db(store2)
-    core_association3 = models_associations.CoreAssociation(
-        id=uuid4(),
-        name="core_association3",
-        group_id=core_association_group.id,
-    )
-    await add_object_to_db(core_association3)
+
     store3 = models_mypayment.Store(
         id=uuid4(),
         wallet_id=store3_wallet.id,
         name="Test Store 3",
         structure_id=structure2.id,
         creation=datetime.now(UTC),
-        association_id=core_association3.id,
+        association_id=None,
     )
     await add_object_to_db(store3)
 
