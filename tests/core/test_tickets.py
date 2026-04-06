@@ -1154,6 +1154,68 @@ async def test_update_category(client: TestClient):
     assert response.status_code == 204
 
 
+# update_question
+
+
+def test_update_question_with_non_existing_event(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{uuid.uuid4()}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_update_question_as_non_authorised_seller(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_update_question_with_non_existing_question(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Question not found"
+
+
+async def test_update_question(client: TestClient):
+    question_without_tickets = models_tickets.Question(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        question="Test Question without tickets",
+        answer_type=AnswerType.TEXT,
+        price=None,
+        required=False,
+        disabled=False,
+    )
+    await add_object_to_db(question_without_tickets)
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{question_without_tickets.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 204
+
+
 # get_event_tickets
 
 

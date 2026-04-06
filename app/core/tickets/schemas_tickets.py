@@ -115,6 +115,14 @@ class QuestionCreate(BaseModel):
     required: bool
 
 
+class QuestionUpdate(BaseModel):
+    question: str | None = None
+    answer_type: AnswerType | None = None
+    price: int | None = None
+    required: bool | None = None
+    disabled: bool | None = None
+
+
 class EventSimple(BaseModel):
     id: UUID
     name: str

@@ -209,6 +209,31 @@ async def acquire_event_lock_for_update(
     )
 
 
+async def get_question_by_id(
+    question_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.Question | None:
+    result = await db.execute(
+        select(models_tickets.Question).where(
+            models_tickets.Question.id == question_id,
+        ),
+    )
+
+    question = result.scalars().first()
+    if question is None:
+        return None
+
+    return schemas_tickets.Question(
+        id=question.id,
+        event_id=question.event_id,
+        question=question.question,
+        answer_type=question.answer_type,
+        price=question.price,
+        required=question.required,
+        disabled=question.disabled,
+    )
+
+
 async def get_questions_by_event_id(
     event_id: UUID,
     db: AsyncSession,
@@ -609,6 +634,19 @@ async def count_valid_checkouts_by_session_id(
     return result.scalar() or 0
 
 
+async def count_answers_by_question_id(
+    question_id: UUID,
+    db: AsyncSession,
+) -> int:
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Answer.question_id == question_id,
+        ),
+    )
+
+    return result.scalar() or 0
+
+
 async def update_event(
     event_id: UUID,
     event_update: schemas_tickets.EventUpdate,
@@ -617,7 +655,7 @@ async def update_event(
     await db.execute(
         update(models_tickets.TicketEvent)
         .where(models_tickets.TicketEvent.id == event_id)
-        .values(**event_update.dict(exclude_unset=True)),
+        .values(**event_update.model_dump(exclude_unset=True)),
     )
 
 
@@ -629,7 +667,7 @@ async def update_session(
     await db.execute(
         update(models_tickets.EventSession)
         .where(models_tickets.EventSession.id == session_id)
-        .values(**session_update.dict(exclude_unset=True)),
+        .values(**session_update.model_dump(exclude_unset=True)),
     )
 
 
@@ -641,5 +679,17 @@ async def update_category(
     await db.execute(
         update(models_tickets.Category)
         .where(models_tickets.Category.id == category_id)
-        .values(**category_update.dict(exclude_unset=True)),
+        .values(**category_update.model_dump(exclude_unset=True)),
+    )
+
+
+async def update_question(
+    question_id: UUID,
+    question_update: schemas_tickets.QuestionUpdate,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Question)
+        .where(models_tickets.Question.id == question_id)
+        .values(**question_update.model_dump(exclude_unset=True)),
     )
