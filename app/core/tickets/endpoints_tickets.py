@@ -14,6 +14,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.feed import schemas_feed, utils_feed
 from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, utils_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
@@ -22,11 +23,13 @@ from app.core.tickets.factory_tickets import TicketsFactory
 from app.core.users.models_users import CoreUser
 from app.dependencies import (
     get_db,
+    get_notification_tool,
     is_user,
     is_user_allowed_to,
 )
 from app.types.exceptions import ObjectExpectedInDbNotFoundError
 from app.types.module import CoreModule
+from app.utils.communication.notifications import NotificationTool
 
 router = APIRouter(tags=["Tickets"])
 
@@ -441,6 +444,7 @@ async def update_event(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    notification_tool: NotificationTool = Depends(get_notification_tool),
 ):
     """
     Edit one event for admin
@@ -457,6 +461,19 @@ async def update_event(
         raise HTTPException(
             status_code=403,
             detail="User is not authorized to manage store's events",
+        )
+
+    if event_update.open_datetime is not None:
+        # We want to update the datetime in the feed
+        await utils_feed.edit_feed_news(
+            module=core_module.root,
+            module_object_id=event.id,
+            news_edit=schemas_feed.NewsEdit(
+                action_start=event_update.open_datetime,
+            ),
+            require_feed_admin_approval=False,
+            db=db,
+            notification_tool=notification_tool,
         )
 
     await cruds_tickets.update_event(
