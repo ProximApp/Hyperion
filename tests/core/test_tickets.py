@@ -37,6 +37,9 @@ seller_can_manage_event_user_token: str
 global_event: models_tickets.TicketEvent
 event_session: models_tickets.EventSession
 event_category: models_tickets.Category
+event_disabled_category: models_tickets.Category
+event_disabled_session: models_tickets.EventSession
+
 event_sold_out_category: models_tickets.Category
 event_sold_out_session: models_tickets.EventSession
 global_event_optionnal_question_id: uuid.UUID
@@ -129,12 +132,7 @@ async def init_objects() -> None:
     )
     await add_object_to_db(seller)
 
-    global \
-        global_event, \
-        event_session, \
-        event_category, \
-        global_event_optionnal_question_id, \
-        global_event_disabled_question_id
+    global global_event, event_session, event_category
 
     ticket_event_id = uuid.uuid4()
     event_session = models_tickets.EventSession(
@@ -154,6 +152,27 @@ async def init_objects() -> None:
         price=1000,
         required_membership=None,
     )
+
+    global event_disabled_category, event_disabled_session
+    event_disabled_category = models_tickets.Category(
+        id=uuid.uuid4(),
+        event_id=ticket_event_id,
+        name="Test Disabled Category",
+        quota=None,
+        disabled=True,
+        price=1000,
+        required_membership=None,
+    )
+    event_disabled_session = models_tickets.EventSession(
+        id=uuid.uuid4(),
+        event_id=ticket_event_id,
+        name="Test Disabled Session",
+        start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        quota=None,
+        disabled=True,
+    )
+
+    global global_event_optionnal_question_id, global_event_disabled_question_id
     global_event_optionnal_question_id = uuid.uuid4()
     global_event_disabled_question_id = uuid.uuid4()
     global_event = models_tickets.TicketEvent(
@@ -164,8 +183,8 @@ async def init_objects() -> None:
         close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
         quota=10,
         disabled=False,
-        sessions=[event_session],
-        categories=[event_category],
+        sessions=[event_session, event_disabled_session],
+        categories=[event_category, event_disabled_category],
         questions=[
             models_tickets.Question(
                 id=global_event_optionnal_question_id,
@@ -336,6 +355,20 @@ def test_create_checkout_with_invalid_category(client: TestClient):
     assert response.json()["detail"] == "Category not found"
 
 
+def test_create_checkout_with_disabled_category(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_disabled_category.id),
+            "session_id": str(event_session.id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Category is disabled"
+
+
 def test_create_checkout_with_invalid_session(client: TestClient):
     response = client.post(
         f"/tickets/events/{sold_out_event.id}/checkout",
@@ -348,6 +381,167 @@ def test_create_checkout_with_invalid_session(client: TestClient):
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "Session not found"
+
+
+def test_create_checkout_with_disabled_session(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_disabled_session.id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Session is disabled"
+
+
+async def test_create_checkout_with_disabled_event(client: TestClient):
+    event_id = uuid.uuid4()
+    category_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    event = models_tickets.TicketEvent(
+        id=event_id,
+        store_id=store.id,
+        name="Test Disabled Event",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        quota=10,
+        disabled=True,
+        sessions=[
+            models_tickets.EventSession(
+                id=session_id,
+                event_id=event_id,
+                name="Test Session",
+                start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+                quota=None,
+                disabled=False,
+            ),
+        ],
+        categories=[
+            models_tickets.Category(
+                id=category_id,
+                event_id=event_id,
+                name="Test Category",
+                quota=None,
+                disabled=False,
+                price=1000,
+                required_membership=None,
+            ),
+        ],
+        questions=[],
+    )
+    await add_object_to_db(event)
+    response = client.post(
+        f"/tickets/events/{event_id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(category_id),
+            "session_id": str(session_id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Event is disabled"
+
+
+async def test_create_checkout_with_not_open_event(client: TestClient):
+    event_id = uuid.uuid4()
+    category_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    event = models_tickets.TicketEvent(
+        id=event_id,
+        store_id=store.id,
+        name="Test Disabled Event",
+        open_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=2),
+        quota=10,
+        disabled=False,
+        sessions=[
+            models_tickets.EventSession(
+                id=session_id,
+                event_id=event_id,
+                name="Test Session",
+                start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+                quota=None,
+                disabled=False,
+            ),
+        ],
+        categories=[
+            models_tickets.Category(
+                id=category_id,
+                event_id=event_id,
+                name="Test Category",
+                quota=None,
+                disabled=False,
+                price=1000,
+                required_membership=None,
+            ),
+        ],
+        questions=[],
+    )
+    await add_object_to_db(event)
+    response = client.post(
+        f"/tickets/events/{event_id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(category_id),
+            "session_id": str(session_id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Event is not open yet"
+
+
+async def test_create_checkout_with_closed_event(client: TestClient):
+    event_id = uuid.uuid4()
+    category_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    event = models_tickets.TicketEvent(
+        id=event_id,
+        store_id=store.id,
+        name="Test Disabled Event",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=2),
+        close_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        quota=10,
+        disabled=False,
+        sessions=[
+            models_tickets.EventSession(
+                id=session_id,
+                event_id=event_id,
+                name="Test Session",
+                start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+                quota=None,
+                disabled=False,
+            ),
+        ],
+        categories=[
+            models_tickets.Category(
+                id=category_id,
+                event_id=event_id,
+                name="Test Category",
+                quota=None,
+                disabled=False,
+                price=1000,
+                required_membership=None,
+            ),
+        ],
+        questions=[],
+    )
+    await add_object_to_db(event)
+    response = client.post(
+        f"/tickets/events/{event_id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(category_id),
+            "session_id": str(session_id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Event is closed"
 
 
 def test_create_checkout_with_category_from_another_event(client: TestClient):
