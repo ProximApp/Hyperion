@@ -904,7 +904,7 @@ def test_get_events_by_store(client: TestClient):
 async def test_get_events_by_association_with_no_store(client: TestClient):
     core_association = CoreAssociation(
         id=uuid.uuid4(),
-        name="Test Association",
+        name="Test Association No Store",
         group_id=GroupType.admin,
     )
     await add_object_to_db(core_association)
