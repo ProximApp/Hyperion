@@ -212,53 +212,11 @@ async def create_checkout(
                 "User does not have required membership to choose this category",
             )
 
-    price = 0
-
-    questions = await cruds_tickets.get_questions_by_event_id(
+    price = await utils_tickets.check_answer_validity_and_calculate_price(
         event_id=event_id,
+        checkout=checkout,
         db=db,
     )
-    questions_dict = {question.id: question for question in questions}
-    required_questions_ids = {
-        question.id for question in questions if question.required
-    }
-    answered_questions_ids = set()
-
-    for answer in checkout.answers:
-        if answer.question_id in answered_questions_ids:
-            raise HTTPException(
-                400,
-                f"Question with id {answer.question_id} is answered multiple times",
-            )
-        answered_questions_ids.add(answer.question_id)
-        required_questions_ids.discard(answer.question_id)
-
-        question = questions_dict.get(answer.question_id)
-        if question is None:
-            raise HTTPException(
-                400,
-                f"Question with id {answer.question_id} not found for this event",
-            )
-        if question.disabled:
-            raise HTTPException(
-                400,
-                f"Question with id {answer.question_id} is disabled",
-            )
-
-        if question.answer_type != answer.answer_type:
-            raise HTTPException(
-                400,
-                f"Answer type for question with id {answer.question_id} should be {question.answer_type.value}",
-            )
-
-        if question.price is not None:
-            price += question.price
-
-    if len(required_questions_ids) > 0:
-        raise HTTPException(
-            400,
-            f"Answers for questions {', '.join(str(q) for q in required_questions_ids)} are required",
-        )
 
     # By putting this lock:
     # - we unsure that if an other endpoint execution acquired the lock before, this one will wait.
