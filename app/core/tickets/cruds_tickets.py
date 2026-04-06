@@ -235,6 +235,7 @@ async def create_event(
         store_id=event.store_id,
         name=event.name,
         quota=event.quota,
+        disabled=False,
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         sessions=[
@@ -244,6 +245,7 @@ async def create_event(
                 name=session.name,
                 start_datetime=session.start_datetime,
                 quota=session.quota,
+                disabled=False,
             )
             for session in event.sessions
         ],
@@ -255,6 +257,7 @@ async def create_event(
                 quota=category.quota,
                 price=category.price,
                 required_membership=category.required_membership,
+                disabled=False,
             )
             for category in event.categories
         ],
@@ -352,7 +355,7 @@ async def create_checkout(
                 answer=answer.answer_value,
             )
             for answer in answers
-        ],  # TODO: add answers
+        ],
     )
     db.add(db_checkout)
 

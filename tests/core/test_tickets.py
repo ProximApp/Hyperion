@@ -143,12 +143,14 @@ async def init_objects() -> None:
         name="Test Session",
         start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         quota=None,
+        disabled=False,
     )
     event_category = models_tickets.Category(
         id=uuid.uuid4(),
         event_id=ticket_event_id,
         name="Test Category",
         quota=None,
+        disabled=False,
         price=1000,
         required_membership=None,
     )
@@ -161,6 +163,7 @@ async def init_objects() -> None:
         open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
         quota=10,
+        disabled=False,
         sessions=[event_session],
         categories=[event_category],
         questions=[
@@ -192,6 +195,7 @@ async def init_objects() -> None:
         event_id=global_event.id,
         name="Test global_event Sold Out Category",
         quota=1,
+        disabled=False,
         price=1000,
         required_membership=None,
     )
@@ -212,6 +216,7 @@ async def init_objects() -> None:
         name="Test global_event Sold Out Session",
         start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         quota=1,
+        disabled=False,
     )
     await add_object_to_db(event_sold_out_session)
     ticket_sold_out_session = models_tickets.Ticket(
@@ -237,12 +242,14 @@ async def init_objects() -> None:
         name="Test Session Sold Out",
         start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         quota=1,
+        disabled=False,
     )
     category_sold_out_event = models_tickets.Category(
         id=uuid.uuid4(),
         event_id=ticket_sold_out_event_id,
         name="Test Category Sold Out",
         quota=1,
+        disabled=False,
         price=1000,
         required_membership=None,
     )
@@ -253,6 +260,7 @@ async def init_objects() -> None:
         open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
         quota=1,
+        disabled=False,
         sessions=[session_sold_out_event],
         categories=[category_sold_out_event],
         questions=[],
@@ -423,6 +431,7 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
         open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
         quota=10,
+        disabled=False,
         sessions=[
             models_tickets.EventSession(
                 id=event_with_required_membership_session_id,
@@ -430,6 +439,7 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
                 name="Test Session",
                 start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
                 quota=None,
+                disabled=False,
             ),
         ],
         categories=[
@@ -438,6 +448,7 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
                 event_id=event_with_required_membership_id,
                 name="Test Category",
                 quota=None,
+                disabled=False,
                 price=1000,
                 required_membership=membership.id,
             ),
@@ -573,6 +584,7 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
         open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
         quota=10,
+        disabled=False,
         sessions=[
             models_tickets.EventSession(
                 id=event_with_required_question_session_id,
@@ -580,6 +592,7 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
                 name="Test Session",
                 start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
                 quota=None,
+                disabled=False,
             ),
         ],
         categories=[
@@ -588,6 +601,7 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
                 event_id=event_with_required_question_id,
                 name="Test Category",
                 quota=None,
+                disabled=False,
                 price=1000,
                 required_membership=None,
             ),

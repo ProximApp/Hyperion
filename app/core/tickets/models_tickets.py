@@ -26,6 +26,8 @@ class TicketEvent(Base):
     # Total number of tickets available, None means unlimited
     quota: Mapped[int | None]
 
+    disabled: Mapped[bool]
+
     store: Mapped[models_mypayment.Store] = relationship(init=False)
 
     sessions: Mapped[list["EventSession"]] = relationship(back_populates="event")
@@ -43,7 +45,9 @@ class EventSession(Base):
 
     start_datetime: Mapped[datetime]
 
-    quota: Mapped[int | None] = mapped_column(default=None)
+    quota: Mapped[int | None]
+
+    disabled: Mapped[bool]
 
     event: Mapped["TicketEvent"] = relationship(back_populates="sessions", init=False)
 
@@ -57,6 +61,8 @@ class Category(Base):
     name: Mapped[str]
 
     quota: Mapped[int | None]
+
+    disabled: Mapped[bool]
 
     price: Mapped[int]  # in cents
     required_membership: Mapped[UUID | None] = mapped_column(
