@@ -15,6 +15,7 @@ class Session(BaseModel):
     event_id: UUID
     name: str
     start_datetime: datetime
+    disabled: bool
 
 
 class SessionComplete(Session):
@@ -47,6 +48,7 @@ class Category(BaseModel):
     name: str
     price: int
     required_membership: UUID | None
+    disabled: bool
 
 
 class CategoryComplete(Category):
@@ -106,6 +108,8 @@ class EventSimple(BaseModel):
 
     open_datetime: datetime
     close_datetime: datetime | None
+
+    disabled: bool
 
 
 class EventWithoutSessionsAndCategories(EventSimple):

@@ -95,6 +95,7 @@ async def convert_to_event_admin(
                 name=session.name,
                 start_datetime=session.start_datetime,
                 quota=session.quota,
+                disabled=session.disabled,
                 tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
                     event_id=event.id,
                     db=db,
@@ -114,6 +115,7 @@ async def convert_to_event_admin(
                 price=category.price,
                 required_membership=category.required_membership,
                 quota=category.quota,
+                disabled=category.disabled,
                 tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_category_id(
                     category_id=category.id,
                     db=db,
@@ -138,6 +140,7 @@ async def convert_to_event_admin(
             for question in event.questions
         ],
         quota=event.quota,
+        disabled=event.disabled,
         tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
             event_id=event.id,
             db=db,

@@ -62,9 +62,11 @@ async def get_open_events(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Return all open events
+    Return all open events.
+
+    To be considered open, an event should have its opening date in the past and its closing date in the future or not defined. Moreover, we only return enabled events.
     """
-    return await cruds_tickets.get_open_events(db=db)
+    return await cruds_tickets.get_open_and_enabled_events(db=db)
 
 
 @router.get(
@@ -83,11 +85,17 @@ async def get_event(
 ):
     """
     Get an event public details
+
+    Only enabled sessions and categories are returned
     """
     event = await cruds_tickets.get_event_complete_by_id(event_id=event_id, db=db)
 
     if event is None:
         raise HTTPException(404, "Event not found")
+
+    # TODO: do we return disabled events?
+    if event.disabled:
+        raise HTTPException(400, "Event is disabled")
 
     return schemas_tickets.EventPublic(
         id=event.id,
@@ -104,8 +112,10 @@ async def get_event(
                     quota=session.quota,
                     db=db,
                 ),
+                disabled=session.disabled,
             )
             for session in event.sessions
+            if not session.disabled
         ],
         categories=[
             schemas_tickets.CategoryPublic(
@@ -119,8 +129,10 @@ async def get_event(
                     quota=category.quota,
                     db=db,
                 ),
+                disabled=category.disabled,
             )
             for category in event.categories
+            if not category.disabled
         ],
         questions=[
             schemas_tickets.QuestionPublic(
@@ -141,6 +153,7 @@ async def get_event(
         ),
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
+        disabled=event.disabled,
     )
 
 
@@ -168,12 +181,16 @@ async def create_checkout(
     )
     if category is None:
         raise HTTPException(404, "Category not found")
+    if category.disabled:
+        raise HTTPException(400, "Category is disabled")
     session = await cruds_tickets.get_session_by_id(
         session_id=checkout.session_id,
         db=db,
     )
     if session is None:
         raise HTTPException(404, "Session not found")
+    if session.disabled:
+        raise HTTPException(400, "Session is disabled")
 
     if category.event_id != event_id:
         raise HTTPException(400, "Category does not belong to the event")
@@ -254,6 +271,9 @@ async def create_checkout(
             object_name="Event",
             object_id=event_id,
         )
+
+    if event.disabled:
+        raise HTTPException(400, "Event is disabled")
 
     price += category.price
     expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)

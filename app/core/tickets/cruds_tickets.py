@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, update
+from sqlalchemy import func, not_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
@@ -12,7 +12,7 @@ from app.core.tickets import models_tickets, schemas_tickets
 from app.core.users import schemas_users
 
 
-async def get_open_events(
+async def get_open_and_enabled_events(
     db: AsyncSession,
 ) -> Sequence[schemas_tickets.EventSimple]:
     """Return all open events from database"""
@@ -26,6 +26,7 @@ async def get_open_events(
                 models_tickets.TicketEvent.close_datetime.is_(None),
                 models_tickets.TicketEvent.close_datetime > time,
             ),
+            not_(models_tickets.TicketEvent.disabled),
         ),
     )
     return [
@@ -35,6 +36,7 @@ async def get_open_events(
             store_id=association.store_id,
             open_datetime=association.open_datetime,
             close_datetime=association.close_datetime,
+            disabled=association.disabled,
         )
         for association in result.scalars().all()
     ]
@@ -58,6 +60,7 @@ async def get_events_by_store_id(
             store_id=association.store_id,
             open_datetime=association.open_datetime,
             close_datetime=association.close_datetime,
+            disabled=association.disabled,
         )
         for association in result.scalars().all()
     ]
@@ -95,6 +98,7 @@ async def get_event_complete_by_id(
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         quota=event.quota,
+        disabled=event.disabled,
         store_id=event.store_id,
         sessions=[
             schemas_tickets.SessionComplete(
@@ -103,6 +107,7 @@ async def get_event_complete_by_id(
                 start_datetime=session.start_datetime,
                 event_id=session.event_id,
                 quota=session.quota,
+                disabled=session.disabled,
             )
             for session in event.sessions
         ],
@@ -114,6 +119,7 @@ async def get_event_complete_by_id(
                 required_membership=category.required_membership,
                 event_id=category.event_id,
                 quota=category.quota,
+                disabled=category.disabled,
             )
             for category in event.categories
         ],
@@ -158,6 +164,7 @@ async def get_event_simple_by_id(
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         store_id=event.store_id,
+        disabled=event.disabled,
     )
 
 
@@ -197,6 +204,7 @@ async def acquire_event_lock_for_update(
         open_datetime=event.open_datetime,
         close_datetime=event.close_datetime,
         quota=event.quota,
+        disabled=event.disabled,
         store_id=event.store_id,
     )
 
@@ -300,6 +308,7 @@ async def get_category_by_id(
         required_membership=category.required_membership,
         event_id=category.event_id,
         quota=category.quota,
+        disabled=category.disabled,
     )
 
 
@@ -325,6 +334,7 @@ async def get_session_by_id(
         start_datetime=session.start_datetime,
         event_id=session.event_id,
         quota=session.quota,
+        disabled=session.disabled,
     )
 
 
@@ -385,12 +395,14 @@ async def get_tickets_by_user_id(
                 price=ticket.category.price,
                 required_membership=ticket.category.required_membership,
                 event_id=ticket.category.event_id,
+                disabled=ticket.category.disabled,
             ),
             session=schemas_tickets.Session(
                 id=ticket.session.id,
                 name=ticket.session.name,
                 start_datetime=ticket.session.start_datetime,
                 event_id=ticket.session.event_id,
+                disabled=ticket.session.disabled,
             ),
             user_id=ticket.user_id,
             user=schemas_users.CoreUserSimple(
@@ -432,12 +444,14 @@ async def get_tickets_by_event_id(
                 price=ticket.category.price,
                 required_membership=ticket.category.required_membership,
                 event_id=ticket.category.event_id,
+                disabled=ticket.category.disabled,
             ),
             session=schemas_tickets.Session(
                 id=ticket.session.id,
                 name=ticket.session.name,
                 start_datetime=ticket.session.start_datetime,
                 event_id=ticket.session.event_id,
+                disabled=ticket.session.disabled,
             ),
             user_id=ticket.user_id,
             user=schemas_users.CoreUserSimple(
@@ -482,12 +496,14 @@ async def get_ticket_by_id(
             price=ticket.category.price,
             required_membership=ticket.category.required_membership,
             event_id=ticket.category.event_id,
+            disabled=ticket.category.disabled,
         ),
         session=schemas_tickets.Session(
             id=ticket.session.id,
             name=ticket.session.name,
             start_datetime=ticket.session.start_datetime,
             event_id=ticket.session.event_id,
+            disabled=ticket.session.disabled,
         ),
         user_id=ticket.user_id,
         user=schemas_users.CoreUserSimple(
