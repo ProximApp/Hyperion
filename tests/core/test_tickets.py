@@ -8,6 +8,7 @@ from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
+from app.core.mypayment.types_mypayment import WalletType
 from app.core.tickets import models_tickets
 from app.core.tickets.endpoints_tickets import TicketsPermissions
 from app.core.tickets.types_tickets import AnswerType
@@ -92,7 +93,7 @@ async def init_objects() -> None:
     await add_object_to_db(structure)
     wallet = models_mypayment.Wallet(
         id=uuid.uuid4(),
-        type=models_mypayment.WalletType.STORE,
+        type=WalletType.STORE,
         balance=0,
     )
     await add_object_to_db(wallet)
@@ -879,6 +880,15 @@ def test_scan_ticket(client: TestClient):
 # get_events_by_store
 
 
+def test_get_events_by_store_with_invalid_store_id(client: TestClient):
+    response = client.get(
+        f"/tickets/admin/store/{uuid.uuid4()}/events",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Store not found"
+
+
 def test_get_events_by_store(client: TestClient):
     response = client.get(
         f"/tickets/admin/store/{store.id}/events",
@@ -889,6 +899,21 @@ def test_get_events_by_store(client: TestClient):
 
 
 # get_events_by_association
+
+
+async def test_get_events_by_association_with_no_store(client: TestClient):
+    core_association = CoreAssociation(
+        id=uuid.uuid4(),
+        name="Test Association",
+        group_id=GroupType.admin,
+    )
+    await add_object_to_db(core_association)
+    response = client.get(
+        f"/tickets/admin/association/{core_association.id}/events",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No store associated with this association"
 
 
 def test_get_events_by_association_as_non_authorised_seller(client: TestClient):
