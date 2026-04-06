@@ -10,6 +10,7 @@ from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
 from app.core.tickets import models_tickets
 from app.core.tickets.endpoints_tickets import TicketsPermissions
+from app.core.tickets.types_tickets import AnswerType
 from app.core.users import models_users
 from tests.commons import (
     add_object_to_db,
@@ -37,6 +38,9 @@ event_session: models_tickets.EventSession
 event_category: models_tickets.Category
 event_sold_out_category: models_tickets.Category
 event_sold_out_session: models_tickets.EventSession
+global_event_optionnal_question_id: uuid.UUID
+global_event_disabled_question_id: uuid.UUID
+
 
 sold_out_event: models_tickets.TicketEvent
 session_sold_out_event: models_tickets.EventSession
@@ -124,7 +128,13 @@ async def init_objects() -> None:
     )
     await add_object_to_db(seller)
 
-    global global_event, event_session, event_category
+    global \
+        global_event, \
+        event_session, \
+        event_category, \
+        global_event_optionnal_question_id, \
+        global_event_disabled_question_id
+
     ticket_event_id = uuid.uuid4()
     event_session = models_tickets.EventSession(
         id=uuid.uuid4(),
@@ -141,6 +151,8 @@ async def init_objects() -> None:
         price=1000,
         required_membership=None,
     )
+    global_event_optionnal_question_id = uuid.uuid4()
+    global_event_disabled_question_id = uuid.uuid4()
     global_event = models_tickets.TicketEvent(
         id=uuid.uuid4(),
         store_id=store.id,
@@ -150,6 +162,26 @@ async def init_objects() -> None:
         quota=10,
         sessions=[event_session],
         categories=[event_category],
+        questions=[
+            models_tickets.Question(
+                id=global_event_optionnal_question_id,
+                event_id=ticket_event_id,
+                question="Test Question",
+                required=False,
+                answer_type=AnswerType.TEXT,
+                price=100,
+                disabled=False,
+            ),
+            models_tickets.Question(
+                id=global_event_disabled_question_id,
+                event_id=ticket_event_id,
+                question="Test Disabled Question",
+                required=False,
+                answer_type=AnswerType.TEXT,
+                price=100,
+                disabled=True,
+            ),
+        ],
     )
     await add_object_to_db(global_event)
 
@@ -222,6 +254,7 @@ async def init_objects() -> None:
         quota=1,
         sessions=[session_sold_out_event],
         categories=[category_sold_out_event],
+        questions=[],
     )
     await add_object_to_db(sold_out_event)
     user = await create_user_with_groups(groups=[])
@@ -287,6 +320,7 @@ def test_create_checkout_with_invalid_category(client: TestClient):
         json={
             "category_id": str(uuid.uuid4()),
             "session_id": str(session_sold_out_event.id),
+            "answers": [],
         },
     )
     assert response.status_code == 404
@@ -300,6 +334,7 @@ def test_create_checkout_with_invalid_session(client: TestClient):
         json={
             "category_id": str(category_sold_out_event.id),
             "session_id": str(uuid.uuid4()),
+            "answers": [],
         },
     )
     assert response.status_code == 404
@@ -313,6 +348,7 @@ def test_create_checkout_with_category_from_another_event(client: TestClient):
         json={
             "category_id": str(event_category.id),
             "session_id": str(session_sold_out_event.id),
+            "answers": [],
         },
     )
     assert response.status_code == 400
@@ -326,13 +362,11 @@ def test_create_checkout_with_session_from_another_event(client: TestClient):
         json={
             "category_id": str(category_sold_out_event.id),
             "session_id": str(event_session.id),
+            "answers": [],
         },
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Session does not belong to the event"
-
-
-# TODO: test required membership
 
 
 def test_create_checkout_with_sold_out_event(client: TestClient):
@@ -342,6 +376,7 @@ def test_create_checkout_with_sold_out_event(client: TestClient):
         json={
             "category_id": str(category_sold_out_event.id),
             "session_id": str(session_sold_out_event.id),
+            "answers": [],
         },
     )
     assert response.status_code == 400
@@ -355,6 +390,7 @@ def test_create_checkout_with_sold_out_category(client: TestClient):
         json={
             "category_id": str(event_sold_out_category.id),
             "session_id": str(event_session.id),
+            "answers": [],
         },
     )
     assert response.status_code == 400
@@ -368,6 +404,230 @@ def test_create_checkout_with_sold_out_session(client: TestClient):
         json={
             "category_id": str(event_category.id),
             "session_id": str(event_sold_out_session.id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Session is sold out"
+
+
+async def test_create_checkout_with_missing_membership(client: TestClient):
+    event_with_required_membership_session_id = uuid.uuid4()
+    event_with_required_membership_category_id = uuid.uuid4()
+    event_with_required_membership_id = uuid.uuid4()
+    event_with_required_membership = models_tickets.TicketEvent(
+        id=event_with_required_membership_id,
+        store_id=store.id,
+        name="Test Event with Required Membership",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        quota=10,
+        sessions=[
+            models_tickets.EventSession(
+                id=event_with_required_membership_session_id,
+                event_id=event_with_required_membership_id,
+                name="Test Session",
+                start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+                quota=None,
+            ),
+        ],
+        categories=[
+            models_tickets.Category(
+                id=event_with_required_membership_category_id,
+                event_id=event_with_required_membership_id,
+                name="Test Category",
+                quota=None,
+                price=1000,
+                required_membership=membership.id,
+            ),
+        ],
+        questions=[],
+    )
+    await add_object_to_db(event_with_required_membership)
+    response = client.post(
+        f"/tickets/events/{event_with_required_membership_id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_with_required_membership_category_id),
+            "session_id": str(event_with_required_membership_session_id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "User does not have required membership to choose this category"
+    )
+
+
+def test_create_checkout_with_answer_present_multiple_times(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_sold_out_session.id),
+            "answers": [
+                {
+                    "question_id": str(global_event_optionnal_question_id),
+                    "answer_type": "text",
+                    "answer": "Test Answer",
+                },
+                {
+                    "question_id": str(global_event_optionnal_question_id),
+                    "answer_type": "text",
+                    "answer": "Test Answer 2",
+                },
+            ],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == f"Question with id {global_event_optionnal_question_id} is answered multiple times"
+    )
+
+
+def test_create_checkout_with_invalid_question_id(client: TestClient):
+    invalid_id = uuid.uuid4()
+
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_sold_out_session.id),
+            "answers": [
+                {
+                    "question_id": str(invalid_id),
+                    "answer_type": "text",
+                    "answer": "Test Answer",
+                },
+            ],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == f"Question with id {invalid_id} not found for this event"
+    )
+
+
+def test_create_checkout_with_disabled_question(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_sold_out_session.id),
+            "answers": [
+                {
+                    "question_id": str(global_event_disabled_question_id),
+                    "answer_type": "text",
+                    "answer": "Test Answer",
+                },
+            ],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == f"Question with id {global_event_disabled_question_id} is disabled"
+    )
+
+
+def test_create_checkout_with_invalid_answer_type(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_sold_out_session.id),
+            "answers": [
+                {
+                    "question_id": str(global_event_optionnal_question_id),
+                    "answer_type": "number",
+                    "answer": 3,
+                },
+            ],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == f"Answer type for question with id {global_event_optionnal_question_id} should be text"
+    )
+
+
+async def test_create_checkout_with_missing_required_question(client: TestClient):
+    event_with_required_question_session_id = uuid.uuid4()
+    event_with_required_question_category_id = uuid.uuid4()
+    event_with_required_question_id = uuid.uuid4()
+    question_id = uuid.uuid4()
+
+    event_with_required_question = models_tickets.TicketEvent(
+        id=event_with_required_question_id,
+        store_id=store.id,
+        name="Test Event with Required question",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        quota=10,
+        sessions=[
+            models_tickets.EventSession(
+                id=event_with_required_question_session_id,
+                event_id=event_with_required_question_id,
+                name="Test Session",
+                start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+                quota=None,
+            ),
+        ],
+        categories=[
+            models_tickets.Category(
+                id=event_with_required_question_category_id,
+                event_id=event_with_required_question_id,
+                name="Test Category",
+                quota=None,
+                price=1000,
+                required_membership=None,
+            ),
+        ],
+        questions=[
+            models_tickets.Question(
+                id=question_id,
+                event_id=event_with_required_question_id,
+                question="Test Question",
+                answer_type=AnswerType.TEXT,
+                price=None,
+                required=True,
+                disabled=False,
+            ),
+        ],
+    )
+    await add_object_to_db(event_with_required_question)
+
+    response = client.post(
+        f"/tickets/events/{event_with_required_question_id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_with_required_question_category_id),
+            "session_id": str(event_with_required_question_session_id),
+            "answers": [],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == f"Answers for questions {question_id} are required"
+    )
+
+
+def test_create_checkout(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(event_category.id),
+            "session_id": str(event_sold_out_session.id),
+            "answers": [],
         },
     )
     assert response.status_code == 400
@@ -433,6 +693,7 @@ def test_create_event_as_non_authorised_seller(client: TestClient):
             "quota": 10,
             "sessions": [],
             "categories": [],
+            "questions": [],
         },
     )
     assert response.status_code == 403
@@ -464,6 +725,15 @@ def test_create_event(client: TestClient):
                     "price": 1000,
                     "quota": 10,
                     "required_membership": None,
+                },
+            ],
+            "questions": [
+                {
+                    "id": str(global_event_optionnal_question_id),
+                    "question": "Test Question",
+                    "required": False,
+                    "answer_type": "text",
+                    "price": 1000,
                 },
             ],
         },

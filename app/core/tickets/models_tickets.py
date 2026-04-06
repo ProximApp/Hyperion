@@ -5,6 +5,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.mypayment import models_mypayment
+from app.core.tickets.types_tickets import AnswerType
 from app.core.users import models_users
 from app.types.sqlalchemy import Base, PrimaryKey
 
@@ -29,6 +30,7 @@ class TicketEvent(Base):
 
     sessions: Mapped[list["EventSession"]] = relationship(back_populates="event")
     categories: Mapped[list["Category"]] = relationship(back_populates="event")
+    questions: Mapped[list["Question"]] = relationship()
 
 
 class EventSession(Base):
@@ -62,6 +64,32 @@ class Category(Base):
     )
 
     event: Mapped["TicketEvent"] = relationship(back_populates="categories", init=False)
+
+
+class Question(Base):
+    __tablename__ = "tickets_question"
+
+    id: Mapped[PrimaryKey]
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
+
+    question: Mapped[str]
+    answer_type: Mapped[AnswerType]
+    price: Mapped[int | None]  # in cents
+
+    required: Mapped[bool]
+
+    disabled: Mapped[bool]
+
+
+class Answer(Base):
+    __tablename__ = "tickets_answer"
+
+    id: Mapped[PrimaryKey]
+
+    question_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_question.id"))
+    checkout_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_checkout.id"))
+
+    answer: Mapped[str]
 
 
 class Ticket(Base):
@@ -98,6 +126,8 @@ class Checkout(Base):
     expiration: Mapped[datetime]
 
     user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"))
+
+    answers: Mapped[list[Answer]] = relationship()
 
     # Do we need this?
     user: Mapped[models_users.CoreUser] = relationship(init=False)

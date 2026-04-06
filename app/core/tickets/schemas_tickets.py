@@ -1,11 +1,15 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
+from fastapi.encoders import jsonable_encoder
 from pydantic import (
     BaseModel,
 )
 
+from app.core.tickets.types_tickets import AnswerType
 from app.core.users import schemas_users
+from app.types.sqlalchemy import Base
 
 
 class Session(BaseModel):
@@ -71,6 +75,31 @@ class CategoryCreate(BaseModel):
     required_membership: UUID | None
 
 
+class Question(BaseModel):
+    id: UUID
+    event_id: UUID
+    question: str
+    answer_type: AnswerType
+    price: int | None
+    required: bool
+    disabled: bool
+
+
+class QuestionPublic(Question):
+    pass
+
+
+class QuestionAdmin(Question):
+    pass
+
+
+class QuestionCreate(BaseModel):
+    question: str
+    answer_type: AnswerType
+    price: int | None
+    required: bool
+
+
 class EventSimple(BaseModel):
     id: UUID
     name: str
@@ -88,11 +117,13 @@ class EventWithoutSessionsAndCategories(EventSimple):
 class EventComplete(EventWithoutSessionsAndCategories):
     sessions: list[SessionComplete]
     categories: list[CategoryComplete]
+    questions: list[Question]
 
 
 class EventPublic(EventSimple):
     sessions: list[SessionPublic]
     categories: list[CategoryPublic]
+    questions: list[QuestionPublic]
 
     sold_out: bool
 
@@ -100,6 +131,7 @@ class EventPublic(EventSimple):
 class EventAdmin(EventWithoutSessionsAndCategories):
     sessions: list[SessionAdmin]
     categories: list[CategoryAdmin]
+    questions: list[QuestionAdmin]
 
     tickets_in_checkout: int
     tickets_sold: int
@@ -113,6 +145,7 @@ class EventCreate(BaseModel):
     close_datetime: datetime | None
     sessions: list[SessionCreate]
     categories: list[CategoryCreate]
+    questions: list[QuestionCreate]
 
 
 class Ticket(BaseModel):
@@ -131,9 +164,35 @@ class Ticket(BaseModel):
     user: schemas_users.CoreUserSimple
 
 
+class Answer(BaseModel):
+    question_id: UUID
+    answer_type: AnswerType
+    answer: str | int | bool
+
+    @property
+    def answer_value(self) -> str:
+        return str(self.answer)
+
+
+class AnswerText(BaseModel):
+    answer_type: Literal[AnswerType.TEXT]
+    answer: str
+
+
+class AnswerNumber(BaseModel):
+    answer_type: Literal[AnswerType.NUMBER]
+    answer: int
+
+
+class AnswerBoolean(BaseModel):
+    answer_type: Literal[AnswerType.BOOLEAN]
+    answer: bool
+
+
 class Checkout(BaseModel):
     category_id: UUID
     session_id: UUID
+    answers: list[Answer]
 
 
 class CheckoutResponse(BaseModel):

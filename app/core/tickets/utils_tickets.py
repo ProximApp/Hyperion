@@ -123,6 +123,18 @@ async def convert_to_event_admin(
             )
             for category in event.categories
         ],
+        questions=[
+            schemas_tickets.QuestionAdmin(
+                id=question.id,
+                event_id=question.event_id,
+                question=question.question,
+                answer_type=question.answer_type,
+                price=question.price,
+                required=question.required,
+                disabled=question.disabled,
+            )
+            for question in event.questions
+        ],
         quota=event.quota,
         tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
             event_id=event.id,

@@ -81,6 +81,7 @@ async def get_event_complete_by_id(
         .options(
             selectinload(models_tickets.TicketEvent.sessions),
             selectinload(models_tickets.TicketEvent.categories),
+            selectinload(models_tickets.TicketEvent.questions),
         ),
     )
 
@@ -115,6 +116,18 @@ async def get_event_complete_by_id(
                 quota=category.quota,
             )
             for category in event.categories
+        ],
+        questions=[
+            schemas_tickets.Question(
+                id=question.id,
+                event_id=question.event_id,
+                question=question.question,
+                answer_type=question.answer_type,
+                price=question.price,
+                required=question.required,
+                disabled=question.disabled,
+            )
+            for question in event.questions
         ],
     )
 
@@ -188,6 +201,30 @@ async def acquire_event_lock_for_update(
     )
 
 
+async def get_questions_by_event_id(
+    event_id: UUID,
+    db: AsyncSession,
+) -> Sequence[schemas_tickets.Question]:
+    result = await db.execute(
+        select(models_tickets.Question).where(
+            models_tickets.Question.event_id == event_id,
+        ),
+    )
+
+    return [
+        schemas_tickets.Question(
+            id=question.id,
+            event_id=question.event_id,
+            question=question.question,
+            answer_type=question.answer_type,
+            price=question.price,
+            required=question.required,
+            disabled=question.disabled,
+        )
+        for question in result.scalars().all()
+    ]
+
+
 async def create_event(
     event_id: UUID,
     event: schemas_tickets.EventCreate,
@@ -220,6 +257,18 @@ async def create_event(
                 required_membership=category.required_membership,
             )
             for category in event.categories
+        ],
+        questions=[
+            models_tickets.Question(
+                id=uuid.uuid4(),
+                event_id=event_id,
+                question=question.question,
+                answer_type=question.answer_type,
+                price=question.price,
+                required=question.required,
+                disabled=False,
+            )
+            for question in event.questions
         ],
     )
     db.add(db_event)
@@ -284,6 +333,7 @@ async def create_checkout(
     session_id: UUID,
     price: int,
     expiration: datetime,
+    answers: list[schemas_tickets.Answer],
     db: AsyncSession,
 ):
     db_checkout = models_tickets.Checkout(
@@ -294,6 +344,15 @@ async def create_checkout(
         session_id=session_id,
         price=price,
         expiration=expiration,
+        answers=[
+            models_tickets.Answer(
+                id=uuid.uuid4(),
+                question_id=answer.question_id,
+                checkout_id=checkout_id,
+                answer=answer.answer_value,
+            )
+            for answer in answers
+        ],  # TODO: add answers
     )
     db.add(db_checkout)
 
