@@ -58,6 +58,7 @@ from app.core.mypayment.types_mypayment import (
     WalletType,
 )
 from app.core.mypayment.utils.data_exporter import generate_store_history_csv
+from app.core.mypayment.utils.models_converter import structure_model_to_schema
 from app.core.mypayment.utils_mypayment import (
     LATEST_TOS,
     MYPAYMENT_DEVICES_S3_SUBFOLDER,
@@ -72,7 +73,6 @@ from app.core.mypayment.utils_mypayment import (
     apply_transaction,
     call_mypayment_callback,
     is_user_latest_tos_signed,
-    structure_model_to_schema,
     validate_transfer_callback,
     verify_signature,
 )
@@ -2760,6 +2760,11 @@ async def accept_request(
             status_code=404,
             detail="Request does not exist",
         )
+    if request.total != request_validation.tot:
+        raise HTTPException(
+            status_code=400,
+            detail="Request total in the body do not match the request total in the database",
+        )
 
     user_payment = await cruds_mypayment.get_user_payment(
         user_id=user.id,
@@ -3399,7 +3404,7 @@ async def delete_structure_invoice(
     response_model=schemas_mypayment.IntegrityCheckData,
 )
 async def get_data_for_integrity_check(
-    headers: schemas_mypayment.IntegrityCheckHeaders = Header(),
+    headers: schemas_mypayment.IntegrityCheckHeaders = Header(...),
     query_params: schemas_mypayment.IntegrityCheckQuery = Query(),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
@@ -3416,7 +3421,7 @@ async def get_data_for_integrity_check(
     """
     if settings.MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN is None:
         raise HTTPException(
-            status_code=301,
+            status_code=401,
             detail="MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN is not set in the settings",
         )
 
