@@ -19,8 +19,6 @@ from app.core.mypayment import cruds_mypayment, utils_mypayment
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
-from app.core.tickets.models_tickets import Answer
-from app.core.tickets.types_tickets import AnswerType
 from app.core.users.models_users import CoreUser
 from app.dependencies import (
     get_db,

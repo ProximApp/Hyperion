@@ -12,6 +12,7 @@ from app.core.groups.groups_type import AccountType
 from app.core.notification.schemas_notification import Message
 from app.core.notification.utils_notification import get_topic_by_root_and_identifier
 from app.core.permissions.type_permissions import ModulePermissions
+from app.core.tickets import cruds_tickets
 from app.core.users import models_users
 from app.core.utils.config import Settings
 from app.core.utils.security import generate_token
@@ -24,7 +25,6 @@ from app.dependencies import (
     is_user_allowed_to,
     is_user_in_association,
 )
-from app.core.tickets import cruds_tickets
 from app.modules.calendar import (
     cruds_calendar,
     models_calendar,
@@ -324,12 +324,11 @@ async def add_event(
     if settings.school.require_event_confirmation:
         decision = Decision.pending
 
-    # Gérer le cas où ticket_event_id est fourni
     ticket_url_opening = event.ticket_url_opening
     ticket_url = event.ticket_url
 
+    # A TicketEvent id can be provided for this CalendarEvent
     if event.ticket_event_id:
-        # Récupérer le TicketEvent pour obtenir l'open_datetime
         ticket_event = await cruds_tickets.get_event_simple_by_id(
             event_id=event.ticket_event_id,
             db=db,
@@ -365,9 +364,10 @@ async def add_event(
         raise NewlyAddedObjectInDbNotFoundError("event")
 
     if decision == Decision.approved:
-        # Déterminer les valeurs pour la feed news
         feed_module = "tickets" if event.ticket_event_id else utils_calendar.root
-        feed_module_object_id = event.ticket_event_id if event.ticket_event_id else event_id
+        feed_module_object_id = (
+            event.ticket_event_id if event.ticket_event_id else event_id
+        )
 
         await utils_calendar.add_event_to_feed(
             event=created_event,
@@ -523,9 +523,10 @@ async def confirm_event(
     )
 
     if decision == Decision.approved:
-        # Déterminer les valeurs pour la feed news
         feed_module = "tickets" if event.ticket_event_id else utils_calendar.root
-        feed_module_object_id = event.ticket_event_id if event.ticket_event_id else event.id
+        feed_module_object_id = (
+            event.ticket_event_id if event.ticket_event_id else event.id
+        )
 
         await utils_calendar.add_event_to_feed(
             event=event,

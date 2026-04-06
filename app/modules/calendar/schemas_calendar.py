@@ -30,15 +30,20 @@ class EventBaseCreation(EventBase):
 
     @model_validator(mode="after")
     def check_ticket(self):
-        # Si ticket_event_id est fourni, on ignore les validations sur ticket_url
+        # If ticket_event_id is provided, we ignore the validations on ticket_url
         if self.ticket_event_id:
+            if self.ticket_url or self.ticket_url_opening:
+                raise ValueError(  # noqa: TRY003
+                    "ticket_url and ticket_url_opening should not be provided when ticket_event_id is provided",
+                )
             return self
 
-        # Validation existante : ticket_url et ticket_url_opening doivent être fournis ensemble
         if (self.ticket_url_opening and not self.ticket_url) or (
             self.ticket_url and not self.ticket_url_opening
         ):
-            raise ValueError("ticket_url and ticket_url_opening must be provided together")
+            raise ValueError(  # noqa: TRY003
+                "ticket_url and ticket_url_opening must be provided together",
+            )
 
         return self
 

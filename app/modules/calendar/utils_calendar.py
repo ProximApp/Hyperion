@@ -23,9 +23,10 @@ async def add_event_to_feed(
     feed_module: str | None = None,
     feed_module_object_id: UUID | None = None,
 ):
-    # Utiliser les valeurs personnalisées si fournies, sinon utiliser les valeurs par défaut
-    module_value = feed_module if feed_module else root
-    module_object_id_value = feed_module_object_id if feed_module_object_id else event.id
+    module_value = feed_module if feed_module is not None else root
+    module_object_id_value = (
+        feed_module_object_id if feed_module_object_id is not None else event.id
+    )
 
     await create_feed_news(
         title=event.name,

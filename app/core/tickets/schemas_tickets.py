@@ -2,14 +2,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi.encoders import jsonable_encoder
 from pydantic import (
     BaseModel,
 )
 
 from app.core.tickets.types_tickets import AnswerType
 from app.core.users import schemas_users
-from app.types.sqlalchemy import Base
 
 
 class Session(BaseModel):

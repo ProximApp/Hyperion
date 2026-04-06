@@ -36,10 +36,8 @@ class Event(Base):
     ticket_url_opening: Mapped[datetime | None]
     notification: Mapped[bool]
 
-    # Référence à un TicketEvent optionnel (module tickets)
     ticket_event_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("tickets_event.id"),
-        nullable=True,
     )
 
     association: Mapped[CoreAssociation] = relationship("CoreAssociation", init=False)
