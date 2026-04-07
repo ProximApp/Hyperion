@@ -354,6 +354,7 @@ class MockedPaymentTool(CheckoutTool):
         self,
     ):
         self.payment_tool = CheckoutTool(
+            name=HelloAssoConfigName.MYPAYMENT,
             config=HelloAssoConfig(
                 helloasso_client_id="client",
                 helloasso_client_secret="secret",
