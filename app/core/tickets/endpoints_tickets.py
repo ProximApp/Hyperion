@@ -287,47 +287,35 @@ async def create_checkout(
         db=db,
     )
 
-    if checkout.payment_method == "myempay":
-        await utils_mypayment.request_transaction(
-            request_info=schemas_mypayment.RequestInfo(
-                user_id=user.id,
-                store_id=event.store_id,
-                total=price,
-                name=f"Ticket for event {event.name}",
-                note="Ticket purchase",
-                module=core_module.root,
-                object_id=checkout_id,
-            ),
-            db=db,
-            notification_tool=notification_tool,
-            settings=settings,
-        )
-    else:
-        await utils_mypayment.request_store_transfer(
-            transfer_info=schemas_mypayment.StoreTransferInfo(
-                store_id=event.store_id,
-                module=core_module.root,
-                amount=price,
-                object_id=checkout_id,
-                redirect_url="",
-            ),
-            user=schemas_users.CoreUser(
-                id=user.id,
-                name=user.name,
-                firstname=user.firstname,
-                account_type=user.account_type,
-                school_id=user.school_id,
-                email=user.email,
-            ),
-            db=db,
-            settings=settings,
-            payment_tool=payment_tool,
-        )
+    payment_url = await utils_mypayment.request_payment(
+        payment_type=checkout.mypayment_request_method,
+        payment_info=schemas_mypayment.PaymentInfo(
+            store_id=event.store_id,
+            total=price,
+            name=f"event {event.name}",
+            note=f"Ticket for {event.name}",
+            module=core_module.root,
+            object_id=checkout_id,
+            redirect_url=checkout.mypayment_transfer_redirect_url,
+        ),
+        db=db,
+        user=schemas_users.CoreUser(
+            id=user.id,
+            name=user.name,
+            firstname=user.firstname,
+            account_type=user.account_type,
+            school_id=user.school_id,
+            email=user.email,
+        ),
+        notification_tool=notification_tool,
+        settings=settings,
+        payment_tool=payment_tool,
+    )
 
-    # TODO: return the payment id
     return schemas_tickets.CheckoutResponse(
         price=price,
         expiration=expiration,
+        payment_url=payment_url.url if payment_url is not None else None,
     )
 
 

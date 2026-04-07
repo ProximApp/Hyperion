@@ -6,6 +6,7 @@ from pydantic import (
     BaseModel,
 )
 
+from app.core.mypayment.types_mypayment import MyPaymentCallType
 from app.core.tickets.types_tickets import AnswerType
 from app.core.users import schemas_users
 
@@ -225,10 +226,11 @@ class Checkout(BaseModel):
     category_id: UUID
     session_id: UUID
     answers: list[Answer]
-    # TODO: use an enum
-    payment_method: str
+    mypayment_request_method: MyPaymentCallType
+    mypayment_transfer_redirect_url: str
 
 
 class CheckoutResponse(BaseModel):
     price: int
     expiration: datetime
+    payment_url: str | None
