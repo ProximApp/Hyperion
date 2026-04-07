@@ -423,6 +423,7 @@ async def test_payment_tool_init_checkout(
         ),
     }
     payment_tool = CheckoutTool(
+        name=HelloAssoConfigName.CDR,
         config=settings.HELLOASSO_CONFIGURATIONS[HelloAssoConfigName.CDR],
         helloasso_api_base=settings.HELLOASSO_API_BASE,
     )
@@ -486,6 +487,7 @@ async def test_payment_tool_init_checkout_with_one_failure(
     }
 
     payment_tool = CheckoutTool(
+        name=HelloAssoConfigName.CDR,
         config=settings.HELLOASSO_CONFIGURATIONS[HelloAssoConfigName.CDR],
         helloasso_api_base=settings.HELLOASSO_API_BASE,
     )
@@ -561,6 +563,7 @@ async def test_payment_tool_init_checkout_fail(
     }
 
     payment_tool = CheckoutTool(
+        name=HelloAssoConfigName.CDR,
         config=settings.HELLOASSO_CONFIGURATIONS[HelloAssoConfigName.CDR],
         helloasso_api_base=settings.HELLOASSO_API_BASE,
     )
