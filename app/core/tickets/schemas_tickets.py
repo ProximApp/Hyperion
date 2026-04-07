@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import (
     BaseModel,
+    field_validator,
 )
 
 from app.core.mypayment.types_mypayment import MyPaymentCallType
@@ -82,6 +83,14 @@ class CategoryCreate(BaseModel):
     quota: int | None
     required_membership: UUID | None
 
+    @field_validator("price")
+    def null_or_greater_than_one_euro(cls, v: int) -> int:
+        if v == 0:
+            return v
+        if v <= 100:
+            raise ValueError("Price must be zero or greater than one euro")  # noqa: TRY003
+        return v
+
 
 class CategoryUpdate(BaseModel):
     name: str | None = None
@@ -89,6 +98,14 @@ class CategoryUpdate(BaseModel):
     quota: int | None = None
     required_membership: UUID | None = None
     disabled: bool | None = None
+
+    @field_validator("price")
+    def null_or_greater_than_one_euro(cls, v: int | None) -> int | None:
+        if v == 0 or v is None:
+            return v
+        if v <= 100:
+            raise ValueError("Price must be zero or greater than one euro")  # noqa: TRY003
+        return v
 
 
 class Question(BaseModel):
@@ -234,3 +251,8 @@ class CheckoutResponse(BaseModel):
     price: int
     expiration: datetime
     payment_url: str | None
+
+
+class TicketTransfer(BaseModel):
+    ticket_id: UUID
+    email: str
