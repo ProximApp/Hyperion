@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import (
@@ -11,7 +10,6 @@ from pydantic import (
 from app.core.memberships import schemas_memberships
 from app.core.mypayment.types_mypayment import (
     HistoryType,
-    MyPaymentCallType,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -340,7 +338,7 @@ class Request(BaseModel):
     store_id: UUID
     name: str
     store_note: str | None = None
-    module: str
+    module: str  # module root, will be used to call the payment callback with the provided object_id
     object_id: UUID
     status: RequestStatus
     transaction_id: UUID | None = None
@@ -357,18 +355,12 @@ class RequestInfo(BaseModel):
     store_id: UUID
     total: int
     name: str
-    note: str | None
+    store_note: str | None
     module: str
     object_id: UUID
 
 
-class PaymentInfo(BaseModel):
-    store_id: UUID
-    total: int
-    name: str
-    note: str | None
-    module: str
-    object_id: UUID
+class PaymentInfo(RequestInfo):
     redirect_url: str
 
 
@@ -382,7 +374,7 @@ class SecuredContentData(BaseModel):
     tot: Total amount of the transaction, in cents
     iat: Generation datetime of the payment order
     key: Id of the WalletDevice that generated the payment order, will be used to get the public key to verify the signature
-    store: If the payment is destined to a store
+    store: If the payment is intended to be banked by a store or by an other user
     """
 
     id: UUID

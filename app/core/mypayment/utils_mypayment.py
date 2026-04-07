@@ -9,9 +9,12 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout import schemas_checkout
-from app.core.checkout.payment_tool import PaymentTool
+from app.core.checkout.payment_tool import CheckoutTool
+from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
 from app.core.mypayment.exceptions_mypayment import (
+    InvalidCheckoutToolError,
+    InvalidPaymentTypeError,
     PaymentUserNotFoundError,
     TransferAlreadyConfirmedInCallbackError,
     TransferNotFoundByCallbackError,
@@ -25,7 +28,7 @@ from app.core.mypayment.integrity_mypayment import (
 from app.core.mypayment.models_mypayment import UserPayment
 from app.core.mypayment.schemas_mypayment import SecuredContentData
 from app.core.mypayment.types_mypayment import (
-    MyPaymentCallType,
+    PaymentType,
     RequestStatus,
     TransferType,
 )
@@ -150,7 +153,7 @@ async def validate_transfer_callback(
     if wallet.store:  # This transfer is a direct transfer to a store, it was requested by a module, so we want to call the module callback if it exists
         if transfer.module and transfer.object_id:
             await call_mypayment_callback(
-                call_type=MyPaymentCallType.TRANSFER,
+                call_type=PaymentType.STORE_TRANSFER,
                 module_root=transfer.module,
                 object_id=transfer.object_id,
                 call_id=transfer.id,
@@ -167,6 +170,8 @@ async def request_transaction(
 ) -> None:
     """
     Create a transaction request for a user from a store.
+    - create a mypayment payment request between the user wallet and the store wallet
+    - the request need to be accepted be the user using ... endpoint
     """
     payment_user = await cruds_mypayment.get_user_payment(user.id, db)
     if not payment_user:
@@ -180,7 +185,7 @@ async def request_transaction(
             total=request_info.total,
             store_id=request_info.store_id,
             name=request_info.name,
-            store_note=request_info.note,
+            store_note=request_info.store_note,
             module=request_info.module,
             object_id=request_info.object_id,
             status=RequestStatus.PROPOSED,
@@ -197,11 +202,11 @@ async def request_transaction(
     )
 
 
-async def request_store_transfer(
+async def init_store_transfer(
     user: schemas_users.CoreUser,
     transfer_info: schemas_mypayment.StoreTransferInfo,
     db: AsyncSession,
-    payment_tool: PaymentTool,
+    payment_tool: CheckoutTool,
     settings: Settings,
 ) -> schemas_checkout.PaymentUrl:
     """
@@ -243,7 +248,7 @@ async def request_store_transfer(
         transfer=schemas_mypayment.Transfer(
             id=uuid4(),
             type=TransferType.HELLO_ASSO,
-            approver_user_id=None,
+            approver_user_id=user.id,
             total=transfer_info.amount,
             transfer_identifier=str(checkout.id),
             wallet_id=store.wallet_id,
@@ -260,22 +265,24 @@ async def request_store_transfer(
 
 
 async def request_payment(
-    payment_type: MyPaymentCallType,
+    payment_type: PaymentType,
     payment_info: schemas_mypayment.PaymentInfo,
     user: schemas_users.CoreUser,
     db: AsyncSession,
-    payment_tool: PaymentTool,
+    checkout_tool: CheckoutTool,
     notification_tool: NotificationTool,
     settings: Settings,
 ) -> None | schemas_checkout.PaymentUrl:
-    if payment_type == MyPaymentCallType.REQUEST:
+    if checkout_tool.name != HelloAssoConfigName.MYPAYMENT:
+        raise InvalidCheckoutToolError(checkout_tool.name)
+    if payment_type == PaymentType.REQUEST:
         return await request_transaction(
             user=user,
             request_info=schemas_mypayment.RequestInfo(
                 total=payment_info.total,
                 store_id=payment_info.store_id,
                 name=payment_info.name,
-                note=payment_info.note,
+                store_note=payment_info.store_note,
                 module=payment_info.module,
                 object_id=payment_info.object_id,
             ),
@@ -283,8 +290,8 @@ async def request_payment(
             notification_tool=notification_tool,
             settings=settings,
         )
-    if payment_type == MyPaymentCallType.TRANSFER:
-        return await request_store_transfer(
+    if payment_type == PaymentType.STORE_TRANSFER:
+        return await init_store_transfer(
             user=user,
             transfer_info=schemas_mypayment.StoreTransferInfo(
                 amount=payment_info.total,
@@ -294,13 +301,10 @@ async def request_payment(
                 redirect_url=payment_info.redirect_url,
             ),
             db=db,
-            payment_tool=payment_tool,
+            payment_tool=checkout_tool,
             settings=settings,
         )
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid payment type",
-    )
+    raise InvalidPaymentTypeError(payment_type)
 
 
 async def apply_transaction(
@@ -352,13 +356,13 @@ async def apply_transaction(
 
 
 async def call_mypayment_callback(
-    call_type: MyPaymentCallType,
+    call_type: PaymentType,
     module_root: str,
     object_id: UUID,
     call_id: UUID,
     db: AsyncSession,
 ):
-    id_name = "transfer_id" if call_type == MyPaymentCallType.TRANSFER else "request_id"
+    id_name = "transfer_id" if call_type == PaymentType.STORE_TRANSFER else "request_id"
     try:
         for module in all_modules:
             if module.root == module_root:
