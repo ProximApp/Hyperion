@@ -59,6 +59,6 @@ class ActionType(StrEnum):
     WITHDRAWAL = "withdrawal"
 
 
-class MyPaymentCallType(StrEnum):
-    TRANSFER = "transfer"
+class PaymentType(StrEnum):
+    STORE_TRANSFER = "transfer"
     REQUEST = "request"

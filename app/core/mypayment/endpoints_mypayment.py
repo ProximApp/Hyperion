@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.associations import cruds_associations
 from app.core.auth import schemas_auth
 from app.core.checkout import schemas_checkout
-from app.core.checkout.payment_tool import PaymentTool
+from app.core.checkout.payment_tool import CheckoutTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.core_endpoints import cruds_core
 from app.core.groups.groups_type import GroupType
@@ -49,7 +49,7 @@ from app.core.mypayment.integrity_mypayment import (
 from app.core.mypayment.models_mypayment import Store, WalletDevice
 from app.core.mypayment.types_mypayment import (
     HistoryType,
-    MyPaymentCallType,
+    PaymentType,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -83,10 +83,10 @@ from app.core.users.models_users import CoreUser
 from app.core.utils import security
 from app.core.utils.config import Settings
 from app.dependencies import (
+    get_checkout_tool,
     get_db,
     get_mail_templates,
     get_notification_tool,
-    get_payment_tool,
     get_request_id,
     get_settings,
     get_token_data,
@@ -1918,8 +1918,8 @@ async def init_ha_transfer(
     db: AsyncSession = Depends(get_db),
     user: CoreUser = Depends(is_user_allowed_to([MyPaymentPermissions.access_payment])),
     settings: Settings = Depends(get_settings),
-    payment_tool: PaymentTool = Depends(
-        get_payment_tool(HelloAssoConfigName.MYPAYMENT),
+    checkout_tool: CheckoutTool = Depends(
+        get_checkout_tool(HelloAssoConfigName.MYPAYMENT),
     ),
 ):
     """
@@ -1990,7 +1990,7 @@ async def init_ha_transfer(
         firstname=user.firstname,
         nickname=user.nickname,
     )
-    checkout = await payment_tool.init_checkout(
+    checkout = await checkout_tool.init_checkout(
         module=core_module.root,
         checkout_amount=transfer_info.amount,
         checkout_name=f"Recharge {settings.school.payment_name}",
@@ -2894,7 +2894,7 @@ async def accept_request(
         db=db,
     )
     await call_mypayment_callback(
-        call_type=MyPaymentCallType.REQUEST,
+        call_type=PaymentType.REQUEST,
         module_root=request.module,
         object_id=request.object_id,
         call_id=request.id,
