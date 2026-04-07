@@ -276,7 +276,7 @@ async def request_payment(
     if checkout_tool.name != HelloAssoConfigName.MYPAYMENT:
         raise InvalidCheckoutToolError(checkout_tool.name)
     if payment_type == PaymentType.REQUEST:
-        return await request_transaction(
+        await request_transaction(
             user=user,
             request_info=schemas_mypayment.RequestInfo(
                 total=payment_info.total,
@@ -290,6 +290,7 @@ async def request_payment(
             notification_tool=notification_tool,
             settings=settings,
         )
+        return None
     if payment_type == PaymentType.STORE_TRANSFER:
         return await init_store_transfer(
             user=user,
