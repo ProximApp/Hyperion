@@ -1,5 +1,8 @@
 from uuid import UUID
 
+from app.core.checkout.types_checkout import HelloAssoConfigName
+from app.core.mypayment.types_mypayment import PaymentType
+
 
 class WalletNotFoundOnUpdateError(Exception):
     """
@@ -58,4 +61,18 @@ class PaymentUserNotFoundError(Exception):
     def __init__(self, user_id: str):
         super().__init__(
             f"User {user_id} does not have a payment account",
+        )
+
+
+class InvalidPaymentTypeError(Exception):
+    def __init__(self, payment_type: PaymentType):
+        super().__init__(
+            f"Payment type {payment_type.name} is not supported",
+        )
+
+
+class InvalidCheckoutToolError(Exception):
+    def __init__(self, name: HelloAssoConfigName):
+        super().__init__(
+            f"Checkout tool {name.name} is not supported",
         )
