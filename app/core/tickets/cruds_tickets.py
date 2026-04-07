@@ -397,6 +397,17 @@ async def create_checkout(
     db.add(db_checkout)
 
 
+async def mark_checkout_as_paid(
+    checkout_id: UUID,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Checkout)
+        .where(models_tickets.Checkout.id == checkout_id)
+        .values(paid=True),
+    )
+
+
 async def get_tickets_by_user_id(
     user_id: str,
     db: AsyncSession,

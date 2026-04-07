@@ -37,6 +37,7 @@ seller_can_manage_event_user_token: str
 global_event: models_tickets.TicketEvent
 event_session: models_tickets.EventSession
 event_category: models_tickets.Category
+free_event_category: models_tickets.Category
 event_disabled_category: models_tickets.Category
 event_disabled_session: models_tickets.EventSession
 
@@ -132,7 +133,7 @@ async def init_objects() -> None:
     )
     await add_object_to_db(seller)
 
-    global global_event, event_session, event_category
+    global global_event, event_session, event_category, free_event_category
 
     ticket_event_id = uuid.uuid4()
     event_session = models_tickets.EventSession(
@@ -150,6 +151,15 @@ async def init_objects() -> None:
         quota=None,
         disabled=False,
         price=1000,
+        required_membership=None,
+    )
+    free_event_category = models_tickets.Category(
+        id=uuid.uuid4(),
+        event_id=ticket_event_id,
+        name="Test Free Category",
+        quota=None,
+        disabled=False,
+        price=0,
         required_membership=None,
     )
 
@@ -184,7 +194,7 @@ async def init_objects() -> None:
         quota=10,
         disabled=False,
         sessions=[event_session, event_disabled_session],
-        categories=[event_category, event_disabled_category],
+        categories=[event_category, event_disabled_category, free_event_category],
         questions=[
             models_tickets.Question(
                 id=global_event_optionnal_question_id,
@@ -358,7 +368,8 @@ def test_create_checkout_with_invalid_category(client: TestClient):
             "category_id": str(uuid.uuid4()),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 404
@@ -373,7 +384,8 @@ def test_create_checkout_with_disabled_category(client: TestClient):
             "category_id": str(event_disabled_category.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -388,7 +400,8 @@ def test_create_checkout_with_invalid_session(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(uuid.uuid4()),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 404
@@ -403,7 +416,8 @@ def test_create_checkout_with_disabled_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_disabled_session.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -453,7 +467,8 @@ async def test_create_checkout_with_disabled_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -503,7 +518,8 @@ async def test_create_checkout_with_not_open_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -553,7 +569,8 @@ async def test_create_checkout_with_closed_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -568,7 +585,8 @@ def test_create_checkout_with_category_from_another_event(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -583,7 +601,8 @@ def test_create_checkout_with_session_from_another_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -598,7 +617,8 @@ def test_create_checkout_with_sold_out_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -613,7 +633,8 @@ def test_create_checkout_with_sold_out_category(client: TestClient):
             "category_id": str(event_sold_out_category.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -628,7 +649,8 @@ def test_create_checkout_with_sold_out_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_sold_out_session.id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -678,7 +700,8 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
             "category_id": str(event_with_required_membership_category_id),
             "session_id": str(event_with_required_membership_session_id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -707,7 +730,8 @@ def test_create_checkout_with_answer_present_multiple_times(client: TestClient):
                     "answer": "Test Answer 2",
                 },
             ],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -733,7 +757,8 @@ def test_create_checkout_with_invalid_question_id(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -757,7 +782,8 @@ def test_create_checkout_with_disabled_question(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -781,7 +807,8 @@ def test_create_checkout_with_invalid_answer_type(client: TestClient):
                     "answer": 3,
                 },
             ],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -847,7 +874,8 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
             "category_id": str(event_with_required_question_category_id),
             "session_id": str(event_with_required_question_session_id),
             "answers": [],
-            "payment_method": "myempay",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     assert response.status_code == 400
@@ -870,7 +898,8 @@ def test_create_checkout(client: TestClient):
                     "answer": "Test Answer",
                 },
             ],
-            "payment_method": "test",
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
     # TODO
@@ -878,6 +907,25 @@ def test_create_checkout(client: TestClient):
     assert response.status_code == 201
     # Price of the event + price of the optionnal question
     assert response.json()["price"] == 1000 + 100
+
+
+def test_create_checkout_for_free_event(client: TestClient):
+    response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(free_event_category.id),
+            "session_id": str(event_session.id),
+            "answers": [],
+            "mypayment_request_method": "transfer",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
+        },
+    )
+    # TODO
+    # assert response.json() == ""
+    assert response.status_code == 201
+    # Price of the event + price of the optionnal question
+    assert response.json()["price"] == 0
 
 
 def test_get_user_tickets(client: TestClient):

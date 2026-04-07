@@ -11,6 +11,21 @@ from app.core.mypayment import utils_mypayment
 from app.core.tickets import cruds_tickets, schemas_tickets
 
 
+async def mypayment_callback_callback(
+    checkout_id: UUID,
+    db: AsyncSession,
+) -> None:
+    """
+    Callback called by MyPayment when the payment status of a checkout changes.
+
+    It will update the checkout and the associated tickets status according to the payment status.
+    """
+    await cruds_tickets.mark_checkout_as_paid(
+        checkout_id=checkout_id,
+        db=db,
+    )
+
+
 async def is_event_sold_out(
     event_id: UUID,
     quota: int | None,

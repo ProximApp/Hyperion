@@ -44,6 +44,7 @@ core_module = CoreModule(
     tag="Tickets",
     router=router,
     factory=TicketsFactory(),
+    mypayment_callback=utils_tickets.mypayment_callback_callback,
 )
 
 CHECKOUT_EXPIRATION_MINUTES = 15
@@ -287,30 +288,37 @@ async def create_checkout(
         db=db,
     )
 
-    payment_url = await utils_mypayment.request_payment(
-        payment_type=checkout.mypayment_request_method,
-        payment_info=schemas_mypayment.PaymentInfo(
-            store_id=event.store_id,
-            total=price,
-            name=f"event {event.name}",
-            note=f"Ticket for {event.name}",
-            module=core_module.root,
-            object_id=checkout_id,
-            redirect_url=checkout.mypayment_transfer_redirect_url,
-        ),
-        db=db,
-        user=schemas_users.CoreUser(
-            id=user.id,
-            name=user.name,
-            firstname=user.firstname,
-            account_type=user.account_type,
-            school_id=user.school_id,
-            email=user.email,
-        ),
-        notification_tool=notification_tool,
-        settings=settings,
-        payment_tool=payment_tool,
-    )
+    payment_url = None
+    if price == 0:
+        await cruds_tickets.mark_checkout_as_paid(
+            checkout_id=checkout_id,
+            db=db,
+        )
+    else:
+        payment_url = await utils_mypayment.request_payment(
+            payment_type=checkout.mypayment_request_method,
+            payment_info=schemas_mypayment.PaymentInfo(
+                store_id=event.store_id,
+                total=price,
+                name=f"event {event.name}",
+                note=f"Ticket for {event.name}",
+                module=core_module.root,
+                object_id=checkout_id,
+                redirect_url=checkout.mypayment_transfer_redirect_url,
+            ),
+            db=db,
+            user=schemas_users.CoreUser(
+                id=user.id,
+                name=user.name,
+                firstname=user.firstname,
+                account_type=user.account_type,
+                school_id=user.school_id,
+                email=user.email,
+            ),
+            notification_tool=notification_tool,
+            settings=settings,
+            payment_tool=payment_tool,
+        )
 
     return schemas_tickets.CheckoutResponse(
         price=price,
