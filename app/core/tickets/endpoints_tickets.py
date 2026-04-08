@@ -277,7 +277,7 @@ async def create_checkout(
 
     checkout_id = uuid.uuid4()
     await cruds_tickets.create_checkout(
-        checkout_id=uuid.uuid4(),
+        checkout_id=checkout_id,
         event_id=event_id,
         user_id=user.id,
         category_id=checkout.category_id,
