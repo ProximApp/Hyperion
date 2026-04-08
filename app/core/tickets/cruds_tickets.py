@@ -421,6 +421,7 @@ async def get_paid_tickets_by_user_id(
         .options(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),
+            selectinload(models_tickets.Checkout.event),
         ),
     )
     return [
@@ -452,6 +453,14 @@ async def get_paid_tickets_by_user_id(
                 firstname=ticket.user.firstname,
                 account_type=ticket.user.account_type,
                 school_id=ticket.user.school_id,
+            ),
+            event=schemas_tickets.EventSimple(
+                id=ticket.event.id,
+                name=ticket.event.name,
+                open_datetime=ticket.event.open_datetime,
+                close_datetime=ticket.event.close_datetime,
+                store_id=ticket.event.store_id,
+                disabled=ticket.event.disabled,
             ),
             price=ticket.price,
         )

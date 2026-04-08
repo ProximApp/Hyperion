@@ -236,7 +236,7 @@ async def init_store_transfer(
     checkout = await payment_tool.init_checkout(
         module=MYPAYMENT_ROOT,
         checkout_amount=transfer_info.amount,
-        checkout_name=f"Recharge {settings.school.payment_name}",
+        checkout_name=f"Paiement direct {settings.school.payment_name}",
         redirection_uri=f"{settings.CLIENT_URL}mypayment/transfer/redirect?url={transfer_info.redirect_url}",
         payer_user=user,
         db=db,

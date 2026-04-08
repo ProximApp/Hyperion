@@ -126,3 +126,4 @@ class Checkout(Base):
     user: Mapped[models_users.CoreUser] = relationship(init=False)
     category: Mapped["Category"] = relationship(init=False)
     session: Mapped["EventSession"] = relationship(init=False)
+    event: Mapped["TicketEvent"] = relationship(init=False)

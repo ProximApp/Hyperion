@@ -209,6 +209,7 @@ class Ticket(BaseModel):
 
     scanned: bool
 
+    event: EventSimple
     category: Category
     session: Session
     user: schemas_users.CoreUserSimple
