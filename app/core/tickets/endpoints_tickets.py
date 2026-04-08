@@ -343,7 +343,7 @@ async def get_user_tickets(
     """
     Get all tickets of the current user
     """
-    return await cruds_tickets.get_tickets_by_user_id(
+    return await cruds_tickets.get_paid_tickets_by_user_id(
         user_id=user.id,
         db=db,
     )
