@@ -581,6 +581,28 @@ async def get_paid_tickets_by_event_id(
     ]
 
 
+async def get_ticket_simple_by_id(
+    ticket_id: UUID,
+    db: AsyncSession,
+) -> schemas_tickets.TicketSimple | None:
+    result = await db.execute(
+        select(models_tickets.Checkout).where(models_tickets.Checkout.id == ticket_id),
+    )
+    ticket = result.scalars().first()
+    if ticket is None:
+        return None
+
+    return schemas_tickets.TicketSimple(
+        id=ticket.id,
+        category_id=ticket.category_id,
+        session_id=ticket.session_id,
+        event_id=ticket.event_id,
+        scanned=ticket.scanned,
+        user_id=ticket.user_id,
+        price=ticket.price,
+    )
+
+
 async def get_ticket_by_id(
     ticket_id: UUID,
     db: AsyncSession,
