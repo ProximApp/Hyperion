@@ -408,13 +408,16 @@ async def mark_checkout_as_paid(
     )
 
 
-async def get_tickets_by_user_id(
+async def get_paid_tickets_by_user_id(
     user_id: str,
     db: AsyncSession,
 ) -> Sequence[schemas_tickets.Ticket]:
     result = await db.execute(
         select(models_tickets.Checkout)
-        .where(models_tickets.Checkout.user_id == user_id)
+        .where(
+            models_tickets.Checkout.user_id == user_id,
+            models_tickets.Checkout.paid,
+        )
         .options(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),
@@ -456,13 +459,16 @@ async def get_tickets_by_user_id(
     ]
 
 
-async def get_tickets_by_event_id(
+async def get_paid_tickets_by_event_id(
     event_id: UUID,
     db: AsyncSession,
 ) -> Sequence[schemas_tickets.Ticket]:
     result = await db.execute(
         select(models_tickets.Checkout)
-        .where(models_tickets.Checkout.event_id == event_id)
+        .where(
+            models_tickets.Checkout.event_id == event_id,
+            models_tickets.Checkout.paid,
+        )
         .options(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),

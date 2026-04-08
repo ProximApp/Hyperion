@@ -678,7 +678,7 @@ async def get_event_tickets(
             detail="User is not authorized to manage store events",
         )
 
-    return await cruds_tickets.get_tickets_by_event_id(event_id=event_id, db=db)
+    return await cruds_tickets.get_paid_tickets_by_event_id(event_id=event_id, db=db)
 
 
 @router.get(
@@ -734,7 +734,7 @@ async def get_event_tickets_csv(
         ],
     )
 
-    tickets = await cruds_tickets.get_tickets_by_event_id(event_id=event_id, db=db)
+    tickets = await cruds_tickets.get_paid_tickets_by_event_id(event_id=event_id, db=db)
     for ticket in tickets:
         writer.writerow(
             [
