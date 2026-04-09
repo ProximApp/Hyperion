@@ -411,7 +411,7 @@ async def mark_checkout_as_paid(
 async def get_paid_tickets_by_user_id(
     user_id: str,
     db: AsyncSession,
-) -> Sequence[schemas_tickets.Ticket]:
+) -> Sequence[schemas_tickets.TicketComplete]:
     result = await db.execute(
         select(models_tickets.Checkout)
         .where(
@@ -425,7 +425,7 @@ async def get_paid_tickets_by_user_id(
         ),
     )
     return [
-        schemas_tickets.Ticket(
+        schemas_tickets.TicketComplete(
             id=ticket.id,
             category_id=ticket.category_id,
             session_id=ticket.session_id,

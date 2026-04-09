@@ -329,7 +329,7 @@ async def create_checkout(
 
 @router.get(
     "/tickets/user/me/tickets",
-    response_model=list[schemas_tickets.Ticket],
+    response_model=list[schemas_tickets.TicketComplete],
     status_code=200,
 )
 async def get_user_tickets(
