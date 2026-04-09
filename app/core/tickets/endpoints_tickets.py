@@ -387,7 +387,7 @@ async def get_event_admin(
 
 
 @router.post(
-    "/tickets/admin/events/",
+    "/tickets/admin/events",
     response_model=schemas_tickets.EventAdmin,
     status_code=201,
 )
