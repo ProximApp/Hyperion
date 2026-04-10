@@ -413,6 +413,18 @@ async def create_event(
             detail="User is not authorized to manage store events",
         )
 
+    if len(event_create.sessions) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Event must have at least one session",
+        )
+
+    if len(event_create.categories) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Event must have at least one category",
+        )
+
     event_id = uuid.uuid4()
 
     await cruds_tickets.create_event(
