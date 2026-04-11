@@ -1,4 +1,3 @@
-import glob
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -10,7 +9,7 @@ from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
 from app.core.mypayment.types_mypayment import WalletType
-from app.core.tickets import models_tickets
+from app.core.tickets import models_tickets, utils_tickets
 from app.core.tickets.endpoints_tickets import TicketsPermissions
 from app.core.tickets.types_tickets import AnswerType
 from app.core.users import models_users
@@ -19,6 +18,7 @@ from tests.commons import (
     create_api_access_token,
     create_groups_with_permissions,
     create_user_with_groups,
+    get_TestingSessionLocal,
 )
 
 user: models_users.CoreUser
@@ -341,6 +341,14 @@ async def init_objects() -> None:
     await add_object_to_db(ticket_for_user_with_answer)
 
 
+async def test_payment_callback(client: TestClient):
+    async with get_TestingSessionLocal()() as db:
+        await utils_tickets.mypayment_callback_callback(
+            checkout_id=ticket_for_user_with_answer.id,
+            db=db,
+        )
+
+
 def test_get_open_events(client: TestClient):
     response = client.get(
         "/tickets/events",
@@ -356,6 +364,29 @@ def test_get_event_with_non_existing_id(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+async def test_get_event_disabled(client: TestClient):
+    event = models_tickets.TicketEvent(
+        id=uuid.uuid4(),
+        store_id=store.id,
+        name="Test Disabled Event",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        quota=10,
+        disabled=True,
+        sessions=[],
+        categories=[],
+        questions=[],
+    )
+    await add_object_to_db(event)
+    response = client.get(
+        f"/tickets/events/{event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Event is disabled"
 
 
 def test_get_event(client: TestClient):
@@ -1037,6 +1068,72 @@ def test_create_event_as_non_authorised_seller(client: TestClient):
     assert response.json()["detail"] == "User is not authorized to manage store events"
 
 
+def test_create_event_without_sessions(client: TestClient):
+    response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 11,
+            "sessions": [],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 1000,
+                    "quota": 10,
+                    "required_membership": None,
+                },
+            ],
+            "questions": [],
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Event must have at least one session and one category"
+    )
+
+
+def test_create_event_with_category_price_to_low(client: TestClient):
+    response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 11,
+            "sessions": [
+                {
+                    "name": "Test Session",
+                    "start_datetime": (
+                        datetime.now(tz=UTC) + timedelta(days=1)
+                    ).isoformat(),
+                    "quota": 10,
+                },
+            ],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 10,
+                    "quota": 10,
+                    "required_membership": None,
+                },
+            ],
+            "questions": [],
+        },
+    )
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"][0]["msg"]
+        == "Value error, Price must be zero or greater than one euro"
+    )
+
+
 def test_create_event(client: TestClient):
     response = client.post(
         "/tickets/admin/events/",
@@ -1093,6 +1190,7 @@ def test_update_event_non_existing_event(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "name": "Updated Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
         },
     )
     assert response.status_code == 404
@@ -1254,6 +1352,22 @@ def test_update_category_with_existing_tickets(client: TestClient):
     )
 
 
+async def test_update_category_with_price_to_low(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Updated Test Category",
+            "price": 10,
+        },
+    )
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"][0]["msg"]
+        == "Value error, Price must be zero or greater than one euro"
+    )
+
+
 async def test_update_category(client: TestClient):
     category_without_tickets = models_tickets.Category(
         id=uuid.uuid4(),
@@ -1314,6 +1428,18 @@ def test_update_question_with_non_existing_question(client: TestClient):
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "Question not found"
+
+
+async def test_update_question_with_answer(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Cannot update question with answers"
 
 
 async def test_update_question(client: TestClient):

@@ -85,9 +85,7 @@ class CategoryCreate(BaseModel):
 
     @field_validator("price")
     def null_or_greater_than_one_euro(cls, v: int) -> int:
-        if v == 0:
-            return v
-        if v < 100:
+        if v != 0 and v < 100:
             raise ValueError("Price must be zero or greater than one euro")  # noqa: TRY003
         return v
 
@@ -101,9 +99,7 @@ class CategoryUpdate(BaseModel):
 
     @field_validator("price")
     def null_or_greater_than_one_euro(cls, v: int | None) -> int | None:
-        if v == 0 or v is None:
-            return v
-        if v < 100:
+        if v != 0 and v is not None and v < 100:
             raise ValueError("Price must be zero or greater than one euro")  # noqa: TRY003
         return v
 
