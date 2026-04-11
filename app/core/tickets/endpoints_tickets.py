@@ -728,42 +728,60 @@ async def get_event_tickets_csv(
 
     writer = csv.writer(csv_io, delimiter=";", quoting=csv.QUOTE_MINIMAL)
 
-    # Write headers
-    writer.writerow(
-        [
-            "Ticket ID",
-            "Session ID",
-            "Session Name",
-            "Category ID",
-            "Category Name",
-            "Price (€)",
-            "Scanned",
-            "User ID",
-            "User Name",
-            "User Firstname",
-            "User Account Type",
-            "User School ID",
-        ],
+    question_ids = []
+    headers = [
+        "Ticket ID",
+        "Session ID",
+        "Session Name",
+        "Category ID",
+        "Category Name",
+        "Price (€)",
+        "Scanned",
+        "User ID",
+        "User Name",
+        "User Firstname",
+        "User Account Type",
+        "User School ID",
+    ]
+
+    questions = await cruds_tickets.get_questions_by_event_id(
+        event_id=event_id,
+        db=db,
     )
+    for question in questions:
+        question_ids.append(question.id)
+        headers.append(f"Question: {question.question} ({question.price})")
+
+    # Write headers
+    writer.writerow(headers)
 
     tickets = await cruds_tickets.get_paid_tickets_by_event_id(event_id=event_id, db=db)
     for ticket in tickets:
-        writer.writerow(
-            [
-                ticket.id,
-                ticket.session_id,
-                ticket.session.name,
-                ticket.category_id,
-                ticket.category.name,
-                f"{ticket.price / 100:.2f}€",
-                ticket.scanned,
-                ticket.user_id,
-                ticket.user.name,
-                ticket.user.firstname,
-                ticket.user.account_type,
-                ticket.user.school_id,
-            ],
-        )
+        row = [
+            ticket.id,
+            ticket.session_id,
+            ticket.session.name,
+            ticket.category_id,
+            ticket.category.name,
+            f"{ticket.price / 100:.2f}€",
+            ticket.scanned,
+            ticket.user_id,
+            ticket.user.name,
+            ticket.user.firstname,
+            ticket.user.account_type,
+            ticket.user.school_id,
+        ]
+        answers_by_question_id: dict[UUID, schemas_tickets.Answer] = {}
+        for answer in ticket.answers:
+            answers_by_question_id[answer.question_id] = answer
+        for question_id in question_ids:
+            answer = answers_by_question_id.get(question_id)
+            if answer is not None:
+                row.append(answer.answer.answer_value)
+            else:
+                row.append("")
+
+        writer.writerow(row)
 
     csv_content = csv_io.getvalue()
     csv_io.close()
