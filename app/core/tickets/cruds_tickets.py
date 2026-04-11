@@ -371,7 +371,7 @@ async def create_checkout(
     session_id: UUID,
     price: int,
     expiration: datetime,
-    answers: list[schemas_tickets.Answer],
+    answers: list[schemas_tickets.AnswerCreate],
     db: AsyncSession,
 ):
     db_checkout = models_tickets.Checkout(
@@ -387,7 +387,7 @@ async def create_checkout(
                 id=uuid.uuid4(),
                 question_id=answer.question_id,
                 checkout_id=checkout_id,
-                answer=answer.answer_value,
+                answer=answer.answer.answer_value,
             )
             for answer in answers
         ],
@@ -422,6 +422,9 @@ async def get_paid_tickets_by_user_id(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),
             selectinload(models_tickets.Checkout.event),
+            selectinload(models_tickets.Checkout.answers).selectinload(
+                models_tickets.Answer.question,
+            ),
         ),
     )
     return [
@@ -463,6 +466,15 @@ async def get_paid_tickets_by_user_id(
                 disabled=ticket.event.disabled,
             ),
             price=ticket.price,
+            answers=[
+                schemas_tickets.Answer.from_answer_value(
+                    id_=answer.id,
+                    question_id=answer.question_id,
+                    answer_type=answer.question.answer_type,
+                    value=answer.answer,
+                )
+                for answer in ticket.answers
+            ],
         )
         for ticket in result.scalars().all()
     ]
@@ -482,6 +494,9 @@ async def get_paid_tickets_by_event_id(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),
             selectinload(models_tickets.Checkout.user),
+            selectinload(models_tickets.Checkout.answers).selectinload(
+                models_tickets.Answer.question,
+            ),
         ),
     )
     return [
@@ -515,6 +530,15 @@ async def get_paid_tickets_by_event_id(
                 school_id=ticket.user.school_id,
             ),
             price=ticket.price,
+            answers=[
+                schemas_tickets.Answer.from_answer_value(
+                    id_=answer.id,
+                    question_id=answer.question_id,
+                    answer_type=answer.question.answer_type,
+                    value=answer.answer,
+                )
+                for answer in ticket.answers
+            ],
         )
         for ticket in result.scalars().all()
     ]
@@ -531,6 +555,9 @@ async def get_ticket_by_id(
             selectinload(models_tickets.Checkout.category),
             selectinload(models_tickets.Checkout.session),
             selectinload(models_tickets.Checkout.user),
+            selectinload(models_tickets.Checkout.answers).selectinload(
+                models_tickets.Answer.question,
+            ),
         ),
     )
     ticket = result.scalars().first()
@@ -567,6 +594,15 @@ async def get_ticket_by_id(
             school_id=ticket.user.school_id,
         ),
         price=ticket.price,
+        answers=[
+            schemas_tickets.Answer.from_answer_value(
+                id_=answer.id,
+                question_id=answer.question_id,
+                answer_type=answer.question.answer_type,
+                value=answer.answer,
+            )
+            for answer in ticket.answers
+        ],
     )
 
 

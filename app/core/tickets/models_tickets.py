@@ -95,6 +95,8 @@ class Answer(Base):
 
     answer: Mapped[str]
 
+    question: Mapped[Question] = relationship(init=False)
+
 
 class Checkout(Base):
     """

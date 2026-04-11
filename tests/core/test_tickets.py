@@ -1,3 +1,4 @@
+import glob
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -52,7 +53,7 @@ session_sold_out_event: models_tickets.EventSession
 category_sold_out_event: models_tickets.Category
 ticket_sold_out_event: models_tickets.Checkout
 
-ticket: models_tickets.Checkout
+ticket_for_user_with_answer: models_tickets.Checkout
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
@@ -301,13 +302,13 @@ async def init_objects() -> None:
         questions=[],
     )
     await add_object_to_db(sold_out_event)
-    user = await create_user_with_groups(groups=[])
+    user_for_sold_out_ticket = await create_user_with_groups(groups=[])
     ticket_sold_out_event = models_tickets.Checkout(
         id=uuid.uuid4(),
         category_id=category_sold_out_event.id,
         session_id=session_sold_out_event.id,
         event_id=ticket_sold_out_event_id,
-        user_id=user.id,
+        user_id=user_for_sold_out_ticket.id,
         price=10,
         scanned=False,
         paid=True,
@@ -315,6 +316,29 @@ async def init_objects() -> None:
         answers=[],
     )
     await add_object_to_db(ticket_sold_out_event)
+
+    global ticket_for_user_with_answer
+    ticket_for_user_with_answer_id = uuid.uuid4()
+    ticket_for_user_with_answer = models_tickets.Checkout(
+        id=ticket_for_user_with_answer_id,
+        category_id=event_category.id,
+        session_id=event_session.id,
+        event_id=global_event.id,
+        user_id=user.id,
+        price=10,
+        scanned=False,
+        paid=True,
+        expiration=datetime.now(tz=UTC) - timedelta(hours=1),
+        answers=[
+            models_tickets.Answer(
+                id=uuid.uuid4(),
+                checkout_id=ticket_for_user_with_answer_id,
+                question_id=global_event_optionnal_question_id,
+                answer="Test Answer",
+            ),
+        ],
+    )
+    await add_object_to_db(ticket_for_user_with_answer)
 
 
 def test_get_open_events(client: TestClient):
@@ -721,13 +745,17 @@ def test_create_checkout_with_answer_present_multiple_times(client: TestClient):
             "answers": [
                 {
                     "question_id": str(global_event_optionnal_question_id),
-                    "answer_type": "text",
-                    "answer": "Test Answer",
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer",
+                    },
                 },
                 {
                     "question_id": str(global_event_optionnal_question_id),
-                    "answer_type": "text",
-                    "answer": "Test Answer 2",
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer 2",
+                    },
                 },
             ],
             "mypayment_request_method": "transfer",
@@ -753,8 +781,10 @@ def test_create_checkout_with_invalid_question_id(client: TestClient):
             "answers": [
                 {
                     "question_id": str(invalid_id),
-                    "answer_type": "text",
-                    "answer": "Test Answer",
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer",
+                    },
                 },
             ],
             "mypayment_request_method": "transfer",
@@ -778,8 +808,10 @@ def test_create_checkout_with_disabled_question(client: TestClient):
             "answers": [
                 {
                     "question_id": str(global_event_disabled_question_id),
-                    "answer_type": "text",
-                    "answer": "Test Answer",
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer",
+                    },
                 },
             ],
             "mypayment_request_method": "transfer",
@@ -803,8 +835,10 @@ def test_create_checkout_with_invalid_answer_type(client: TestClient):
             "answers": [
                 {
                     "question_id": str(global_event_optionnal_question_id),
-                    "answer_type": "number",
-                    "answer": 3,
+                    "answer": {
+                        "answer_type": "number",
+                        "answer": 3,
+                    },
                 },
             ],
             "mypayment_request_method": "transfer",
@@ -894,8 +928,10 @@ def test_create_checkout(client: TestClient):
             "answers": [
                 {
                     "question_id": str(global_event_optionnal_question_id),
-                    "answer_type": "text",
-                    "answer": "Test Answer",
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer",
+                    },
                 },
             ],
             "mypayment_request_method": "transfer",
@@ -934,7 +970,14 @@ def test_get_user_tickets(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 200
-    assert len(response.json()) > 1
+    tickets = response.json()
+    assert len(tickets) > 1
+    ticket = next(
+        (t for t in tickets if t["id"] == str(ticket_for_user_with_answer.id)),
+        None,
+    )
+    assert ticket is not None
+    assert len(ticket["answers"]) > 0
 
 
 # get_event_admin

@@ -198,6 +198,55 @@ class EventUpdate(BaseModel):
     close_datetime: datetime | None = None
 
 
+class AnswerValue(BaseModel):
+    answer_type: AnswerType
+    answer: str | int | bool
+
+    @property
+    def answer_value(self) -> str:
+        return str(self.answer)
+
+
+class AnswerText(AnswerValue):
+    answer_type: Literal[AnswerType.TEXT]
+    answer: str
+
+
+class AnswerNumber(AnswerValue):
+    answer_type: Literal[AnswerType.NUMBER]
+    answer: int
+
+
+class AnswerBoolean(AnswerValue):
+    answer_type: Literal[AnswerType.BOOLEAN]
+    answer: bool
+
+
+class AnswerCreate(BaseModel):
+    question_id: UUID
+    answer: AnswerText | AnswerNumber | AnswerBoolean
+
+
+class Answer(AnswerCreate):
+    id: UUID
+
+    @classmethod
+    def from_answer_value(
+        cls,
+        id_: UUID,
+        question_id: UUID,
+        value: str,
+        answer_type: AnswerType,
+    ) -> "Answer":
+        return cls.model_validate(
+            {
+                "id": id_,
+                "question_id": question_id,
+                "answer": {"answer_type": answer_type, "answer": value},
+            },
+        )
+
+
 class Ticket(BaseModel):
     id: UUID
     price: int
@@ -212,41 +261,17 @@ class Ticket(BaseModel):
     category: Category
     session: Session
     user: schemas_users.CoreUserSimple
+    answers: list[Answer]
 
 
 class TicketComplete(Ticket):
     event: EventSimple
 
 
-class Answer(BaseModel):
-    question_id: UUID
-    answer_type: AnswerType
-    answer: str | int | bool
-
-    @property
-    def answer_value(self) -> str:
-        return str(self.answer)
-
-
-class AnswerText(BaseModel):
-    answer_type: Literal[AnswerType.TEXT]
-    answer: str
-
-
-class AnswerNumber(BaseModel):
-    answer_type: Literal[AnswerType.NUMBER]
-    answer: int
-
-
-class AnswerBoolean(BaseModel):
-    answer_type: Literal[AnswerType.BOOLEAN]
-    answer: bool
-
-
 class Checkout(BaseModel):
     category_id: UUID
     session_id: UUID
-    answers: list[Answer]
+    answers: list[AnswerCreate]
     mypayment_request_method: MyPaymentCallType
     mypayment_transfer_redirect_url: str
 

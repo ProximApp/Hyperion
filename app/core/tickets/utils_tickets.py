@@ -213,7 +213,7 @@ async def check_answer_validity_and_calculate_price(
                 f"Question with id {answer.question_id} is disabled",
             )
 
-        if question.answer_type != answer.answer_type:
+        if question.answer_type != answer.answer.answer_type:
             raise HTTPException(
                 400,
                 f"Answer type for question with id {answer.question_id} should be {question.answer_type.value}",
