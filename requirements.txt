@@ -1,4 +1,3 @@
-aiofiles==24.1.0                    # Asynchronous file manipulation
 alembic==1.18.4                     # database migrations
 anyio==4.13.0
 arq==0.28.0                         # Scheduler 

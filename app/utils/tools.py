@@ -8,13 +8,12 @@ import unicodedata
 from collections.abc import Callable, Sequence
 from inspect import iscoroutinefunction
 from io import BytesIO
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
-import aiofiles
 import calypsso
 import fitz
+from anyio import Path
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
@@ -276,14 +275,13 @@ async def save_file_as_data(
     # Remove the existing file if any and create the new one
 
     # If the directory does not exist, we want to create it
-    Path(f"data/{directory}/").mkdir(parents=True, exist_ok=True)
+    await Path(f"data/{directory}/").mkdir(parents=True, exist_ok=True)
 
     try:
-        for filePath in Path().glob(f"data/{directory}/{filename}.*"):
-            filePath.unlink()
+        async for filePath in Path().glob(f"data/{directory}/{filename}.*"):
+            await filePath.unlink()
 
-        async with aiofiles.open(
-            f"data/{directory}/{filename}.{extension}",
+        async with await Path(f"data/{directory}/{filename}.{extension}").open(
             mode="wb",
         ) as buffer:
             # https://stackoverflow.com/questions/63580229/how-to-save-uploadfile-in-fastapi
@@ -324,14 +322,13 @@ async def save_bytes_as_data(
         raise FileNameIsNotAnUUIDError()
 
     # If the directory does not exist, we want to create it
-    Path(f"data/{directory}/").mkdir(parents=True, exist_ok=True)
+    await Path(f"data/{directory}/").mkdir(parents=True, exist_ok=True)
 
     try:
-        for filePath in Path().glob(f"data/{directory}/{filename}.*"):
-            filePath.unlink()
+        async for filePath in Path().glob(f"data/{directory}/{filename}.*"):
+            await filePath.unlink()
 
-        async with aiofiles.open(
-            f"data/{directory}/{filename}.{extension}",
+        async with await Path(f"data/{directory}/{filename}.{extension}").open(
             mode="wb",
         ) as buffer:
             await buffer.write(file_bytes)
@@ -343,7 +340,7 @@ async def save_bytes_as_data(
         raise
 
 
-def get_file_path_from_data(
+async def get_file_path_from_data(
     directory: str,
     filename: str | UUID,
     default_asset: str | None = None,
@@ -369,7 +366,7 @@ def get_file_path_from_data(
         )
         raise FileNameIsNotAnUUIDError()
 
-    for filePath in Path().glob(f"data/{directory}/{filename}.*"):
+    async for filePath in Path().glob(f"data/{directory}/{filename}.*"):
         return filePath
 
     if default_asset is not None:
@@ -381,7 +378,7 @@ def get_file_path_from_data(
     raise FileDoesNotExistError(name=f"{directory}/{filename}.*")
 
 
-def get_file_from_data(
+async def get_file_from_data(
     directory: str,
     filename: str | UUID,
     default_asset: str | None = None,
@@ -396,7 +393,7 @@ def get_file_from_data(
 
     WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
     """
-    path = get_file_path_from_data(
+    path = await get_file_path_from_data(
         directory,
         filename,
         default_asset,
@@ -406,9 +403,9 @@ def get_file_from_data(
     return FileResponse(path)
 
 
-def delete_file_from_data(
+async def delete_file_from_data(
     directory: str,
-    filename: str,
+    filename: str | UUID,
 ):
     """
     Delete all files with the provided filename in the data folder.
@@ -418,24 +415,27 @@ def delete_file_from_data(
 
     WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
     """
+    if isinstance(filename, UUID):
+        filename = str(filename)
+
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
             f"get_file_from_data: security issue, the filename is not a valid UUID: {filename}. This mean that the user input was not properly checked.",
         )
         raise FileNameIsNotAnUUIDError()
 
-    for filePath in Path().glob(f"data/{directory}/{filename}.*"):
-        filePath.unlink()
+    async for filePath in Path().glob(f"data/{directory}/{filename}.*"):
+        await filePath.unlink()
 
 
-def delete_all_folder_from_data(
+async def delete_all_folder_from_data(
     directory: str,
 ) -> None:
     """
     WARNING: this method should never be called with a directory based on user input.
     """
     path = Path(f"data/{directory}")
-    if Path.exists(path):
+    if await path.exists():
         shutil.rmtree(path)
 
 
@@ -479,7 +479,7 @@ async def generate_pdf_from_template(
     )
 
 
-def concat_pdf(
+async def concat_pdf(
     source_directory: str,
     source_filename: str | UUID,
     output_pdf: fitz.Document,
@@ -488,7 +488,7 @@ def concat_pdf(
     Add the content of the PDF file located in data to
     the `output_pdf` document.
     """
-    source_file_path = get_file_path_from_data(
+    source_file_path = await get_file_path_from_data(
         directory=source_directory,
         filename=source_filename,
     )
@@ -510,7 +510,7 @@ async def save_pdf_first_page_as_image(
     WARNING: **NEVER** trust user input when calling this function. Always check that parameters are valid.
     """
 
-    pdf_file_path = get_file_path_from_data(
+    pdf_file_path = await get_file_path_from_data(
         input_pdf_directory,
         filename,
         default_pdf_path,
