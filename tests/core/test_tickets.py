@@ -60,7 +60,7 @@ ticket_for_user_with_answer: models_tickets.Checkout
 async def init_objects() -> None:
     global user, user_token
     ticket_permission_group = await create_groups_with_permissions(
-        [TicketsPermissions.buy_tickets],
+        [TicketsPermissions.access_tickets],
         "ticket_permission_group",
     )
     user = await create_user_with_groups(groups=[ticket_permission_group.id])

@@ -55,7 +55,7 @@ hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 
 
 class TicketsPermissions(ModulePermissions):
-    buy_tickets = "buy_tickets"
+    access_tickets = "access_tickets"
 
 
 @router.get(
@@ -66,7 +66,7 @@ class TicketsPermissions(ModulePermissions):
 async def get_open_events(
     user: CoreUser = Depends(
         is_user_allowed_to(
-            [TicketsPermissions.buy_tickets],
+            [TicketsPermissions.access_tickets],
         ),
     ),
     db: AsyncSession = Depends(get_db),
@@ -88,7 +88,7 @@ async def get_event(
     event_id: UUID,
     user: CoreUser = Depends(
         is_user_allowed_to(
-            [TicketsPermissions.buy_tickets],
+            [TicketsPermissions.access_tickets],
         ),
     ),
     db: AsyncSession = Depends(get_db),
@@ -177,7 +177,7 @@ async def create_checkout(
     checkout: schemas_tickets.Checkout,
     user: CoreUser = Depends(
         is_user_allowed_to(
-            [TicketsPermissions.buy_tickets],
+            [TicketsPermissions.access_tickets],
         ),
     ),
     db: AsyncSession = Depends(get_db),
@@ -335,7 +335,7 @@ async def create_checkout(
 async def get_user_tickets(
     user: CoreUser = Depends(
         is_user_allowed_to(
-            [TicketsPermissions.buy_tickets],
+            [TicketsPermissions.access_tickets],
         ),
     ),
     db: AsyncSession = Depends(get_db),
