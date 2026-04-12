@@ -164,7 +164,7 @@ class CheckoutTool:
         # Thus we catch any exception and log it, then reraise it
         try:
             payer: HelloAssoApiV5ModelsCartsCheckoutPayer | None = None
-            if payer_user:
+            if payer_user is not None:
                 payer = HelloAssoApiV5ModelsCartsCheckoutPayer(
                     first_name=payer_user.firstname,
                     last_name=payer_user.name,
