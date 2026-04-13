@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import ForeignKey
@@ -13,6 +13,7 @@ from app.core.mypayment.types_mypayment import (
     WalletDeviceStatus,
     WalletType,
 )
+from app.core.mypayment.utils_mypayment import REQUEST_EXPIRATION
 from app.core.users import models_users
 from app.types.sqlalchemy import Base, PrimaryKey
 
@@ -195,6 +196,10 @@ class Request(Base):
         ForeignKey("mypayment_transaction.id"),
         unique=True,
     )
+
+    @property
+    def end_date(self) -> datetime:
+        return self.creation + timedelta(minutes=REQUEST_EXPIRATION)
 
 
 class Transfer(Base):
