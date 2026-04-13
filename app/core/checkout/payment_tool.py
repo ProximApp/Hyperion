@@ -194,7 +194,7 @@ class CheckoutTool:
                     secret=secret,
                     hyperion_checkout_id=str(checkout_model_id),
                 ).model_dump(),
-            )  # ty:ignore[missing-argument]
+            )  # ty:ignore[missing-argument] # See https://github.com/astral-sh/ty/issues/1438
 
             response: HelloAssoApiV5ModelsCartsInitCheckoutResponse
             with ApiClient(configuration) as api_client:
