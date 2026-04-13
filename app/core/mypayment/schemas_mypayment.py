@@ -334,6 +334,7 @@ class Request(BaseModel):
     id: UUID
     wallet_id: UUID
     creation: datetime
+    end_date: datetime
     total: int  # Stored in cents
     store_id: UUID
     name: str
@@ -390,3 +391,8 @@ class SignedContent(SecuredContentData):
 
 class ScanInfo(SignedContent):
     bypass_membership: bool = False
+
+
+class PaymentRequestInfo(BaseModel):
+    end_date: datetime
+    checkout_url: str | None = None

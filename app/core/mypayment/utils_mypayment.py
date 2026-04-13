@@ -1,6 +1,6 @@
 import base64
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from cryptography.exceptions import InvalidSignature
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.checkout import schemas_checkout
 from app.core.checkout.payment_tool import CheckoutTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
+from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
 from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
 from app.core.mypayment.exceptions_mypayment import (
     InvalidCheckoutToolError,
@@ -44,7 +45,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 
 LATEST_TOS = 2
 QRCODE_EXPIRATION = 5  # minutes
-REQUEST_EXPIRATION = 15  # minutes
+REQUEST_EXPIRATION = 8  # minutes
 RETENTION_DURATION = 10 * 365  # 10 years in days
 MYPAYMENT_ROOT = "mypayment"
 
@@ -166,8 +167,7 @@ async def request_transaction(
     request_info: schemas_mypayment.RequestInfo,
     db: AsyncSession,
     notification_tool: NotificationTool,
-    settings: Settings,
-) -> None:
+) -> schemas_mypayment.PaymentRequestInfo:
     """
     Create a transaction request for a user from a store.
     - create a mypayment payment request between the user wallet and the store wallet
@@ -176,12 +176,14 @@ async def request_transaction(
     payment_user = await cruds_mypayment.get_user_payment(user.id, db)
     if not payment_user:
         raise PaymentUserNotFoundError(user.id)
+    start_time = datetime.now(UTC)
     await cruds_mypayment.create_request(
         db=db,
         request=schemas_mypayment.Request(
             id=uuid4(),
             wallet_id=payment_user.wallet_id,
-            creation=datetime.now(UTC),
+            creation=start_time,
+            end_date=start_time + timedelta(minutes=REQUEST_EXPIRATION),
             total=request_info.total,
             store_id=request_info.store_id,
             name=request_info.request_name,
@@ -200,6 +202,10 @@ async def request_transaction(
         user_id=user.id,
         message=message,
     )
+    return schemas_mypayment.PaymentRequestInfo(
+        end_date=start_time + timedelta(minutes=REQUEST_EXPIRATION),
+        checkout_url=None,
+    )
 
 
 async def init_store_transfer(
@@ -208,7 +214,7 @@ async def init_store_transfer(
     db: AsyncSession,
     payment_tool: CheckoutTool,
     settings: Settings,
-) -> schemas_checkout.PaymentUrl:
+) -> schemas_mypayment.PaymentRequestInfo:
     """
     Create a direct transfer to a store
     """
@@ -259,8 +265,9 @@ async def init_store_transfer(
         ),
     )
 
-    return schemas_checkout.PaymentUrl(
-        url=checkout.payment_url,
+    return schemas_mypayment.PaymentRequestInfo(
+        end_date=datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION),
+        checkout_url=checkout.payment_url,
     )
 
 
@@ -272,11 +279,11 @@ async def request_payment(
     checkout_tool: CheckoutTool,
     notification_tool: NotificationTool,
     settings: Settings,
-) -> None | schemas_checkout.PaymentUrl:
+) -> schemas_mypayment.PaymentRequestInfo:
     if checkout_tool.name != HelloAssoConfigName.MYPAYMENT:
         raise InvalidCheckoutToolError(checkout_tool.name)
     if payment_type == PaymentType.REQUEST:
-        await request_transaction(
+        return await request_transaction(
             user=user,
             request_info=schemas_mypayment.RequestInfo(
                 total=payment_info.total,
@@ -288,9 +295,7 @@ async def request_payment(
             ),
             db=db,
             notification_tool=notification_tool,
-            settings=settings,
         )
-        return None
     if payment_type == PaymentType.STORE_TRANSFER:
         return await init_store_transfer(
             user=user,
@@ -313,7 +318,6 @@ async def apply_transaction(
     transaction: schemas_mypayment.TransactionBase,
     debited_wallet_device: models_mypayment.WalletDevice,
     store: models_mypayment.Store,
-    settings: Settings,
     notification_tool: NotificationTool,
     db: AsyncSession,
 ):

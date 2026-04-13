@@ -2357,7 +2357,6 @@ async def store_scan_qrcode(
             transaction=transaction,
             db=db,
             notification_tool=notification_tool,
-            settings=settings,
         )
 
         return transaction
@@ -2880,7 +2879,6 @@ async def accept_request(
         debited_wallet_device=debited_wallet_device,
         user_id=user.id,
         db=db,
-        settings=settings,
         notification_tool=notification_tool,
         store=store,
     )
