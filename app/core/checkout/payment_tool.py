@@ -172,7 +172,8 @@ class CheckoutTool:
                     date_of_birth=datetime.combine(
                         payer_user.birthday,
                         datetime.min.time(),
-                    ).replace(tzinfo=UTC)
+                        tzinfo=UTC,
+                    )
                     if payer_user.birthday
                     else None,
                 )
@@ -229,8 +230,8 @@ class CheckoutTool:
                                 f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}, with and without payer {payer_user_name} infos",
                             )
 
-            if response and response.id:
-                checkout_model = models_checkout.Checkout(
+            if response and response.id and response.redirect_url:
+                checkout_model = models_payment.Checkout(
                     id=checkout_model_id,
                     module=module,
                     name=checkout_name,
@@ -246,7 +247,7 @@ class CheckoutTool:
                     payment_url=response.redirect_url or "",
                 )
             hyperion_error_logger.error(
-                f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}. No checkout id returned",
+                f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}. No checkout id or redirect URL returned",
             )
             raise MissingHelloAssoCheckoutIdError()  # noqa: TRY301
 
