@@ -354,7 +354,7 @@ class RequestEdit(BaseModel):
 class RequestInfo(BaseModel):
     store_id: UUID
     total: int
-    name: str
+    request_name: str
     store_note: str | None
     module: str
     object_id: UUID
