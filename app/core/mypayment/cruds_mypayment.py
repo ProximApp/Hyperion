@@ -1041,9 +1041,11 @@ async def get_request_by_id(
     db: AsyncSession,
 ) -> schemas_mypayment.Request | None:
     result = await db.execute(
-        select(models_mypayment.Request).where(
+        select(models_mypayment.Request)
+        .where(
             models_mypayment.Request.id == request_id,
-        ),
+        )
+        .with_for_update(of=models_mypayment.Request),
     )
     request = result.scalars().first()
     return (

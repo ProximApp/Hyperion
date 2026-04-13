@@ -184,7 +184,7 @@ async def request_transaction(
             creation=datetime.now(UTC),
             total=request_info.total,
             store_id=request_info.store_id,
-            name=request_info.name,
+            name=request_info.request_name,
             store_note=request_info.store_note,
             module=request_info.module,
             object_id=request_info.object_id,
@@ -192,9 +192,9 @@ async def request_transaction(
         ),
     )
     message = Message(
-        title=f"💸 Nouvelle demande de paiement - {request_info.name}",
+        title=f"💸 Nouvelle demande de paiement - {request_info.request_name}",
         content=f"Une nouvelle demande de paiement de {request_info.total / 100} € attend votre validation",
-        action_module=settings.school.payment_name,
+        action_module=MYPAYMENT_ROOT,
     )
     await notification_tool.send_notification_to_user(
         user_id=user.id,
@@ -281,7 +281,7 @@ async def request_payment(
             request_info=schemas_mypayment.RequestInfo(
                 total=payment_info.total,
                 store_id=payment_info.store_id,
-                name=payment_info.name,
+                request_name=payment_info.request_name,
                 store_note=payment_info.store_note,
                 module=payment_info.module,
                 object_id=payment_info.object_id,
@@ -348,7 +348,7 @@ async def apply_transaction(
     message = Message(
         title=f"💳 Paiement - {store.name}",
         content=f"Une transaction de {transaction.total / 100} € a été effectuée",
-        action_module=settings.school.payment_name,
+        action_module=MYPAYMENT_ROOT,
     )
     await notification_tool.send_notification_to_user(
         user_id=user_id,
