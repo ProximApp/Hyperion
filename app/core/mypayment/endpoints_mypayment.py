@@ -47,6 +47,16 @@ from app.core.mypayment.integrity_mypayment import (
 )
 from app.core.mypayment.models_mypayment import Store, WalletDevice
 from app.core.mypayment.types_mypayment import (
+    LATEST_TOS,
+    MYPAYMENT_DEVICES_S3_SUBFOLDER,
+    MYPAYMENT_LOGS_S3_SUBFOLDER,
+    MYPAYMENT_ROOT,
+    MYPAYMENT_STORES_S3_SUBFOLDER,
+    MYPAYMENT_STRUCTURE_S3_SUBFOLDER,
+    MYPAYMENT_USERS_S3_SUBFOLDER,
+    QRCODE_EXPIRATION,
+    REQUEST_EXPIRATION,
+    RETENTION_DURATION,
     HistoryType,
     PaymentType,
     RequestStatus,
@@ -59,16 +69,6 @@ from app.core.mypayment.types_mypayment import (
 from app.core.mypayment.utils.data_exporter import generate_store_history_csv
 from app.core.mypayment.utils.models_converter import structure_model_to_schema
 from app.core.mypayment.utils_mypayment import (
-    LATEST_TOS,
-    MYPAYMENT_DEVICES_S3_SUBFOLDER,
-    MYPAYMENT_LOGS_S3_SUBFOLDER,
-    MYPAYMENT_ROOT,
-    MYPAYMENT_STORES_S3_SUBFOLDER,
-    MYPAYMENT_STRUCTURE_S3_SUBFOLDER,
-    MYPAYMENT_USERS_S3_SUBFOLDER,
-    QRCODE_EXPIRATION,
-    REQUEST_EXPIRATION,
-    RETENTION_DURATION,
     apply_transaction,
     call_mypayment_callback,
     is_user_latest_tos_signed,

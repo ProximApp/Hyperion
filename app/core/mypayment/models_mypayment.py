@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.memberships import models_memberships
 from app.core.mypayment.types_mypayment import (
+    REQUEST_EXPIRATION,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -13,7 +14,6 @@ from app.core.mypayment.types_mypayment import (
     WalletDeviceStatus,
     WalletType,
 )
-from app.core.mypayment.utils_mypayment import REQUEST_EXPIRATION
 from app.core.users import models_users
 from app.types.sqlalchemy import Base, PrimaryKey
 
