@@ -1222,6 +1222,56 @@ def test_update_event(client: TestClient):
     assert response.status_code == 204
 
 
+# create_session
+
+
+def test_create_session_with_non_existing_event(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{uuid.uuid4()}/sessions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Session",
+            "start_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "quota": 10,
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_create_session_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/sessions/",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "name": "Test Session",
+            "start_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "quota": 10,
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_create_session(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/sessions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Session",
+            "start_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "quota": 10,
+        },
+    )
+    assert response.status_code == 201
+    session = response.json()
+    assert session["name"] == "Test Session"
+    assert session["quota"] == 10
+    assert session["event_id"] == str(global_event.id)
+
+
 # update_session
 
 
@@ -1295,6 +1345,77 @@ async def test_update_session(client: TestClient):
         },
     )
     assert response.status_code == 204
+
+
+# create_category
+
+
+def test_create_category_with_non_existing_event(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{uuid.uuid4()}/categories/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Category",
+            "price": 1000,
+            "quota": 10,
+            "required_membership": None,
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_create_category_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/categories/",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "name": "Test Category",
+            "price": 1000,
+            "quota": 10,
+            "required_membership": None,
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_create_category_with_price_to_low(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/categories/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Category",
+            "price": 10,
+            "quota": 10,
+            "required_membership": None,
+        },
+    )
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"][0]["msg"]
+        == "Value error, Price must be zero or greater than one euro"
+    )
+
+
+def test_create_category(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/categories/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Category",
+            "price": 1000,
+            "quota": 10,
+            "required_membership": None,
+        },
+    )
+    assert response.status_code == 201
+    category = response.json()
+    assert category["name"] == "Test Category"
+    assert category["price"] == 1000
+    assert category["quota"] == 10
 
 
 # update_category
