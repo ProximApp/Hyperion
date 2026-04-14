@@ -29,6 +29,11 @@ from app.core.mypayment.integrity_mypayment import (
 from app.core.mypayment.models_mypayment import UserPayment
 from app.core.mypayment.schemas_mypayment import SecuredContentData
 from app.core.mypayment.types_mypayment import (
+    LATEST_TOS,
+    MYPAYMENT_LOGS_S3_SUBFOLDER,
+    MYPAYMENT_ROOT,
+    REQUEST_EXPIRATION,
+    RETENTION_DURATION,
     PaymentType,
     RequestStatus,
     TransferType,
@@ -42,18 +47,6 @@ from app.utils.communication.notifications import NotificationTool
 hyperion_security_logger = logging.getLogger("hyperion.security")
 hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 hyperion_error_logger = logging.getLogger("hyperion.error")
-
-LATEST_TOS = 2
-QRCODE_EXPIRATION = 5  # minutes
-REQUEST_EXPIRATION = 8  # minutes
-RETENTION_DURATION = 10 * 365  # 10 years in days
-MYPAYMENT_ROOT = "mypayment"
-
-MYPAYMENT_STRUCTURE_S3_SUBFOLDER = "structures"
-MYPAYMENT_STORES_S3_SUBFOLDER = "stores"
-MYPAYMENT_USERS_S3_SUBFOLDER = "users"
-MYPAYMENT_DEVICES_S3_SUBFOLDER = "devices"
-MYPAYMENT_LOGS_S3_SUBFOLDER = "logs"
 
 
 def verify_signature(

@@ -27,6 +27,8 @@ from app.core.mypayment.schemas_mypayment import (
     SignedContent,
 )
 from app.core.mypayment.types_mypayment import (
+    LATEST_TOS,
+    REQUEST_EXPIRATION,
     RequestStatus,
     TransactionStatus,
     TransactionType,
@@ -35,8 +37,6 @@ from app.core.mypayment.types_mypayment import (
     WalletType,
 )
 from app.core.mypayment.utils_mypayment import (
-    LATEST_TOS,
-    REQUEST_EXPIRATION,
     validate_transfer_callback,
 )
 from app.core.permissions import models_permissions
