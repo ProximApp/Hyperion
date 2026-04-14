@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, not_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql import select
 
 from app.core.tickets import models_tickets, schemas_tickets
@@ -455,10 +455,11 @@ async def get_paid_tickets_by_user_id(
             models_tickets.Checkout.paid,
         )
         .options(
-            selectinload(models_tickets.Checkout.category),
-            selectinload(models_tickets.Checkout.session),
-            selectinload(models_tickets.Checkout.event),
-            selectinload(models_tickets.Checkout.answers).selectinload(
+            joinedload(models_tickets.Checkout.category),
+            joinedload(models_tickets.Checkout.session),
+            joinedload(models_tickets.Checkout.event),
+            joinedload(models_tickets.Checkout.user),
+            selectinload(models_tickets.Checkout.answers).joinedload(
                 models_tickets.Answer.question,
             ),
         ),
@@ -527,10 +528,10 @@ async def get_paid_tickets_by_event_id(
             models_tickets.Checkout.paid,
         )
         .options(
-            selectinload(models_tickets.Checkout.category),
-            selectinload(models_tickets.Checkout.session),
-            selectinload(models_tickets.Checkout.user),
-            selectinload(models_tickets.Checkout.answers).selectinload(
+            joinedload(models_tickets.Checkout.category),
+            joinedload(models_tickets.Checkout.session),
+            joinedload(models_tickets.Checkout.user),
+            selectinload(models_tickets.Checkout.answers).joinedload(
                 models_tickets.Answer.question,
             ),
         ),
@@ -588,10 +589,10 @@ async def get_ticket_by_id(
         select(models_tickets.Checkout)
         .where(models_tickets.Checkout.id == ticket_id)
         .options(
-            selectinload(models_tickets.Checkout.category),
-            selectinload(models_tickets.Checkout.session),
-            selectinload(models_tickets.Checkout.user),
-            selectinload(models_tickets.Checkout.answers).selectinload(
+            joinedload(models_tickets.Checkout.category),
+            joinedload(models_tickets.Checkout.session),
+            joinedload(models_tickets.Checkout.user),
+            selectinload(models_tickets.Checkout.answers).joinedload(
                 models_tickets.Answer.question,
             ),
         ),
