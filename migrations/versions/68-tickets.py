@@ -146,6 +146,88 @@ def upgrade() -> None:
         ["id"],
     )
 
+    op.create_index(
+        op.f("ix_tickets_answer_checkout_id"),
+        "tickets_answer",
+        ["checkout_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_answer_question_id"),
+        "tickets_answer",
+        ["question_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_category_event_id"),
+        "tickets_category",
+        ["event_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_category_id"),
+        "tickets_checkout",
+        ["category_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_event_id"),
+        "tickets_checkout",
+        ["event_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_expiration"),
+        "tickets_checkout",
+        ["expiration"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_paid"), "tickets_checkout", ["paid"], unique=False
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_session_id"),
+        "tickets_checkout",
+        ["session_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_checkout_user_id"),
+        "tickets_checkout",
+        ["user_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_event_close_datetime"),
+        "tickets_event",
+        ["close_datetime"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_event_disabled"), "tickets_event", ["disabled"], unique=False
+    )
+    op.create_index(
+        op.f("ix_tickets_event_open_datetime"),
+        "tickets_event",
+        ["open_datetime"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_event_store_id"), "tickets_event", ["store_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_tickets_question_event_id"),
+        "tickets_question",
+        ["event_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_tickets_session_event_id"),
+        "tickets_session",
+        ["event_id"],
+        unique=False,
+    )
+
 
 def downgrade() -> None:
     op.drop_constraint(

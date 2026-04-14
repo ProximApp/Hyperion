@@ -16,15 +16,15 @@ class TicketEvent(Base):
     id: Mapped[PrimaryKey]
     name: Mapped[str]
 
-    store_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_store.id"))
+    store_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_store.id"), index=True)
 
-    open_datetime: Mapped[datetime]
-    close_datetime: Mapped[datetime | None]
+    open_datetime: Mapped[datetime] = mapped_column(index=True)
+    close_datetime: Mapped[datetime | None] = mapped_column(index=True)
 
     # Total number of tickets available, None means unlimited
     quota: Mapped[int | None]
 
-    disabled: Mapped[bool]
+    disabled: Mapped[bool] = mapped_column(index=True)
 
     store: Mapped[models_mypayment.Store] = relationship(init=False)
 
@@ -37,7 +37,7 @@ class EventSession(Base):
     __tablename__ = "tickets_session"
 
     id: Mapped[PrimaryKey]
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"), index=True)
 
     name: Mapped[str]
 
@@ -54,7 +54,7 @@ class Category(Base):
     __tablename__ = "tickets_category"
 
     id: Mapped[PrimaryKey]
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"), index=True)
 
     name: Mapped[str]
 
@@ -74,7 +74,7 @@ class Question(Base):
     __tablename__ = "tickets_question"
 
     id: Mapped[PrimaryKey]
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"), index=True)
 
     question: Mapped[str]
     answer_type: Mapped[AnswerType]
@@ -90,8 +90,14 @@ class Answer(Base):
 
     id: Mapped[PrimaryKey]
 
-    question_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_question.id"))
-    checkout_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_checkout.id"))
+    question_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tickets_question.id"),
+        index=True,
+    )
+    checkout_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tickets_checkout.id"),
+        index=True,
+    )
 
     answer: Mapped[str]
 
@@ -107,18 +113,24 @@ class Checkout(Base):
 
     id: Mapped[PrimaryKey]
 
-    category_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_category.id"))
-    session_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_session.id"))
+    category_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tickets_category.id"),
+        index=True,
+    )
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tickets_session.id"),
+        index=True,
+    )
 
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"))
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("tickets_event.id"), index=True)
 
     price: Mapped[int]  # in cents
-    expiration: Mapped[datetime]
+    expiration: Mapped[datetime] = mapped_column(index=True)
 
-    user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("core_user.id"), index=True)
 
     # If a checkout is paid we should consider the user has a ticket
-    paid: Mapped[bool]
+    paid: Mapped[bool] = mapped_column(index=True)
     # We can mark the corresponding ticket as scanned
     scanned: Mapped[bool]
 
