@@ -310,6 +310,41 @@ async def create_event(
     db.add(db_event)
 
 
+async def create_event_session(
+    session_id: UUID,
+    event_id: UUID,
+    session: schemas_tickets.SessionCreate,
+    db: AsyncSession,
+):
+    db_session = models_tickets.EventSession(
+        id=session_id,
+        event_id=event_id,
+        name=session.name,
+        start_datetime=session.start_datetime,
+        quota=session.quota,
+        disabled=False,
+    )
+    db.add(db_session)
+
+
+async def create_event_category(
+    category_id: UUID,
+    event_id: UUID,
+    category: schemas_tickets.CategoryCreate,
+    db: AsyncSession,
+):
+    db_category = models_tickets.Category(
+        id=category_id,
+        event_id=event_id,
+        name=category.name,
+        quota=category.quota,
+        price=category.price,
+        required_membership=category.required_membership,
+        disabled=False,
+    )
+    db.add(db_category)
+
+
 async def get_category_by_id(
     category_id: UUID,
     db: AsyncSession,

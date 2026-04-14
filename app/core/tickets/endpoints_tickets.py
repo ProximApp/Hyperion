@@ -492,6 +492,53 @@ async def update_event(
     )
 
 
+@router.post(
+    "/tickets/admin/events/{event_id}/sessions",
+    response_model=schemas_tickets.SessionComplete,
+    status_code=201,
+)
+async def create_session(
+    event_id: UUID,
+    session_create: schemas_tickets.SessionCreate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a session for an event
+
+    **The user should have the right to manage the event seller**
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    session_id = uuid.uuid4()
+
+    await cruds_tickets.create_event_session(
+        session_id=session_id,
+        event_id=event_id,
+        session=session_create,
+        db=db,
+    )
+
+    return await cruds_tickets.get_session_by_id(
+        session_id=session_id,
+        db=db,
+    )
+
+
 @router.patch(
     "/tickets/admin/events/{event_id}/sessions/{session_id}",
     status_code=204,
@@ -543,6 +590,53 @@ async def update_session(
     await cruds_tickets.update_session(
         session_id=session_id,
         session_update=session_update,
+        db=db,
+    )
+
+
+@router.post(
+    "/tickets/admin/events/{event_id}/categories",
+    response_model=schemas_tickets.CategoryComplete,
+    status_code=201,
+)
+async def create_category(
+    event_id: UUID,
+    category_create: schemas_tickets.CategoryCreate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a category for an event
+
+    **The user should have the right to manage the event seller**
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    category_id = uuid.uuid4()
+
+    await cruds_tickets.create_event_category(
+        category_id=category_id,
+        event_id=event_id,
+        category=category_create,
+        db=db,
+    )
+
+    return await cruds_tickets.get_category_by_id(
+        category_id=category_id,
         db=db,
     )
 
