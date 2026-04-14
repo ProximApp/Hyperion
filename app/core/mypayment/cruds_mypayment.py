@@ -9,6 +9,7 @@ from sqlalchemy.orm import noload, selectinload
 from app.core.mypayment import models_mypayment, schemas_mypayment
 from app.core.mypayment.exceptions_mypayment import WalletNotFoundOnUpdateError
 from app.core.mypayment.types_mypayment import (
+    REQUEST_EXPIRATION,
     RequestStatus,
     TransactionStatus,
     WalletDeviceStatus,
@@ -18,9 +19,6 @@ from app.core.mypayment.utils.models_converter import (
     invoice_model_to_schema,
     refund_model_to_schema,
     structure_model_to_schema,
-)
-from app.core.mypayment.utils_mypayment import (
-    REQUEST_EXPIRATION,
 )
 from app.core.users import models_users, schemas_users
 
