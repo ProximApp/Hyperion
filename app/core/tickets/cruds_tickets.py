@@ -407,6 +407,7 @@ async def create_checkout(
     price: int,
     expiration: datetime,
     answers: list[schemas_tickets.AnswerCreate],
+    paid: bool,
     db: AsyncSession,
 ):
     db_checkout = models_tickets.Checkout(
@@ -427,7 +428,7 @@ async def create_checkout(
             for answer in answers
         ],
         scanned=False,
-        paid=False,
+        paid=paid,
     )
     db.add(db_checkout)
 

@@ -7,7 +7,7 @@ from pydantic import (
     field_validator,
 )
 
-from app.core.mypayment.types_mypayment import MyPaymentCallType
+from app.core.mypayment.types_mypayment import PaymentType
 from app.core.tickets.types_tickets import AnswerType
 from app.core.users import schemas_users
 
@@ -268,7 +268,7 @@ class Checkout(BaseModel):
     category_id: UUID
     session_id: UUID
     answers: list[AnswerCreate]
-    mypayment_request_method: MyPaymentCallType
+    mypayment_request_method: PaymentType
     mypayment_transfer_redirect_url: str
 
 

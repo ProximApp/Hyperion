@@ -14,7 +14,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.checkout.payment_tool import PaymentTool
+from app.core.checkout.payment_tool import CheckoutTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.feed import schemas_feed, utils_feed
 from app.core.memberships import utils_memberships
@@ -26,9 +26,9 @@ from app.core.users import schemas_users
 from app.core.users.models_users import CoreUser
 from app.core.utils.config import Settings
 from app.dependencies import (
+    get_checkout_tool,
     get_db,
     get_notification_tool,
-    get_payment_tool,
     get_settings,
     is_user,
     is_user_allowed_to,
@@ -47,7 +47,6 @@ core_module = CoreModule(
     mypayment_callback=utils_tickets.mypayment_callback_callback,
 )
 
-CHECKOUT_EXPIRATION_MINUTES = 15
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
@@ -183,8 +182,8 @@ async def create_checkout(
     db: AsyncSession = Depends(get_db),
     notification_tool: NotificationTool = Depends(get_notification_tool),
     settings: Settings = Depends(get_settings),
-    payment_tool: PaymentTool = Depends(
-        get_payment_tool(HelloAssoConfigName.MYPAYMENT),
+    checkout_tool: CheckoutTool = Depends(
+        get_checkout_tool(HelloAssoConfigName.MYPAYMENT),
     ),
 ):
     """
@@ -254,7 +253,6 @@ async def create_checkout(
         raise HTTPException(400, "Event is closed")
 
     price += category.price
-    expiration = datetime.now(UTC) + timedelta(minutes=CHECKOUT_EXPIRATION_MINUTES)
 
     if await utils_tickets.is_event_sold_out(
         event_id=event_id,
@@ -276,32 +274,23 @@ async def create_checkout(
         raise HTTPException(400, "Session is sold out")
 
     checkout_id = uuid.uuid4()
-    await cruds_tickets.create_checkout(
-        checkout_id=checkout_id,
-        event_id=event_id,
-        user_id=user.id,
-        category_id=checkout.category_id,
-        session_id=checkout.session_id,
-        expiration=expiration,
-        price=price,
-        answers=checkout.answers,
-        db=db,
-    )
 
-    payment_url = None
     if price == 0:
         await cruds_tickets.mark_checkout_as_paid(
             checkout_id=checkout_id,
             db=db,
         )
+        payment_request_info = None
+        expiration = datetime.now(UTC)
+        paid = True
     else:
-        payment_url = await utils_mypayment.request_payment(
+        payment_request_info = await utils_mypayment.request_payment(
             payment_type=checkout.mypayment_request_method,
             payment_info=schemas_mypayment.PaymentInfo(
                 store_id=event.store_id,
                 total=price,
-                name=f"event {event.name}",
-                note=f"Ticket for {event.name}",
+                request_name=f"Event {event.name}",
+                store_note=f"Ticket for {event.name} of {user.full_name}",
                 module=core_module.root,
                 object_id=checkout_id,
                 redirect_url=checkout.mypayment_transfer_redirect_url,
@@ -317,13 +306,30 @@ async def create_checkout(
             ),
             notification_tool=notification_tool,
             settings=settings,
-            payment_tool=payment_tool,
+            checkout_tool=checkout_tool,
         )
+        expiration = payment_request_info.end_date
+        paid = False
+
+    await cruds_tickets.create_checkout(
+        checkout_id=checkout_id,
+        event_id=event_id,
+        user_id=user.id,
+        category_id=checkout.category_id,
+        session_id=checkout.session_id,
+        expiration=expiration,
+        price=price,
+        answers=checkout.answers,
+        paid=paid,
+        db=db,
+    )
 
     return schemas_tickets.CheckoutResponse(
         price=price,
         expiration=expiration,
-        payment_url=payment_url.url if payment_url is not None else None,
+        payment_url=payment_request_info.checkout_url
+        if payment_request_info is not None
+        else None,
     )
 
 
@@ -817,7 +823,7 @@ async def get_event_tickets_csv(
     writer = csv.writer(csv_io, delimiter=";", quoting=csv.QUOTE_MINIMAL)
 
     question_ids = []
-    headers = [
+    csv_headers = [
         "Ticket ID",
         "Session ID",
         "Session Name",
@@ -838,10 +844,10 @@ async def get_event_tickets_csv(
     )
     for question in questions:
         question_ids.append(question.id)
-        headers.append(f"Question: {question.question} ({question.price})")
+        csv_headers.append(f"Question: {question.question} ({question.price})")
 
-    # Write headers
-    writer.writerow(headers)
+    # Write csv_headers
+    writer.writerow(csv_headers)
 
     tickets = await cruds_tickets.get_paid_tickets_by_event_id(event_id=event_id, db=db)
     for ticket in tickets:
@@ -863,9 +869,9 @@ async def get_event_tickets_csv(
         for answer in ticket.answers:
             answers_by_question_id[answer.question_id] = answer
         for question_id in question_ids:
-            answer = answers_by_question_id.get(question_id)
-            if answer is not None:
-                row.append(answer.answer.answer_value)
+            answer_associated_with_question = answers_by_question_id.get(question_id)
+            if answer_associated_with_question is not None:
+                row.append(answer_associated_with_question.answer.answer_value)
             else:
                 row.append("")
 
