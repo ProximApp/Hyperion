@@ -45,7 +45,7 @@ class TicketsPermissions(ModulePermissions):
 
 
 core_module = CoreModule(
-    root="ticket",
+    root="tickets",
     tag="Tickets",
     router=router,
     factory=TicketsFactory(),
