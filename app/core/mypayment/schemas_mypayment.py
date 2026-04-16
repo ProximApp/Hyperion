@@ -9,6 +9,7 @@ from pydantic import (
 
 from app.core.memberships import schemas_memberships
 from app.core.mypayment.types_mypayment import (
+    HistoryDirection,
     HistoryType,
     RequestStatus,
     TransactionStatus,
@@ -165,6 +166,7 @@ class HistoryRefund(BaseModel):
 class History(BaseModel):
     id: UUID
     type: HistoryType
+    direction: HistoryDirection
     other_wallet_name: str
     total: int
     creation: datetime

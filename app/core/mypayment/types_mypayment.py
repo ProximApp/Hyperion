@@ -25,17 +25,22 @@ class WalletDeviceStatus(StrEnum):
 
 
 class TransactionType(StrEnum):
+    # Direct correspond to a QR code payment
     DIRECT = "direct"
     REQUEST = "request"
-    REFUND = "refund"
 
 
 class HistoryType(StrEnum):
+    REFUND = "refund"
     TRANSFER = "transfer"
-    RECEIVED = "received"
-    GIVEN = "given"
-    REFUND_CREDITED = "refund_credited"
-    REFUND_DEBITED = "refund_debited"
+    REQUEST_TRANSFER = "request_transfer"
+    DIRECT_TRANSACTION = "direct_transaction"
+    REQUEST_TRANSACTION = "request_transaction"
+
+
+class HistoryDirection(StrEnum):
+    CREDITED = "credited"
+    DEBITED = "debited"
 
 
 class TransactionStatus(StrEnum):
