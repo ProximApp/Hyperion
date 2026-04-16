@@ -16,7 +16,7 @@ from app.types.sqlalchemy import TZDateTime
 
 # revision identifiers, used by Alembic.
 revision: str = "c052cfbe6d75"
-down_revision: str | None = "146db8dcb23e"
+down_revision: str | None = "46fbbcee7237"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -183,7 +183,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_checkout_paid"), "tickets_checkout", ["paid"], unique=False,
+        op.f("ix_tickets_checkout_paid"),
+        "tickets_checkout",
+        ["paid"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_tickets_checkout_session_id"),
@@ -204,7 +207,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_event_disabled"), "tickets_event", ["disabled"], unique=False,
+        op.f("ix_tickets_event_disabled"),
+        "tickets_event",
+        ["disabled"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_tickets_event_open_datetime"),
@@ -213,7 +219,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_event_store_id"), "tickets_event", ["store_id"], unique=False,
+        op.f("ix_tickets_event_store_id"),
+        "tickets_event",
+        ["store_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_tickets_question_event_id"),
