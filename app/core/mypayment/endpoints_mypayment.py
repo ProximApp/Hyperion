@@ -57,6 +57,7 @@ from app.core.mypayment.types_mypayment import (
     QRCODE_EXPIRATION,
     REQUEST_EXPIRATION,
     RETENTION_DURATION,
+    HistoryDirection,
     HistoryType,
     PaymentType,
     RequestStatus,
@@ -642,11 +643,17 @@ async def get_store_history(
                 creation=transaction.refund.creation,
             )
 
+        if transaction.transaction_type == TransactionType.DIRECT:
+            transaction_type = HistoryType.DIRECT_TRANSACTION
+        else:
+            transaction_type = HistoryType.REQUEST_TRANSACTION
+
         if transaction.debited_wallet_id == store.wallet_id:
             history.append(
                 schemas_mypayment.History(
                     id=transaction.id,
-                    type=HistoryType.GIVEN,
+                    type=transaction_type,
+                    direction=HistoryDirection.DEBITED,
                     total=transaction.total,
                     status=transaction.status,
                     creation=transaction.creation,
@@ -660,7 +667,8 @@ async def get_store_history(
             history.append(
                 schemas_mypayment.History(
                     id=transaction.id,
-                    type=HistoryType.RECEIVED,
+                    type=transaction_type,
+                    direction=HistoryDirection.CREDITED,
                     total=transaction.total,
                     status=transaction.status,
                     creation=transaction.creation,
@@ -691,16 +699,19 @@ async def get_store_history(
     )
     for refund in refunds:
         if refund.debited_wallet_id == store.wallet_id:
-            transaction_type = HistoryType.REFUND_DEBITED
+            transaction_type = HistoryType.REFUND
+            direction = HistoryDirection.DEBITED
             other_wallet_info = refund.credited_wallet
         else:
-            transaction_type = HistoryType.REFUND_CREDITED
+            transaction_type = HistoryType.REFUND
+            direction = HistoryDirection.CREDITED
             other_wallet_info = refund.debited_wallet
 
         history.append(
             schemas_mypayment.History(
                 id=refund.id,
                 type=transaction_type,
+                direction=direction,
                 other_wallet_name=other_wallet_info.owner_name or "Unknown",
                 total=refund.total,
                 creation=refund.creation,
@@ -1749,13 +1760,17 @@ async def get_user_wallet_history(
     )
 
     for transaction in transactions:
+        if transaction.transaction_type == TransactionType.DIRECT:
+            transaction_type = HistoryType.DIRECT_TRANSACTION
+        elif transaction.transaction_type == TransactionType.REQUEST:
+            transaction_type = HistoryType.REQUEST_TRANSACTION
         if transaction.credited_wallet_id == user_payment.wallet_id:
             # The user received the transaction
-            transaction_type = HistoryType.RECEIVED
+            direction = HistoryDirection.CREDITED
             other_wallet = transaction.debited_wallet
         else:
             # The user sent the transaction
-            transaction_type = HistoryType.GIVEN
+            direction = HistoryDirection.DEBITED
             other_wallet = transaction.credited_wallet
 
         # We need to find if the other wallet correspond to a store or a user to get its display name
@@ -1776,6 +1791,7 @@ async def get_user_wallet_history(
             schemas_mypayment.History(
                 id=transaction.id,
                 type=transaction_type,
+                direction=direction,
                 other_wallet_name=other_wallet_name,
                 total=transaction.total,
                 creation=transaction.creation,
@@ -1803,7 +1819,9 @@ async def get_user_wallet_history(
         history.append(
             schemas_mypayment.History(
                 id=transfer.id,
-                type=HistoryType.TRANSFER,
+                # TODO: check if this is a request or not
+                type=HistoryType.REQUEST_TRANSFER,
+                direction=HistoryDirection.CREDITED,
                 other_wallet_name="Transfer",
                 total=transfer.total,
                 creation=transfer.creation,
@@ -1820,16 +1838,17 @@ async def get_user_wallet_history(
     )
     for refund in refunds:
         if refund.debited_wallet_id == user_payment.wallet_id:
-            transaction_type = HistoryType.REFUND_DEBITED
+            direction = HistoryDirection.DEBITED
             other_wallet_info = refund.credited_wallet
         else:
-            transaction_type = HistoryType.REFUND_CREDITED
+            direction = HistoryDirection.CREDITED
             other_wallet_info = refund.debited_wallet
 
         history.append(
             schemas_mypayment.History(
                 id=refund.id,
-                type=transaction_type,
+                type=HistoryType.REFUND,
+                direction=direction,
                 other_wallet_name=other_wallet_info.owner_name or "Unknown",
                 total=refund.total,
                 creation=refund.creation,

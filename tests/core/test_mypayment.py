@@ -2107,7 +2107,10 @@ def test_get_transactions_success(client: TestClient):
         transactions_dict[transaction_from_ecl_user_to_store.id]["other_wallet_name"]
         == "Test Store"
     )
-    assert transactions_dict[transaction_from_ecl_user_to_store.id]["type"] == "given"
+    assert (
+        transactions_dict[transaction_from_ecl_user_to_store.id]["direction"]
+        == "debited"
+    )
     assert transactions_dict[transaction_from_ecl_user_to_store.id]["total"] == 500
     assert (
         transactions_dict[transaction_from_ecl_user_to_store.id]["status"]
@@ -2121,7 +2124,8 @@ def test_get_transactions_success(client: TestClient):
         == "firstname ECL User 2 (nickname)"
     )
     assert (
-        transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["type"] == "given"
+        transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["direction"]
+        == "debited"
     )
     assert transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["total"] == 600
     assert (
@@ -2134,7 +2138,12 @@ def test_get_transactions_success(client: TestClient):
         == "Test Store"
     )
     assert (
-        transactions_dict[transaction_from_store_to_ecl_user.id]["type"] == "received"
+        transactions_dict[transaction_from_store_to_ecl_user.id]["type"]
+        == "direct_transaction"
+    )
+    assert (
+        transactions_dict[transaction_from_store_to_ecl_user.id]["direction"]
+        == "credited"
     )
     assert transactions_dict[transaction_from_store_to_ecl_user.id]["total"] == 700
     assert (
@@ -2150,7 +2159,11 @@ def test_get_transactions_success(client: TestClient):
     )
     assert (
         transactions_dict[transaction_from_ecl_user2_to_ecl_user.id]["type"]
-        == "received"
+        == "direct_transaction"
+    )
+    assert (
+        transactions_dict[transaction_from_ecl_user2_to_ecl_user.id]["direction"]
+        == "credited"
     )
     assert transactions_dict[transaction_from_ecl_user2_to_ecl_user.id]["total"] == 800
     assert (
@@ -2182,7 +2195,12 @@ def test_get_transactions_success_with_date(client: TestClient):
         == "firstname ECL User 2 (nickname)"
     )
     assert (
-        transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["type"] == "given"
+        transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["type"]
+        == "direct_transaction"
+    )
+    assert (
+        transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["direction"]
+        == "debited"
     )
     assert transactions_dict[transaction_from_ecl_user_to_ecl_user2.id]["total"] == 600
     assert (
@@ -2195,7 +2213,12 @@ def test_get_transactions_success_with_date(client: TestClient):
         == "Test Store"
     )
     assert (
-        transactions_dict[transaction_from_store_to_ecl_user.id]["type"] == "received"
+        transactions_dict[transaction_from_store_to_ecl_user.id]["type"]
+        == "direct_transaction"
+    )
+    assert (
+        transactions_dict[transaction_from_store_to_ecl_user.id]["direction"]
+        == "credited"
     )
     assert transactions_dict[transaction_from_store_to_ecl_user.id]["total"] == 700
     assert (
