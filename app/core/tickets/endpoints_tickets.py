@@ -39,22 +39,24 @@ from app.utils.communication.notifications import NotificationTool
 
 router = APIRouter(tags=["Tickets"])
 
+
+class TicketsPermissions(ModulePermissions):
+    access_tickets = "access_tickets"
+
+
 core_module = CoreModule(
     root="ticket",
     tag="Tickets",
     router=router,
     factory=TicketsFactory(),
     mypayment_callback=utils_tickets.mypayment_callback_callback,
+    permissions=TicketsPermissions,
 )
 
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
 hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
-
-
-class TicketsPermissions(ModulePermissions):
-    access_tickets = "access_tickets"
 
 
 @router.get(
