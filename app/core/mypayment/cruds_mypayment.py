@@ -164,7 +164,7 @@ async def update_store(
     await db.execute(
         update(models_mypayment.Store)
         .where(models_mypayment.Store.id == store_id)
-        .values(**store_update.model_dump(exclude_none=True)),
+        .values(**store_update.model_dump(exclude_unset=True)),
     )
 
 

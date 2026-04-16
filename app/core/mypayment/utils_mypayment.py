@@ -236,7 +236,7 @@ async def init_store_transfer(
     checkout = await payment_tool.init_checkout(
         module=MYPAYMENT_ROOT,
         checkout_amount=transfer_info.amount,
-        checkout_name=f"Paiement direct {settings.school.payment_name}",
+        checkout_name=f"Recharge {settings.school.payment_name}",
         redirection_uri=f"{settings.CLIENT_URL}mypayment/transfer/redirect?url={transfer_info.redirect_url}",
         payer_user=user,
         db=db,
@@ -385,16 +385,3 @@ async def call_mypayment_callback(
         hyperion_error_logger.exception(
             f"MyPayment: call to module {module_root} request callback ({id_name}: {call_id}) failed",
         )
-
-
-async def can_user_manage_events(
-    user_id: str,
-    store_id: UUID,
-    db: AsyncSession,
-):
-    seller = await cruds_mypayment.get_seller(
-        user_id=user_id,
-        store_id=store_id,
-        db=db,
-    )
-    return seller is not None and seller.can_manage_events
