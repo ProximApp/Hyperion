@@ -183,7 +183,7 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_checkout_paid"), "tickets_checkout", ["paid"], unique=False
+        op.f("ix_tickets_checkout_paid"), "tickets_checkout", ["paid"], unique=False,
     )
     op.create_index(
         op.f("ix_tickets_checkout_session_id"),
@@ -204,7 +204,7 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_event_disabled"), "tickets_event", ["disabled"], unique=False
+        op.f("ix_tickets_event_disabled"), "tickets_event", ["disabled"], unique=False,
     )
     op.create_index(
         op.f("ix_tickets_event_open_datetime"),
@@ -213,7 +213,7 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_tickets_event_store_id"), "tickets_event", ["store_id"], unique=False
+        op.f("ix_tickets_event_store_id"), "tickets_event", ["store_id"], unique=False,
     )
     op.create_index(
         op.f("ix_tickets_question_event_id"),
