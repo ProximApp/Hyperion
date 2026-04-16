@@ -1403,6 +1403,93 @@ async def test_update_store(client: TestClient):
     assert response.status_code == 204
 
 
+async def test_update_store_with_non_existing_association(client: TestClient):
+    response = client.patch(
+        f"/mypayment/stores/{store2.id}",
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        json={
+            "association_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Association not found"
+
+
+async def test_update_store_with_association_when_not_allowed_to_manage_association(
+    client: TestClient,
+):
+    response = client.patch(
+        f"/mypayment/stores/{store2.id}",
+        headers={"Authorization": f"Bearer {structure_manager_user_token}"},
+        json={
+            "association_id": str(core_association.id),
+        },
+    )
+
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"]
+        == "You are not allowed to create stores for this association"
+    )
+
+
+async def test_update_store_with_association_already_used(client: TestClient):
+    structure_manager_and_association_member_user = await create_user_with_groups(
+        groups=[core_association_group.id],
+    )
+    structure_manager_and_association_member_user_token = create_api_access_token(
+        structure_manager_and_association_member_user,
+    )
+
+    new_structure = models_mypayment.Structure(
+        id=uuid4(),
+        name="Test Structure Update Association",
+        creation=datetime.now(UTC),
+        association_membership_id=association_membership.id,
+        manager_user_id=structure_manager_and_association_member_user.id,
+        short_id="UPD",
+        siege_address_street="123 Test Street",
+        siege_address_city="Test City",
+        siege_address_zipcode="12345",
+        siege_address_country="Test Country",
+        siret="12345678909999",
+        iban="FR76 1234 5678 9012 3456 7890 999",
+        bic="AZERTYUIOP",
+    )
+    await add_object_to_db(new_structure)
+
+    new_wallet = models_mypayment.Wallet(
+        id=uuid4(),
+        type=WalletType.STORE,
+        balance=5000,
+    )
+    await add_object_to_db(new_wallet)
+
+    new_store = models_mypayment.Store(
+        id=uuid4(),
+        creation=datetime.now(UTC),
+        wallet_id=new_wallet.id,
+        name="Test Store Update Association Duplicate",
+        structure_id=new_structure.id,
+        association_id=None,
+    )
+    await add_object_to_db(new_store)
+
+    response = client.patch(
+        f"/mypayment/stores/{new_store.id}",
+        headers={
+            "Authorization": f"Bearer {structure_manager_and_association_member_user_token}",
+        },
+        json={
+            "association_id": str(core_association.id),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Store for this association already exists"
+
+
 async def test_get_user_stores(client: TestClient):
     response = client.get(
         "/mypayment/users/me/stores",

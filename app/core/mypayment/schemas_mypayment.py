@@ -89,6 +89,7 @@ class UserStore(Store):
 
 class StoreUpdate(BaseModel):
     name: str | None = None
+    association_id: UUID | None = None
 
 
 class SellerCreation(BaseModel):
