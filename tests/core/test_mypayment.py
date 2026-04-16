@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 from pytest_mock import MockerFixture
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.checkout import schemas_checkout
 from app.core.associations import models_associations
+from app.core.checkout import schemas_checkout
 from app.core.groups import models_groups
 from app.core.groups.groups_type import AccountType, GroupType
 from app.core.memberships import models_memberships
