@@ -92,7 +92,6 @@ from app.utils.tools import (
     generate_pdf_from_template,
     get_core_data,
     get_file_from_data,
-    is_user_member_of_an_association,
     patch_identity_in_text,
     set_core_data,
 )
