@@ -515,7 +515,6 @@ async def create_store(
     Stores name should be unique, as an user need to be able to identify a store by its name.
 
     **The user must be the manager for this structure**
-    **The user must be a member of the associated CoreAssociation**
     """
     structure = await cruds_mypayment.get_structure_by_id(
         structure_id=structure_id,
@@ -552,14 +551,15 @@ async def create_store(
                 status_code=404,
                 detail="Association not found",
             )
-        if not is_user_member_of_an_association(
-            user=user,
-            association=association,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="You are not allowed to create stores for this association",
-            )
+        # The structure manager is able to link its stores with any core association
+        # if not is_user_member_of_an_association(
+        #     user=user,
+        #     association=association,
+        # ):
+        #     raise HTTPException(
+        #         status_code=403,
+        #         detail="You are not allowed to create stores for this association",
+        #     )
         existing_store_for_association = (
             await cruds_mypayment.get_store_by_association_id(
                 association_id=store.association_id,
@@ -951,14 +951,15 @@ async def update_store(
                 status_code=404,
                 detail="Association not found",
             )
-        if not is_user_member_of_an_association(
-            user=user,
-            association=association,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="You are not allowed to create stores for this association",
-            )
+        # The structure manager is able to link its stores with any core association
+        # if not is_user_member_of_an_association(
+        #     user=user,
+        #     association=association,
+        # ):
+        #     raise HTTPException(
+        #         status_code=403,
+        #         detail="You are not allowed to create stores for this association",
+        #     )
         if store_update.association_id != store.association_id:
             # If the id does not change, we don't need to check if an other store already exists for this association
             existing_store_for_association = (
