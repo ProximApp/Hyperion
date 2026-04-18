@@ -36,9 +36,9 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 class CheckoutTool:
-    _access_token: str | None
-    _refresh_token: str | None
-    _access_token_expiry: int | None
+    _access_token: str | None = None
+    _refresh_token: str | None = None
+    _access_token_expiry: int | None = None
 
     _auth_client: OAuth2Session
     _helloasso_api_base: str
