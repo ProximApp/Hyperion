@@ -15,7 +15,7 @@ from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
 from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
 from app.core.mypayment.exceptions_mypayment import (
     InvalidCheckoutToolError,
-    InvalidPaymentTypeError,
+    InvalidRequestTypeError,
     PaymentUserNotFoundError,
     TransferAlreadyConfirmedInCallbackError,
     TransferNotFoundByCallbackError,
@@ -34,8 +34,8 @@ from app.core.mypayment.types_mypayment import (
     MYPAYMENT_ROOT,
     REQUEST_EXPIRATION,
     RETENTION_DURATION,
-    PaymentType,
     RequestStatus,
+    RequestType,
     TransferOrigin,
 )
 from app.core.notification.schemas_notification import Message
@@ -147,7 +147,7 @@ async def validate_transfer_callback(
     if wallet.store:  # This transfer is a direct transfer to a store, it was requested by a module, so we want to call the module callback if it exists
         if transfer.module and transfer.object_id:
             await call_mypayment_callback(
-                call_type=PaymentType.STORE_TRANSFER,
+                call_type=RequestType.TRANSFER_REQUEST,
                 module_root=transfer.module,
                 object_id=transfer.object_id,
                 call_id=transfer.id,
@@ -162,9 +162,11 @@ async def request_transaction(
     notification_tool: NotificationTool,
 ) -> schemas_mypayment.PaymentRequestInfo:
     """
-    Create a transaction request for a user from a store.
-    - create a mypayment payment request between the user wallet and the store wallet
-    - the request need to be accepted be the user using ... endpoint
+    Create a Transaction request for a user from a store.
+    Create a mypayment payment request between the user wallet and the store wallet
+    The request need to be accepted or refused by the user using either
+    - /mypayment/requests/{request_id}/accept
+    - /mypayment/requests/{request_id}/refuse
     """
     payment_user = await cruds_mypayment.get_user_payment(user.id, db)
     if not payment_user:
@@ -201,7 +203,7 @@ async def request_transaction(
     )
 
 
-async def init_store_transfer(
+async def request_transfer(
     user: schemas_users.CoreUser,
     transfer_info: schemas_mypayment.StoreTransferInfo,
     db: AsyncSession,
@@ -209,7 +211,9 @@ async def init_store_transfer(
     settings: Settings,
 ) -> schemas_mypayment.PaymentRequestInfo:
     """
-    Create a direct transfer to a store
+    Create a Transfer request for a user from a store.
+    The user should be redirected to the returned `checkout_url` to complete the transfer request.
+    The transfer will be credited directly to the store wallet.
     """
     if transfer_info.redirect_url not in settings.TRUSTED_PAYMENT_REDIRECT_URLS:
         hyperion_error_logger.warning(
@@ -265,7 +269,7 @@ async def init_store_transfer(
 
 
 async def request_payment(
-    payment_type: PaymentType,
+    request_type: RequestType,
     payment_info: schemas_mypayment.PaymentInfo,
     user: schemas_users.CoreUser,
     db: AsyncSession,
@@ -273,9 +277,29 @@ async def request_payment(
     notification_tool: NotificationTool,
     settings: Settings,
 ) -> schemas_mypayment.PaymentRequestInfo:
+    """
+    Initiate a payment request. This request can be either:
+     - a REQUEST_TRANSFER: a checkout will be instantiated, and be credited directly to the store wallet.
+        In this case, a `checkout_url` url will be returned, the user should be redirected to this url to complete the checkout.
+     - a REQUEST_TRANSACTION: when accepted by the user, a transaction will be created between the user wallet and the store wallet.
+        The user should be redirected to mypayment module, to be asked to accept or refuse the transaction request.
+
+    The request is valid until `end_date`
+
+    The `CheckoutTool` must be a *MyPayment* checkout tool
+
+    Use `get_mypayment_tool` dependency to get an instance of `MyPaymentTool`, which will ensure that all dependencies are properly injected.
+
+    When the request is confirmed (checkout validated or transaction accepted), a callback will be called, with the following signature:
+    ```python
+    async def mypayment_callback(object_id: UUID, db: AsyncSession)
+    ```
+    """
+    # As transfers will be credited to a MyPayment store wallet, we need to ensure that the checkout tool used for transfer requests is a MyPayment checkout tool
     if checkout_tool.name != HelloAssoConfigName.MYPAYMENT:
         raise InvalidCheckoutToolError(checkout_tool.name)
-    if payment_type == PaymentType.REQUEST:
+
+    if request_type == RequestType.TRANSACTION_REQUEST:
         return await request_transaction(
             user=user,
             request_info=schemas_mypayment.RequestInfo(
@@ -289,8 +313,8 @@ async def request_payment(
             db=db,
             notification_tool=notification_tool,
         )
-    if payment_type == PaymentType.STORE_TRANSFER:
-        return await init_store_transfer(
+    if request_type == RequestType.TRANSFER_REQUEST:
+        return await request_transfer(
             user=user,
             transfer_info=schemas_mypayment.StoreTransferInfo(
                 amount=payment_info.total,
@@ -303,7 +327,7 @@ async def request_payment(
             payment_tool=checkout_tool,
             settings=settings,
         )
-    raise InvalidPaymentTypeError(payment_type)
+    raise InvalidRequestTypeError(request_type)
 
 
 async def apply_transaction(
@@ -354,13 +378,15 @@ async def apply_transaction(
 
 
 async def call_mypayment_callback(
-    call_type: PaymentType,
+    call_type: RequestType,
     module_root: str,
     object_id: UUID,
     call_id: UUID,
     db: AsyncSession,
 ):
-    id_name = "transfer_id" if call_type == PaymentType.STORE_TRANSFER else "request_id"
+    id_name = (
+        "transfer_id" if call_type == RequestType.TRANSFER_REQUEST else "request_id"
+    )
     try:
         for module in all_modules:
             if module.root == module_root:

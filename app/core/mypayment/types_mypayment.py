@@ -83,6 +83,9 @@ class ActionType(StrEnum):
     WITHDRAWAL = "withdrawal"
 
 
-class PaymentType(StrEnum):
-    STORE_TRANSFER = "transfer"
-    REQUEST = "request"
+class RequestType(StrEnum):
+    # The user will be redirected to a checkout payment page to complete the transfer
+    # The total will be directly credited to the store wallet as a *transfer*
+    TRANSFER_REQUEST = "transfer"
+    # After being accepted by the user, a transaction will be created between the user wallet and the store wallet
+    TRANSACTION_REQUEST = "request"

@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from app.core.checkout.types_checkout import HelloAssoConfigName
-from app.core.mypayment.types_mypayment import PaymentType
+from app.core.mypayment.types_mypayment import RequestType
 
 
 class WalletNotFoundOnUpdateError(Exception):
@@ -64,10 +64,10 @@ class PaymentUserNotFoundError(Exception):
         )
 
 
-class InvalidPaymentTypeError(Exception):
-    def __init__(self, payment_type: PaymentType):
+class InvalidRequestTypeError(Exception):
+    def __init__(self, request_type: RequestType):
         super().__init__(
-            f"Payment type {payment_type.name} is not supported",
+            f"Request type {request_type.name} is not supported",
         )
 
 
