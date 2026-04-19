@@ -2909,7 +2909,8 @@ async def accept_request(
     )
     if store is None:
         raise ObjectExpectedInDbNotFoundError(
-            object_name="Store", object_id=request.store_id,
+            object_name="Store",
+            object_id=request.store_id,
         )
 
     transaction = schemas_mypayment.TransactionBase(
