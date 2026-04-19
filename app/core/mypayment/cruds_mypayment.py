@@ -712,6 +712,7 @@ async def get_transfers(
         schemas_mypayment.Transfer(
             id=transfer.id,
             type=transfer.type,
+            origin=transfer.origin,
             transfer_identifier=transfer.transfer_identifier,
             approver_user_id=transfer.approver_user_id,
             wallet_id=transfer.wallet_id,
@@ -726,12 +727,12 @@ async def get_transfers(
 
 
 async def create_transfer(
-    transfer: schemas_mypayment.Transfer,
+    transfer: schemas_mypayment.TransferCreation,
     db: AsyncSession,
 ) -> None:
     transfer_db = models_mypayment.Transfer(
         id=transfer.id,
-        type=transfer.type,
+        origin=transfer.origin,
         transfer_identifier=transfer.transfer_identifier,
         approver_user_id=transfer.approver_user_id,
         wallet_id=transfer.wallet_id,
@@ -779,6 +780,7 @@ async def get_transfers_by_wallet_id(
         schemas_mypayment.Transfer(
             id=transfer.id,
             type=transfer.type,
+            origin=transfer.origin,
             transfer_identifier=transfer.transfer_identifier,
             approver_user_id=transfer.approver_user_id,
             wallet_id=transfer.wallet_id,
@@ -849,6 +851,7 @@ async def get_transfer_by_transfer_identifier(
         schemas_mypayment.Transfer(
             id=result.id,
             type=result.type,
+            origin=result.origin,
             transfer_identifier=result.transfer_identifier,
             approver_user_id=result.approver_user_id,
             wallet_id=result.wallet_id,

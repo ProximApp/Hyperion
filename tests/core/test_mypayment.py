@@ -32,7 +32,7 @@ from app.core.mypayment.types_mypayment import (
     RequestStatus,
     TransactionStatus,
     TransactionType,
-    TransferType,
+    TransferOrigin,
     WalletDeviceStatus,
     WalletType,
 )
@@ -403,7 +403,7 @@ async def init_objects() -> None:
     global store_direct_transfer
     store_direct_transfer = models_mypayment.Transfer(
         id=uuid4(),
-        type=TransferType.HELLO_ASSO,
+        origin=TransferOrigin.HELLO_ASSO,
         transfer_identifier=str(uuid4()),
         approver_user_id=None,
         wallet_id=store_wallet.id,
@@ -486,7 +486,7 @@ async def init_objects() -> None:
     global ecl_user_transfer
     ecl_user_transfer = models_mypayment.Transfer(
         id=uuid4(),
-        type=TransferType.HELLO_ASSO,
+        origin=TransferOrigin.HELLO_ASSO,
         transfer_identifier="transfer_identifier",
         approver_user_id=None,
         wallet_id=ecl_user_wallet.id,
@@ -1145,13 +1145,18 @@ async def test_get_store_history(client: TestClient):
 
     assert response.status_code == 200
     history_list = response.json()
-    assert len(history_list) == 2
+    assert len(history_list) == 3
 
     history = {transaction["id"]: transaction for transaction in history_list}
     assert str(transaction_from_store_to_ecl_user.id) in history
     assert history[str(transaction_from_store_to_ecl_user.id)]["total"] == 700
     assert str(transaction_from_ecl_user_to_store.id) in history
     assert history[str(transaction_from_ecl_user_to_store.id)]["total"] == 500
+    assert str(store_direct_transfer.id) in history
+    assert history[str(store_direct_transfer.id)]["total"] == 1500
+    assert history[str(store_direct_transfer.id)]["type"] == "request_transfer"
+    assert history[str(store_direct_transfer.id)]["direction"] == "credited"
+    assert history[str(store_direct_transfer.id)]["status"] in ["pending", "canceled"]
 
 
 async def test_get_store_history_with_date(client: TestClient):

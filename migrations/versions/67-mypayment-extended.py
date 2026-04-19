@@ -5,6 +5,7 @@ Create Date: 2026-03-19 15:49:33.554684
 
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 if TYPE_CHECKING:
     from pytest_alembic import MigrationContext
@@ -17,6 +18,10 @@ revision: str = "46fbbcee7237"
 down_revision: str | None = "146db8dcb23e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+wallet_id = uuid4()
+transfer_id = uuid4()
 
 
 def upgrade() -> None:
@@ -32,6 +37,12 @@ def upgrade() -> None:
         "mypayment_transfer",
         sa.Column("object_id", sa.Uuid(), nullable=True),
     )
+    op.alter_column(
+        "mypayment_transfer",
+        "type",
+        new_column_name="origin",
+    )
+    op.execute("ALTER TYPE transfertype RENAME TO transferorigin")
     # ### end Alembic commands ###
 
 
@@ -45,6 +56,12 @@ def downgrade() -> None:
     )
     op.drop_column("mypayment_request", "module")
     op.drop_column("mypayment_request", "object_id")
+    op.execute("ALTER TYPE transferorigin RENAME TO transfertype")
+    op.alter_column(
+        "mypayment_transfer",
+        "origin",
+        new_column_name="type",
+    )
     # ### end Alembic commands ###
 
 
@@ -52,11 +69,51 @@ def pre_test_upgrade(
     alembic_runner: "MigrationContext",
     alembic_connection: sa.Connection,
 ) -> None:
-    pass
+    alembic_runner.insert_into(
+        "mypayment_wallet",
+        {
+            "id": wallet_id,
+            "type": "USER",
+            "balance": 0,
+        },
+    )
+    alembic_runner.insert_into(
+        "mypayment_transfer",
+        {
+            "id": transfer_id,
+            "type": "HELLO_ASSO",
+            "transfer_identifier": "test-transfer-identifier",
+            "approver_user_id": None,
+            "wallet_id": wallet_id,
+            "total": 100,
+            "creation": "2026-04-18T00:00:00+00:00",
+            "confirmed": False,
+        },
+    )
 
 
 def test_upgrade(
     alembic_runner: "MigrationContext",
     alembic_connection: sa.Connection,
 ) -> None:
-    pass
+    has_old_column = alembic_connection.execute(
+        sa.text(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'mypayment_transfer' AND column_name = 'type'
+            """,
+        ),
+    ).scalar_one()
+    assert has_old_column == 0
+
+    has_new_column = alembic_connection.execute(
+        sa.text(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'mypayment_transfer' AND column_name = 'origin'
+            """,
+        ),
+    ).scalar_one()
+    assert has_new_column == 1
