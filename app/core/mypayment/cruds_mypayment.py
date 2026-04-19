@@ -1042,6 +1042,9 @@ async def get_request_by_id(
     request_id: UUID,
     db: AsyncSession,
 ) -> schemas_mypayment.Request | None:
+    """
+    Return a request by its id. The request will be locked `for update`
+    """
     result = await db.execute(
         select(models_mypayment.Request)
         .where(
