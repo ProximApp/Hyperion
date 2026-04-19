@@ -24,15 +24,6 @@ def upgrade() -> None:
     conn.execute(
         sa.text(
             """
-            UPDATE mypayment_request
-            SET status = 'PROPOSED'
-            WHERE status = 'EXPIRED'
-            """,
-        ),
-    )
-    conn.execute(
-        sa.text(
-            """
             DELETE FROM pg_enum WHERE enumtypid = (
                 SELECT oid FROM pg_type WHERE typname = 'requeststatus'
             ) AND enumlabel = 'EXPIRED'
@@ -42,7 +33,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            """
+            ALTER TYPE requeststatus ADD VALUE IF NOT EXISTS 'EXPIRED'
+            """,
+        ),
+    )
 
 
 def pre_test_upgrade(

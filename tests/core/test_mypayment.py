@@ -3970,7 +3970,7 @@ async def test_accept_expired_request(
         json=validation.model_dump(mode="json"),
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Only pending requests can be confirmed"
+    assert response.json()["detail"] == "Request is expired"
 
     mocked_callback.assert_not_called()
 
