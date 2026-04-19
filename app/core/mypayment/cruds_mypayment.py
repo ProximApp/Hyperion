@@ -350,7 +350,7 @@ async def update_seller(
             models_mypayment.Seller.store_id == store_id,
         )
         .values(
-            **seller_update.model_dump(exclude_none=True),
+            **seller_update.model_dump(exclude_unset=True),
         ),
     )
 
