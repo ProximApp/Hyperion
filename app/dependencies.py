@@ -31,6 +31,7 @@ from app.core.groups.groups_type import (
     GroupType,
     get_school_account_types,
 )
+from app.core.mypayment.mypayment_tool import MyPaymentTool
 from app.core.permissions import cruds_permissions
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.users import cruds_users, models_users
@@ -296,6 +297,26 @@ def get_checkout_tool(
         return checkout_tools[name]
 
     return get_payment_tool
+
+
+def get_mypayment_tool(
+    db: AsyncSession = Depends(get_db),
+    checkout_tool: CheckoutTool = Depends(
+        get_checkout_tool(name=HelloAssoConfigName.MYPAYMENT),
+    ),
+    notification_tool: NotificationTool = Depends(get_notification_tool),
+    settings: Settings = Depends(get_settings),
+) -> MyPaymentTool:
+    """
+    Dependency that returns a MyPaymentTool, allowing to interact with the MyPayment core module.
+    """
+
+    return MyPaymentTool(
+        db=db,
+        checkout_tool=checkout_tool,
+        notification_tool=notification_tool,
+        settings=settings,
+    )
 
 
 def get_mail_templates() -> calypsso.MailTemplates:
