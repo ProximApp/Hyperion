@@ -423,7 +423,7 @@ def test_create_checkout_with_invalid_category(client: TestClient):
             "category_id": str(uuid.uuid4()),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -439,7 +439,7 @@ def test_create_checkout_with_disabled_category(client: TestClient):
             "category_id": str(event_disabled_category.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -455,7 +455,7 @@ def test_create_checkout_with_invalid_session(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(uuid.uuid4()),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -471,7 +471,7 @@ def test_create_checkout_with_disabled_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_disabled_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -522,7 +522,7 @@ async def test_create_checkout_with_disabled_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -573,7 +573,7 @@ async def test_create_checkout_with_not_open_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -624,7 +624,7 @@ async def test_create_checkout_with_closed_event(client: TestClient):
             "category_id": str(category_id),
             "session_id": str(session_id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -640,7 +640,7 @@ def test_create_checkout_with_category_from_another_event(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -656,7 +656,7 @@ def test_create_checkout_with_session_from_another_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -672,7 +672,7 @@ def test_create_checkout_with_sold_out_event(client: TestClient):
             "category_id": str(category_sold_out_event.id),
             "session_id": str(session_sold_out_event.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -688,7 +688,7 @@ def test_create_checkout_with_sold_out_category(client: TestClient):
             "category_id": str(event_sold_out_category.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -704,7 +704,7 @@ def test_create_checkout_with_sold_out_session(client: TestClient):
             "category_id": str(event_category.id),
             "session_id": str(event_sold_out_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -755,7 +755,7 @@ async def test_create_checkout_with_missing_membership(client: TestClient):
             "category_id": str(event_with_required_membership_category_id),
             "session_id": str(event_with_required_membership_session_id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -789,7 +789,7 @@ def test_create_checkout_with_answer_present_multiple_times(client: TestClient):
                     },
                 },
             ],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -818,7 +818,7 @@ def test_create_checkout_with_invalid_question_id(client: TestClient):
                     },
                 },
             ],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -845,7 +845,7 @@ def test_create_checkout_with_disabled_question(client: TestClient):
                     },
                 },
             ],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -872,7 +872,7 @@ def test_create_checkout_with_invalid_answer_type(client: TestClient):
                     },
                 },
             ],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -939,7 +939,7 @@ async def test_create_checkout_with_missing_required_question(client: TestClient
             "category_id": str(event_with_required_question_category_id),
             "session_id": str(event_with_required_question_session_id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -965,7 +965,7 @@ def test_create_checkout(client: TestClient):
                     },
                 },
             ],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )
@@ -984,7 +984,7 @@ def test_create_checkout_for_free_event(client: TestClient):
             "category_id": str(free_event_category.id),
             "session_id": str(event_session.id),
             "answers": [],
-            "mypayment_request_method": "transfer",
+            "mypayment_request_method": "transfer_request",
             "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
         },
     )

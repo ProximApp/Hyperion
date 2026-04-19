@@ -14,22 +14,19 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.checkout.payment_tool import CheckoutTool
-from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.feed import schemas_feed, utils_feed
 from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, schemas_mypayment, utils_mypayment
+from app.core.mypayment.mypayment_tool import MyPaymentTool
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
 from app.core.users import schemas_users
 from app.core.users.models_users import CoreUser
-from app.core.utils.config import Settings
 from app.dependencies import (
-    get_checkout_tool,
     get_db,
+    get_mypayment_tool,
     get_notification_tool,
-    get_settings,
     is_user,
     is_user_allowed_to,
 )
@@ -182,11 +179,7 @@ async def create_checkout(
         ),
     ),
     db: AsyncSession = Depends(get_db),
-    notification_tool: NotificationTool = Depends(get_notification_tool),
-    settings: Settings = Depends(get_settings),
-    checkout_tool: CheckoutTool = Depends(
-        get_checkout_tool(HelloAssoConfigName.MYPAYMENT),
-    ),
+    mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
 ):
     """
     Create a checkout for an open event
@@ -286,8 +279,8 @@ async def create_checkout(
         expiration = datetime.now(UTC)
         paid = True
     else:
-        payment_request_info = await utils_mypayment.request_payment(
-            payment_type=checkout.mypayment_request_method,
+        payment_request_info = await mypayment_tool.request_payment(
+            request_type=checkout.mypayment_request_method,
             payment_info=schemas_mypayment.PaymentInfo(
                 store_id=event.store_id,
                 total=price,
@@ -297,7 +290,6 @@ async def create_checkout(
                 object_id=checkout_id,
                 redirect_url=checkout.mypayment_transfer_redirect_url,
             ),
-            db=db,
             user=schemas_users.CoreUser(
                 id=user.id,
                 name=user.name,
@@ -306,9 +298,6 @@ async def create_checkout(
                 school_id=user.school_id,
                 email=user.email,
             ),
-            notification_tool=notification_tool,
-            settings=settings,
-            checkout_tool=checkout_tool,
         )
         expiration = payment_request_info.end_date
         paid = False
