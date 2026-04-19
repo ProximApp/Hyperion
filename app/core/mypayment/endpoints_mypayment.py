@@ -25,6 +25,7 @@ from app.core.auth import schemas_auth
 from app.core.checkout import schemas_checkout
 from app.core.checkout.payment_tool import CheckoutTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
+from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
 from app.core.core_endpoints import cruds_core
 from app.core.groups.groups_type import GroupType
 from app.core.memberships.utils_memberships import (
@@ -727,7 +728,9 @@ async def get_store_history(
     for transfer in transfers:
         if transfer.confirmed:
             status = TransactionStatus.CONFIRMED
-        elif datetime.now(UTC) < transfer.creation + timedelta(minutes=15):
+        elif datetime.now(UTC) < transfer.creation + timedelta(
+            minutes=CHECKOUT_EXPIRATION,
+        ):
             status = TransactionStatus.PENDING
         else:
             status = TransactionStatus.CANCELED
@@ -1906,7 +1909,9 @@ async def get_user_wallet_history(
     for transfer in transfers:
         if transfer.confirmed:
             status = TransactionStatus.CONFIRMED
-        elif datetime.now(UTC) < transfer.creation + timedelta(minutes=15):
+        elif datetime.now(UTC) < transfer.creation + timedelta(
+            minutes=CHECKOUT_EXPIRATION,
+        ):
             status = TransactionStatus.PENDING
         else:
             status = TransactionStatus.CANCELED
