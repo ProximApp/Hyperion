@@ -10,6 +10,7 @@ from app.core.mypayment.types_mypayment import (
     RequestStatus,
     TransactionStatus,
     TransactionType,
+    TransferOrigin,
     TransferType,
     WalletDeviceStatus,
     WalletType,
@@ -206,7 +207,7 @@ class Transfer(Base):
     __tablename__ = "mypayment_transfer"
 
     id: Mapped[PrimaryKey]
-    type: Mapped[TransferType]
+    origin: Mapped[TransferOrigin]
     transfer_identifier: Mapped[str]
 
     # TODO remove if we only accept hello asso
@@ -217,11 +218,19 @@ class Transfer(Base):
     creation: Mapped[datetime]
     confirmed: Mapped[bool]
 
-    # Store transfer can occur when a user ask for a direct payment instead of a payment request.
-    # In this case, we want to keep the information of module and object that generated the transfer,
+    # A direct transfer is initiated by the user, for its own wallet. The only situation where a store may
+    # possess a transfer is when a user ask to pay directly a store using a Checkout method (ex: HelloAsso) during a payment request.
+    # In this situation the store's wallet is credited with a `request` transfer.
+    # In this case, we want to keep the information of module and object that initiated the request,
     # to be able to call the right callback when the transfer is confirmed
     module: Mapped[str | None]
     object_id: Mapped[UUID | None]
+
+    @property
+    def type(self) -> TransferType:
+        if self.module is not None:
+            return TransferType.REQUEST
+        return TransferType.DIRECT
 
 
 class Seller(Base):

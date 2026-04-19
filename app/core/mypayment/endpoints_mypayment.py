@@ -64,6 +64,7 @@ from app.core.mypayment.types_mypayment import (
     RequestStatus,
     TransactionStatus,
     TransactionType,
+    TransferOrigin,
     TransferType,
     WalletDeviceStatus,
     WalletType,
@@ -721,9 +722,30 @@ async def get_store_history(
         start_datetime=start_date,
         end_datetime=end_date,
     )
-    if len(transfers) > 0:
-        hyperion_error_logger.error(
-            f"Store {store.id} should never have transfers",
+    for transfer in transfers:
+        if transfer.confirmed:
+            status = TransactionStatus.CONFIRMED
+        elif datetime.now(UTC) < transfer.creation + timedelta(minutes=15):
+            status = TransactionStatus.PENDING
+        else:
+            status = TransactionStatus.CANCELED
+
+        transfer_type = (
+            HistoryType.DIRECT_TRANSFER
+            if transfer.type == TransferType.DIRECT
+            else HistoryType.REQUEST_TRANSFER
+        )
+
+        history.append(
+            schemas_mypayment.History(
+                id=transfer.id,
+                type=transfer_type,
+                direction=HistoryDirection.CREDITED,
+                other_wallet_name="Transfer",
+                total=transfer.total,
+                creation=transfer.creation,
+                status=status,
+            ),
         )
 
     # We add refunds
@@ -1887,11 +1909,12 @@ async def get_user_wallet_history(
         else:
             status = TransactionStatus.CANCELED
 
+        transfer_type = HistoryType.DIRECT_TRANSFER if transfer.type == TransferType.DIRECT else HistoryType.REQUEST_TRANSFER
+
         history.append(
             schemas_mypayment.History(
                 id=transfer.id,
-                # TODO: check if this is a request or not
-                type=HistoryType.REQUEST_TRANSFER,
+                type=transfer_type,
                 direction=HistoryDirection.CREDITED,
                 other_wallet_name="Transfer",
                 total=transfer.total,
@@ -2025,7 +2048,8 @@ async def init_ha_transfer(
         db=db,
         transfer=schemas_mypayment.Transfer(
             id=uuid.uuid4(),
-            type=TransferType.HELLO_ASSO,
+            type=TransferType.DIRECT,
+            origin=TransferOrigin.HELLO_ASSO,
             approver_user_id=None,
             total=transfer_info.amount,
             transfer_identifier=str(checkout.id),

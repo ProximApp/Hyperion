@@ -36,7 +36,7 @@ from app.core.mypayment.types_mypayment import (
     RETENTION_DURATION,
     PaymentType,
     RequestStatus,
-    TransferType,
+    TransferOrigin,
 )
 from app.core.notification.schemas_notification import Message
 from app.core.users import schemas_users
@@ -244,9 +244,9 @@ async def init_store_transfer(
 
     await cruds_mypayment.create_transfer(
         db=db,
-        transfer=schemas_mypayment.Transfer(
+        transfer=schemas_mypayment.TransferCreation(
             id=uuid4(),
-            type=TransferType.HELLO_ASSO,
+            origin=TransferOrigin.HELLO_ASSO,
             approver_user_id=user.id,
             total=transfer_info.amount,
             transfer_identifier=str(checkout.id),
