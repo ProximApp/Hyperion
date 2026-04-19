@@ -97,6 +97,7 @@ from app.dependencies import (
     is_user_in,
 )
 from app.types import standard_responses
+from app.types.exceptions import ObjectExpectedInDbNotFoundError
 from app.types.module import CoreModule
 from app.types.scopes_type import ScopeType
 from app.utils.auth.auth_utils import get_user_id_from_token_with_scopes
@@ -2907,10 +2908,10 @@ async def accept_request(
         db=db,
     )
     if store is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Store linked to the request does not exist",
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Store", object_id=request.store_id
         )
+
     transaction = schemas_mypayment.TransactionBase(
         id=uuid.uuid4(),
         debited_wallet_id=debited_wallet_device.wallet_id,
@@ -3185,9 +3186,9 @@ async def create_structure_invoice(
             hyperion_error_logger.error(
                 "MyPayment: Could not find wallet associated with a store, this should never happen",
             )
-            raise HTTPException(
-                status_code=500,
-                detail="Could not find wallet associated with the store",
+            raise ObjectExpectedInDbNotFoundError(
+                object_name="Wallet",
+                object_id=store.wallet_id,
             )
         store_wallet = schemas_mypayment.Wallet(
             id=store_wallet_db.id,
@@ -3353,9 +3354,9 @@ async def aknowledge_invoice_as_received(
         db=db,
     )
     if structure is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Structure does not exist",
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Structure",
+            object_id=invoice.structure_id,
         )
     if structure.manager_user_id != user.id:
         raise HTTPException(
@@ -3376,9 +3377,9 @@ async def aknowledge_invoice_as_received(
             hyperion_error_logger.error(
                 "MyPayment: Could not find store associated with an invoice, this should never happen",
             )
-            raise HTTPException(
-                status_code=500,
-                detail="Could not find store associated with the invoice",
+            raise ObjectExpectedInDbNotFoundError(
+                object_name="Store",
+                object_id=detail.store_id,
             )
         await cruds_mypayment.increment_wallet_balance(
             wallet_id=store.wallet_id,
