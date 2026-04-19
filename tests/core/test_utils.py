@@ -124,7 +124,7 @@ async def test_save_bytes() -> None:
             file_bytes=file.read(),
             directory="test",
             filename=valid_uuid,
-            extension="png",
+            extension=ContentType.png,
         )
 
 
@@ -141,7 +141,7 @@ async def test_save_bytes_raise_a_value_error_if_filename_isnt_an_uuid() -> None
             file_bytes=file.read(),
             directory="test",
             filename=not_a_uuid,
-            extension="png",
+            extension=ContentType.png,
         )
 
 

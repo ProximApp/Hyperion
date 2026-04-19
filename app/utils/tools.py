@@ -298,7 +298,7 @@ async def save_bytes_as_data(
     file_bytes: bytes,
     directory: str,
     filename: str | UUID,
-    extension: str,
+    extension: ContentType,
 ):
     """
     Save bytes in file in the data folder.
@@ -328,7 +328,9 @@ async def save_bytes_as_data(
         async for filePath in Path().glob(f"data/{directory}/{filename}.*"):
             await filePath.unlink()
 
-        async with await Path(f"data/{directory}/{filename}.{extension}").open(
+        async with await Path(
+            f"data/{directory}/{filename}.{extension.extension}",
+        ).open(
             mode="wb",
         ) as buffer:
             await buffer.write(file_bytes)
@@ -475,7 +477,7 @@ async def generate_pdf_from_template(
         file_bytes=pdf,
         directory=directory,
         filename=filename,
-        extension="pdf",
+        extension=ContentType.pdf,
     )
 
 
@@ -531,7 +533,7 @@ async def save_pdf_first_page_as_image(
             file_bytes=cover_bytes,
             directory=output_image_directory,
             filename=filename,
-            extension="jpg",
+            extension=ContentType.jpg,
         )
 
 
@@ -645,7 +647,7 @@ async def compress_and_save_image_file(
         file_bytes=original_file_bytes,
         directory=original_directory,
         filename=filename,
-        extension=ContentType(upload_file.content_type).extension,
+        extension=ContentType(upload_file.content_type),
     )
 
     file_bytes = compress_image(
