@@ -458,7 +458,7 @@ async def generate_pdf_from_template(
     You should only provide thrusted templates to this function.
     See [WeasyPrint security consideration](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#security)
     """
-    from weasyprint import CSS, HTML
+    from weasyprint import CSS, HTML  # noqa: PLC0415
 
     templates = Environment(
         loader=FileSystemLoader("assets/templates"),
@@ -676,7 +676,7 @@ def get_random_string(length: int = 5) -> str:
 CoreDataClass = TypeVar("CoreDataClass", bound=core_data.BaseCoreData)
 
 
-async def get_core_data(
+async def get_core_data[CoreDataClass: core_data.BaseCoreData](
     core_data_class: type[CoreDataClass],
     db: AsyncSession,
 ) -> CoreDataClass:
