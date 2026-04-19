@@ -14,6 +14,7 @@ from app.core.mypayment.types_mypayment import (
     RequestStatus,
     TransactionStatus,
     TransactionType,
+    TransferOrigin,
     TransferType,
     WalletDeviceStatus,
     WalletType,
@@ -227,9 +228,9 @@ class Transaction(TransactionBase):
     refund: "RefundBase | None" = None
 
 
-class Transfer(BaseModel):
+class TransferCreation(BaseModel):
     id: UUID
-    type: TransferType
+    origin: TransferOrigin
     transfer_identifier: str
 
     # TODO remove if we only accept hello asso
@@ -241,6 +242,10 @@ class Transfer(BaseModel):
     confirmed: bool
     module: str | None
     object_id: UUID | None
+
+
+class Transfer(TransferCreation):
+    type: TransferType
 
 
 class RefundBase(BaseModel):

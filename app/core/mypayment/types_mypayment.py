@@ -32,7 +32,7 @@ class TransactionType(StrEnum):
 
 class HistoryType(StrEnum):
     REFUND = "refund"
-    TRANSFER = "transfer"
+    DIRECT_TRANSFER = "direct_transfer"
     REQUEST_TRANSFER = "request_transfer"
     DIRECT_TRANSACTION = "direct_transaction"
     REQUEST_TRANSACTION = "request_transaction"
@@ -64,8 +64,15 @@ class RequestStatus(StrEnum):
     EXPIRED = "expired"
 
 
-class TransferType(StrEnum):
+class TransferOrigin(StrEnum):
     HELLO_ASSO = "hello_asso"
+
+
+class TransferType(StrEnum):
+    # The user transfer money to its own wallet
+    DIRECT = "direct"
+    # Requests are initiated by the client, who directly transfer the money to the store wallet
+    REQUEST = "request"
 
 
 class ActionType(StrEnum):
