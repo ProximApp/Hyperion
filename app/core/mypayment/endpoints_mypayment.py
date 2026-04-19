@@ -60,8 +60,8 @@ from app.core.mypayment.types_mypayment import (
     RETENTION_DURATION,
     HistoryDirection,
     HistoryType,
-    PaymentType,
     RequestStatus,
+    RequestType,
     TransactionStatus,
     TransactionType,
     TransferOrigin,
@@ -1907,7 +1907,11 @@ async def get_user_wallet_history(
         else:
             status = TransactionStatus.CANCELED
 
-        transfer_type = HistoryType.DIRECT_TRANSFER if transfer.type == TransferType.DIRECT else HistoryType.REQUEST_TRANSFER
+        transfer_type = (
+            HistoryType.DIRECT_TRANSFER
+            if transfer.type == TransferType.DIRECT
+            else HistoryType.REQUEST_TRANSFER
+        )
 
         history.append(
             schemas_mypayment.History(
@@ -2936,7 +2940,7 @@ async def accept_request(
         db=db,
     )
     await call_mypayment_callback(
-        call_type=PaymentType.REQUEST,
+        call_type=RequestType.TRANSACTION_REQUEST,
         module_root=request.module,
         object_id=request.object_id,
         call_id=request.id,

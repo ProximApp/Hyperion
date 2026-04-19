@@ -1,4 +1,3 @@
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout.payment_tool import CheckoutTool
@@ -7,7 +6,7 @@ from app.core.mypayment import (
     utils_mypayment,
 )
 from app.core.mypayment.types_mypayment import (
-    PaymentType,
+    RequestType,
 )
 from app.core.users import schemas_users
 from app.core.utils.config import Settings
@@ -35,12 +34,12 @@ class MyPaymentTool:
 
     async def request_payment(
         self,
-        payment_type: PaymentType,
+        request_type: RequestType,
         payment_info: schemas_mypayment.PaymentInfo,
         user: schemas_users.CoreUser,
     ) -> schemas_mypayment.PaymentRequestInfo:
         return await utils_mypayment.request_payment(
-            payment_type=payment_type,
+            request_type=request_type,
             payment_info=payment_info,
             user=user,
             db=self.db,
