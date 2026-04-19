@@ -515,6 +515,7 @@ async def create_store(
     Stores name should be unique, as an user need to be able to identify a store by its name.
 
     **The user must be the manager for this structure**
+    **The user must be a member of the associated CoreAssociation**
     """
     structure = await cruds_mypayment.get_structure_by_id(
         structure_id=structure_id,
