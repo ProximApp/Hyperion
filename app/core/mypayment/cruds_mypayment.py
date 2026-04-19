@@ -1031,7 +1031,11 @@ async def get_requests_by_wallet_id(
     result = await db.execute(
         select(models_mypayment.Request).where(
             models_mypayment.Request.wallet_id == wallet_id,
-            models_mypayment.Request.status == RequestStatus.PROPOSED
+            and_(
+                models_mypayment.Request.status == RequestStatus.PROPOSED,
+                models_mypayment.Request.creation
+                > datetime.now(tz=UTC) - timedelta(minutes=REQUEST_EXPIRATION),
+            )
             if not include_used
             else and_(True),
         ),
@@ -1133,20 +1137,6 @@ async def create_request(
         object_id=request.object_id,
     )
     db.add(request_db)
-
-
-async def mark_expired_requests_as_expired(
-    db: AsyncSession,
-) -> None:
-    await db.execute(
-        update(models_mypayment.Request)
-        .where(
-            models_mypayment.Request.status == RequestStatus.PROPOSED,
-            models_mypayment.Request.creation
-            <= datetime.now(tz=UTC) - timedelta(minutes=REQUEST_EXPIRATION),
-        )
-        .values(status=RequestStatus.EXPIRED),
-    )
 
 
 async def update_request(

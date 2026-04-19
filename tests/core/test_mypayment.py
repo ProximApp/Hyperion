@@ -692,7 +692,7 @@ async def init_objects() -> None:
         total=1000,
         name="Expired Request",
         store_note="Expired Request Note",
-        status=RequestStatus.EXPIRED,
+        status=RequestStatus.PROPOSED,
         module=TEST_MODULE_ROOT,
         object_id=uuid4(),
         transaction_id=None,
