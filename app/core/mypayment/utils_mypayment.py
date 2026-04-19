@@ -162,9 +162,11 @@ async def request_transaction(
     notification_tool: NotificationTool,
 ) -> schemas_mypayment.PaymentRequestInfo:
     """
-    Create a transaction request for a user from a store.
-    - create a mypayment payment request between the user wallet and the store wallet
-    - the request need to be accepted be the user using ... endpoint
+    Create a Transaction request for a user from a store.
+    Create a mypayment payment request between the user wallet and the store wallet
+    The request need to be accepted or refused by the user using either
+    - /mypayment/requests/{request_id}/accept
+    - /mypayment/requests/{request_id}/refuse
     """
     payment_user = await cruds_mypayment.get_user_payment(user.id, db)
     if not payment_user:
@@ -201,7 +203,7 @@ async def request_transaction(
     )
 
 
-async def init_store_transfer(
+async def request_transfer(
     user: schemas_users.CoreUser,
     transfer_info: schemas_mypayment.StoreTransferInfo,
     db: AsyncSession,
@@ -209,7 +211,9 @@ async def init_store_transfer(
     settings: Settings,
 ) -> schemas_mypayment.PaymentRequestInfo:
     """
-    Create a direct transfer to a store
+    Create a Transfer request for a user from a store.
+    The user should be redirected to the returned `checkout_url` to complete the transfer request.
+    The transfer will be credited directly to the store wallet.
     """
     if transfer_info.redirect_url not in settings.TRUSTED_PAYMENT_REDIRECT_URLS:
         hyperion_error_logger.warning(
@@ -285,6 +289,11 @@ async def request_payment(
     The `CheckoutTool` must be a *MyPayment* checkout tool
 
     Use `get_mypayment_tool` dependency to get an instance of `MyPaymentTool`, which will ensure that all dependencies are properly injected.
+
+    When the request is confirmed (checkout validated or transaction accepted), a callback will be called, with the following signature:
+    ```python
+    async def mypayment_callback(object_id: UUID, db: AsyncSession)
+    ```
     """
     # As transfers will be credited to a MyPayment store wallet, we need to ensure that the checkout tool used for transfer requests is a MyPayment checkout tool
     if checkout_tool.name != HelloAssoConfigName.MYPAYMENT:
@@ -305,7 +314,7 @@ async def request_payment(
             notification_tool=notification_tool,
         )
     if request_type == RequestType.TRANSFER_REQUEST:
-        return await init_store_transfer(
+        return await request_transfer(
             user=user,
             transfer_info=schemas_mypayment.StoreTransferInfo(
                 amount=payment_info.total,
