@@ -205,7 +205,7 @@ async def init_objects() -> None:
     await add_object_to_db(validated_team)
 
     await Path("data/raid/").mkdir(parents=True, exist_ok=True)
-    default_asset = "assets/pdf/default_PDF.pdf"
+    default_asset = "assets/pdf/default_pdf.pdf"
     expected_files = [
         "-1_ValidatedTeam_Captain_Validated.pdf",
         "-1_New Team_NoTeam_NoTeam.pdf",
