@@ -2819,7 +2819,7 @@ async def accept_request(
             status_code=400,
             detail="Only pending requests can be confirmed",
         )
-    if request.end_date < datetime.now(UTC):
+    if request.expiration_date < datetime.now(UTC):
         raise HTTPException(
             status_code=400,
             detail="Request is expired",

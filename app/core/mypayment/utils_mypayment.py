@@ -178,7 +178,7 @@ async def request_transaction(
             id=uuid4(),
             wallet_id=payment_user.wallet_id,
             creation=start_time,
-            end_date=start_time + timedelta(minutes=REQUEST_EXPIRATION),
+            expiration_date=start_time + timedelta(minutes=REQUEST_EXPIRATION),
             total=request_info.total,
             store_id=request_info.store_id,
             name=request_info.request_name,
