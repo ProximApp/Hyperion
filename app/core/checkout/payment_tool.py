@@ -233,7 +233,7 @@ class CheckoutTool:
                         raise
 
             if response and response.id and response.redirect_url:
-                checkout_model = models_payment.Checkout(
+                checkout_model = models_checkout.Checkout(
                     id=checkout_model_id,
                     module=module,
                     name=checkout_name,
