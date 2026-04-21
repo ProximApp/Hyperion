@@ -1861,6 +1861,8 @@ async def get_user_wallet_history(
             transaction_type = HistoryType.DIRECT_TRANSACTION
         elif transaction.transaction_type == TransactionType.REQUEST:
             transaction_type = HistoryType.REQUEST_TRANSACTION
+        else:
+            raise UnexpectedError("Unknown transaction type")  # noqa: TRY003
         if transaction.credited_wallet_id == user_payment.wallet_id:
             # The user received the transaction
             direction = HistoryDirection.CREDITED
