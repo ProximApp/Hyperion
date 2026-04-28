@@ -15,14 +15,19 @@ from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
 from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
 from app.core.mypayment.exceptions_mypayment import (
     InvalidCheckoutToolError,
+    InvalidRefundOnTransferError,
     InvalidRequestTypeError,
+    InvalidWalletTypeError,
+    LinkedWalletNotFoundError,
     PaymentUserNotFoundError,
     TransferAlreadyConfirmedInCallbackError,
     TransferNotFoundByCallbackError,
     TransferTotalDontMatchInCallbackError,
+    UnlinkedValidatedRequestError,
     WalletNotFoundOnUpdateError,
 )
 from app.core.mypayment.integrity_mypayment import (
+    format_refund_log,
     format_transaction_log,
     format_transfer_log,
 )
@@ -37,6 +42,7 @@ from app.core.mypayment.types_mypayment import (
     RequestStatus,
     RequestType,
     TransferOrigin,
+    WalletType,
 )
 from app.core.notification.schemas_notification import Message
 from app.core.users import schemas_users
@@ -374,6 +380,178 @@ async def apply_transaction(
     )
     await notification_tool.send_notification_to_user(
         user_id=user_id,
+        message=message,
+    )
+
+
+async def refund_request(
+    user_id: str,
+    request: schemas_mypayment.Request,
+    amount: int,
+    db: AsyncSession,
+    notification_tool: NotificationTool,
+):
+    """
+    Refund a payment request.
+
+    Use `get_mypayment_tool` dependency to get an instance of `MyPaymentTool`, which will ensure that all dependencies are properly injected.
+    """
+    if request.status != RequestStatus.ACCEPTED:
+        raise HTTPException(
+            status_code=400,
+            detail="Only accepted payment requests can be refunded",
+        )
+    if amount > request.total:
+        raise HTTPException(
+            status_code=400,
+            detail="Refund amount cannot be greater than the original payment amount",
+        )
+    if request.transaction_id is None:
+        hyperion_error_logger.error(
+            f"MyPayment refund: validated request with id {request.id} does not have a transaction_id.",
+        )
+        raise UnlinkedValidatedRequestError(request.id)
+    transaction = await cruds_mypayment.get_transaction(request.transaction_id, db)
+    if transaction is None:
+        hyperion_error_logger.error(
+            f"MyPayment refund: transaction with id {request.transaction_id} not found for request {request.id}.",
+        )
+        raise UnlinkedValidatedRequestError(request.id)
+    wallet = await cruds_mypayment.get_wallet(request.wallet_id, db)
+    if wallet is None:
+        hyperion_error_logger.error(
+            f"MyPayment refund: wallet with id {transaction.debited_wallet_id} not found for transaction {transaction.id}.",
+        )
+        raise LinkedWalletNotFoundError(transaction.debited_wallet_id)
+    if not wallet.user:
+        hyperion_error_logger.error(
+            f"MyPayment refund: user not found for wallet with id {wallet.id} for transaction {transaction.id}.",
+        )
+        raise InvalidWalletTypeError(wallet.id, WalletType.USER)
+    refund = schemas_mypayment.RefundBase(
+        id=uuid4(),
+        transaction_id=request.transaction_id,
+        total=amount,
+        creation=datetime.now(UTC),
+        debited_wallet_id=transaction.credited_wallet_id,
+        credited_wallet_id=transaction.debited_wallet_id,
+    )
+    await cruds_mypayment.create_refund(
+        db=db,
+        refund=refund,
+    )
+    await cruds_mypayment.increment_wallet_balance(
+        wallet_id=transaction.credited_wallet_id,
+        amount=-amount,
+        db=db,
+    )
+    await cruds_mypayment.increment_wallet_balance(
+        wallet_id=transaction.debited_wallet_id,
+        amount=amount,
+        db=db,
+    )
+    hyperion_mypayment_logger.info(
+        format_refund_log(refund),
+        extra={
+            "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
+            "s3_retention": RETENTION_DURATION,
+        },
+    )
+    message = Message(
+        title=f"💸 Remboursement - {request.name}",
+        content=f"Un remboursement de {amount / 100} € a été effectué pour la demande de paiement {request.name}",
+        action_module=MYPAYMENT_ROOT,
+    )
+    await notification_tool.send_notification_to_user(
+        user_id=wallet.user.id,
+        message=message,
+    )
+
+
+async def refund_direct_transfer(
+    transfer: schemas_mypayment.Transfer,
+    amount: int,
+    db: AsyncSession,
+    notification_tool: NotificationTool,
+):
+    """
+    Refund a direct transfer.
+
+    Use `get_mypayment_tool` dependency to get an instance of `MyPaymentTool`, which will ensure that all dependencies are properly injected.
+    """
+    if not transfer.confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Only confirmed transfers can be refunded",
+        )
+    if not transfer.approver_user_id:
+        hyperion_error_logger.error(
+            f"MyPayment refund: transfer with id {transfer.id} does not have an approver_user_id.",
+        )
+        raise InvalidRefundOnTransferError(transfer.id)
+    if amount > transfer.total:
+        raise HTTPException(
+            status_code=400,
+            detail="Refund amount cannot be greater than the original transfer amount",
+        )
+    user_payment = await cruds_mypayment.get_user_payment(transfer.approver_user_id, db)
+    if not user_payment:
+        hyperion_error_logger.error(
+            f"MyPayment refund: user payment not found for approver_user_id {transfer.approver_user_id} for transfer {transfer.id}.",
+        )
+        raise PaymentUserNotFoundError(transfer.approver_user_id)
+    user_wallet = await cruds_mypayment.get_wallet(user_payment.wallet_id, db)
+    if user_wallet is None:
+        hyperion_error_logger.error(
+            f"MyPayment refund: wallet with id {user_payment.wallet_id} not found for transfer {transfer.id}.",
+        )
+        raise LinkedWalletNotFoundError(user_payment.wallet_id)
+    store_wallet = await cruds_mypayment.get_wallet(transfer.wallet_id, db)
+    if store_wallet is None or not store_wallet.store:
+        hyperion_error_logger.error(
+            f"MyPayment refund: store wallet with id {transfer.wallet_id} not found for transfer {transfer.id}.",
+        )
+        raise LinkedWalletNotFoundError(transfer.wallet_id)
+    await cruds_mypayment.increment_wallet_balance(
+        wallet_id=transfer.wallet_id,
+        amount=-amount,
+        db=db,
+    )
+    await cruds_mypayment.increment_wallet_balance(
+        wallet_id=user_wallet.id,
+        amount=amount,
+        db=db,
+    )
+    transaction = schemas_mypayment.TransactionBase(
+        id=uuid4(),
+        debited_wallet_id=transfer.wallet_id,
+        credited_wallet_id=user_wallet.id,
+        total=amount,
+        creation=datetime.now(UTC),
+        status=schemas_mypayment.TransactionStatus.CONFIRMED,
+        transaction_type=schemas_mypayment.TransactionType.DIRECT,
+        seller_user_id=None,
+    )
+    await cruds_mypayment.create_transaction(
+        transaction=transaction,
+        debited_wallet_device_id=None,
+        store_note=f"Refund for direct transfer {transfer.id}",
+        db=db,
+    )
+    hyperion_mypayment_logger.info(
+        format_transaction_log(transaction),
+        extra={
+            "s3_subfolder": MYPAYMENT_LOGS_S3_SUBFOLDER,
+            "s3_retention": RETENTION_DURATION,
+        },
+    )
+    message = Message(
+        title="💸 Remboursement - Transfert direct",
+        content=f"Un remboursement de {amount / 100} € a été effectué par {store_wallet.store.name}",
+        action_module=MYPAYMENT_ROOT,
+    )
+    await notification_tool.send_notification_to_user(
+        user_id=transfer.approver_user_id,
         message=message,
     )
 

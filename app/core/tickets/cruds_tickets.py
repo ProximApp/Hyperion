@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql import select
 
 from app.core.tickets import models_tickets, schemas_tickets
+from app.core.tickets.utils_tickets import ticket_model_to_schema
 from app.core.users import schemas_users
 
 
@@ -428,6 +429,7 @@ async def create_checkout(
             for answer in answers
         ],
         scanned=False,
+        cancelled=False,
         paid=paid,
     )
     db.add(db_checkout)
@@ -470,6 +472,8 @@ async def get_paid_tickets_by_user_id(
             category_id=ticket.category_id,
             session_id=ticket.session_id,
             event_id=ticket.event_id,
+            paid=ticket.paid,
+            cancelled=ticket.cancelled,
             scanned=ticket.scanned,
             category=schemas_tickets.Category(
                 id=ticket.category.id,
@@ -536,49 +540,7 @@ async def get_paid_tickets_by_event_id(
             ),
         ),
     )
-    return [
-        schemas_tickets.Ticket(
-            id=ticket.id,
-            category_id=ticket.category_id,
-            session_id=ticket.session_id,
-            event_id=ticket.event_id,
-            scanned=ticket.scanned,
-            category=schemas_tickets.Category(
-                id=ticket.category.id,
-                name=ticket.category.name,
-                price=ticket.category.price,
-                required_membership=ticket.category.required_membership,
-                event_id=ticket.category.event_id,
-                disabled=ticket.category.disabled,
-            ),
-            session=schemas_tickets.Session(
-                id=ticket.session.id,
-                name=ticket.session.name,
-                start_datetime=ticket.session.start_datetime,
-                event_id=ticket.session.event_id,
-                disabled=ticket.session.disabled,
-            ),
-            user_id=ticket.user_id,
-            user=schemas_users.CoreUserSimple(
-                id=ticket.user.id,
-                name=ticket.user.name,
-                firstname=ticket.user.firstname,
-                account_type=ticket.user.account_type,
-                school_id=ticket.user.school_id,
-            ),
-            price=ticket.price,
-            answers=[
-                schemas_tickets.Answer.from_answer_value(
-                    id_=answer.id,
-                    question_id=answer.question_id,
-                    answer_type=answer.question.answer_type,
-                    value=answer.answer,
-                )
-                for answer in ticket.answers
-            ],
-        )
-        for ticket in result.scalars().all()
-    ]
+    return [ticket_model_to_schema(ticket) for ticket in result.scalars().all()]
 
 
 async def get_ticket_by_id(
@@ -601,45 +563,17 @@ async def get_ticket_by_id(
     if ticket is None:
         return None
 
-    return schemas_tickets.Ticket(
-        id=ticket.id,
-        category_id=ticket.category_id,
-        session_id=ticket.session_id,
-        event_id=ticket.event_id,
-        scanned=ticket.scanned,
-        category=schemas_tickets.Category(
-            id=ticket.category.id,
-            name=ticket.category.name,
-            price=ticket.category.price,
-            required_membership=ticket.category.required_membership,
-            event_id=ticket.category.event_id,
-            disabled=ticket.category.disabled,
-        ),
-        session=schemas_tickets.Session(
-            id=ticket.session.id,
-            name=ticket.session.name,
-            start_datetime=ticket.session.start_datetime,
-            event_id=ticket.session.event_id,
-            disabled=ticket.session.disabled,
-        ),
-        user_id=ticket.user_id,
-        user=schemas_users.CoreUserSimple(
-            id=ticket.user.id,
-            name=ticket.user.name,
-            firstname=ticket.user.firstname,
-            account_type=ticket.user.account_type,
-            school_id=ticket.user.school_id,
-        ),
-        price=ticket.price,
-        answers=[
-            schemas_tickets.Answer.from_answer_value(
-                id_=answer.id,
-                question_id=answer.question_id,
-                answer_type=answer.question.answer_type,
-                value=answer.answer,
-            )
-            for answer in ticket.answers
-        ],
+    return ticket_model_to_schema(ticket)
+
+
+async def cancel_ticket(
+    ticket_id: UUID,
+    db: AsyncSession,
+):
+    await db.execute(
+        update(models_tickets.Checkout)
+        .where(models_tickets.Checkout.id == ticket_id)
+        .values(cancelled=False),
     )
 
 
@@ -662,6 +596,7 @@ async def count_tickets_by_event_id(
         select(func.count()).where(
             models_tickets.Checkout.event_id == event_id,
             models_tickets.Checkout.paid,
+            not_(models_tickets.Checkout.cancelled),
         ),
     )
 
@@ -676,6 +611,7 @@ async def count_tickets_by_category_id(
         select(func.count()).where(
             models_tickets.Checkout.category_id == category_id,
             models_tickets.Checkout.paid,
+            not_(models_tickets.Checkout.cancelled),
         ),
     )
 
@@ -690,6 +626,7 @@ async def count_tickets_by_session_id(
         select(func.count()).where(
             models_tickets.Checkout.session_id == session_id,
             models_tickets.Checkout.paid,
+            not_(models_tickets.Checkout.cancelled),
         ),
     )
 

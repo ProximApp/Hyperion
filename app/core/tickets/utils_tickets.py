@@ -8,7 +8,9 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.mypayment import utils_mypayment
-from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.mypayment.mypayment_tool import MyPaymentTool
+from app.core.tickets import cruds_tickets, models_tickets, schemas_tickets
+from app.core.users import schemas_users
 
 
 async def mypayment_callback_callback(
@@ -229,3 +231,72 @@ async def check_answer_validity_and_calculate_price(
         )
 
     return price
+
+
+async def refund_event_tickets(
+    event_id: UUID,
+    mypayment_tool: MyPaymentTool,
+    db: AsyncSession,
+) -> list[tuple[schemas_tickets.Ticket, str]]:
+    tickets = await cruds_tickets.get_paid_tickets_by_event_id(
+        event_id=event_id,
+        db=db,
+    )
+    failed_refunds = []
+    for ticket in tickets:
+        try:
+            await mypayment_tool.refund_payment(
+                user_id=ticket.user_id,
+                object_id=ticket.id,
+                amount=ticket.price,
+            )
+        except Exception as e:
+            failed_refunds.append((ticket, str(e)))
+    return failed_refunds
+
+
+def ticket_model_to_schema(
+    ticket: models_tickets.Checkout,
+) -> schemas_tickets.Ticket:
+    return schemas_tickets.Ticket(
+        id=ticket.id,
+        category_id=ticket.category_id,
+        session_id=ticket.session_id,
+        event_id=ticket.event_id,
+        paid=ticket.paid,
+        scanned=ticket.scanned,
+        cancelled=ticket.cancelled,
+        category=schemas_tickets.Category(
+            id=ticket.category.id,
+            name=ticket.category.name,
+            price=ticket.category.price,
+            required_membership=ticket.category.required_membership,
+            event_id=ticket.category.event_id,
+            disabled=ticket.category.disabled,
+        ),
+        session=schemas_tickets.Session(
+            id=ticket.session.id,
+            name=ticket.session.name,
+            start_datetime=ticket.session.start_datetime,
+            event_id=ticket.session.event_id,
+            disabled=ticket.session.disabled,
+        ),
+        user_id=ticket.user_id,
+        user=schemas_users.CoreUserSimple(
+            id=ticket.user.id,
+            name=ticket.user.name,
+            firstname=ticket.user.firstname,
+            account_type=ticket.user.account_type,
+            school_id=ticket.user.school_id,
+        ),
+        price=ticket.price,
+        answers=[
+            schemas_tickets.Answer.from_answer_value(
+                id_=answer.id,
+                question_id=answer.question_id,
+                answer_type=answer.question.answer_type,
+                value=answer.answer,
+            )
+            for answer in ticket.answers
+        ],
+    )

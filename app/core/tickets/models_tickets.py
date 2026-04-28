@@ -134,6 +134,8 @@ class Checkout(Base):
     # We can mark the corresponding ticket as scanned
     scanned: Mapped[bool]
 
+    cancelled: Mapped[bool] = mapped_column(index=True)
+
     answers: Mapped[list[Answer]] = relationship()
 
     # Do we need this?

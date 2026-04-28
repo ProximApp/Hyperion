@@ -490,6 +490,53 @@ async def update_event(
 
 
 @router.post(
+    "/tickets/admin/events/{event_id}/cancel",
+)
+async def cancel_event(
+    refund: bool,
+    event_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+    mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
+) -> list[tuple[schemas_tickets.Ticket, str]]:
+    """
+    Cancel an event
+
+    **The user should have the right to manage the event seller**
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    await cruds_tickets.update_event(
+        event_id=event_id,
+        event_update=schemas_tickets.EventUpdate(
+            disabled=True,
+        ),
+        db=db,
+    )
+    if refund:
+        return await utils_tickets.refund_event_tickets(
+            event_id=event_id,
+            mypayment_tool=mypayment_tool,
+            db=db,
+        )
+    return []
+
+
+@router.post(
     "/tickets/admin/events/{event_id}/sessions",
     response_model=schemas_tickets.SessionComplete,
     status_code=201,
@@ -822,6 +869,7 @@ async def get_event_tickets_csv(
         "Category Name",
         "Price (€)",
         "Scanned",
+        "Cancelled",
         "User ID",
         "User Name",
         "User Firstname",
@@ -850,6 +898,7 @@ async def get_event_tickets_csv(
             ticket.category.name,
             f"{ticket.price / 100:.2f}€",
             ticket.scanned,
+            ticket.cancelled,
             ticket.user_id,
             ticket.user.name,
             ticket.user.firstname,
@@ -963,6 +1012,18 @@ async def scan_ticket(
             detail="User is not authorized to manage store events",
         )
 
+    if not ticket.paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is not paid",
+        )
+
+    if ticket.cancelled:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is cancelled",
+        )
+
     if ticket.scanned:
         raise HTTPException(
             status_code=400,
@@ -970,6 +1031,57 @@ async def scan_ticket(
         )
 
     await cruds_tickets.mark_ticket_as_scanned(ticket_id=ticket_id, db=db)
+
+
+@router.post(
+    "/tickets/admin/tickets/{ticket_id}/cancel",
+    status_code=204,
+)
+async def cancel_ticket(
+    ticket_id: UUID,
+    refund: bool,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+    mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
+):
+    """
+    Cancel a ticket
+
+    **The user should have the right to manage the event seller**
+    """
+    ticket = await cruds_tickets.get_ticket_by_id(ticket_id=ticket_id, db=db)
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found")
+    if ticket.cancelled:
+        raise HTTPException(400, "Ticket is already cancelled")
+    if not ticket.paid:
+        raise HTTPException(400, "Ticket is not paid")
+
+    event = await cruds_tickets.get_event_simple_by_id(event_id=ticket.event_id, db=db)
+    if event is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Event",
+            object_id=ticket.event_id,
+        )
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store events",
+        )
+
+    await cruds_tickets.cancel_ticket(
+        ticket_id=ticket_id,
+        db=db,
+    )
+    if refund and ticket.price > 0:
+        await mypayment_tool.refund_payment(ticket.user_id, ticket.id, ticket.price)
 
 
 @router.get(

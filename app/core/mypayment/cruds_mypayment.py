@@ -541,7 +541,7 @@ async def get_user_payment(
 
 async def create_transaction(
     transaction: schemas_mypayment.TransactionBase,
-    debited_wallet_device_id: UUID,
+    debited_wallet_device_id: UUID | None,
     store_note: str | None,
     db: AsyncSession,
 ) -> None:
@@ -740,6 +740,41 @@ async def get_transfers(
         )
         for transfer in result.scalars().all()
     ]
+
+
+async def get_transfer_by_object_id(
+    object_id: UUID,
+    db: AsyncSession,
+) -> schemas_mypayment.Transfer | None:
+    result = (
+        (
+            await db.execute(
+                select(models_mypayment.Transfer).where(
+                    models_mypayment.Transfer.object_id == object_id,
+                ),
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    return (
+        schemas_mypayment.Transfer(
+            id=result.id,
+            type=result.type,
+            origin=result.origin,
+            transfer_identifier=result.transfer_identifier,
+            approver_user_id=result.approver_user_id,
+            wallet_id=result.wallet_id,
+            total=result.total,
+            creation=result.creation,
+            confirmed=result.confirmed,
+            module=result.module,
+            object_id=result.object_id,
+        )
+        if result
+        else None
+    )
 
 
 async def create_transfer(
@@ -1071,6 +1106,35 @@ async def get_request_by_id(
             models_mypayment.Request.id == request_id,
         )
         .with_for_update(of=models_mypayment.Request),
+    )
+    request = result.scalars().first()
+    return (
+        schemas_mypayment.Request(
+            id=request.id,
+            wallet_id=request.wallet_id,
+            status=request.status,
+            creation=request.creation,
+            expiration_date=request.expiration_date,
+            total=request.total,
+            store_note=request.store_note,
+            store_id=request.store_id,
+            name=request.name,
+            module=request.module,
+            object_id=request.object_id,
+        )
+        if request
+        else None
+    )
+
+
+async def get_request_by_object_id(
+    object_id: UUID,
+    db: AsyncSession,
+) -> schemas_mypayment.Request | None:
+    result = await db.execute(
+        select(models_mypayment.Request).where(
+            models_mypayment.Request.object_id == object_id,
+        ),
     )
     request = result.scalars().first()
     return (

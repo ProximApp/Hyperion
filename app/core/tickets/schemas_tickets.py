@@ -192,6 +192,7 @@ class EventUpdate(BaseModel):
     quota: int | None = None
     open_datetime: datetime | None = None
     close_datetime: datetime | None = None
+    disabled: bool | None = None
 
 
 class AnswerValue(BaseModel):
@@ -252,6 +253,8 @@ class Ticket(BaseModel):
     category_id: UUID
     session_id: UUID
 
+    paid: bool
+    cancelled: bool
     scanned: bool
 
     category: Category

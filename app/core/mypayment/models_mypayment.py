@@ -51,7 +51,7 @@ class Transaction(Base):
 
     id: Mapped[PrimaryKey]
     debited_wallet_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_wallet.id"))
-    debited_wallet_device_id: Mapped[UUID] = mapped_column(
+    debited_wallet_device_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("mypayment_wallet_device.id"),
     )
     credited_wallet_id: Mapped[UUID] = mapped_column(ForeignKey("mypayment_wallet.id"))
