@@ -363,7 +363,7 @@ async def ticket_request_change_over(
     background_tasks: BackgroundTasks,
     user: CoreUser = Depends(
         is_user_allowed_to(
-            [TicketsPermissions.buy_tickets],
+            [TicketsPermissions.access_tickets],
         ),
     ),
     db: AsyncSession = Depends(get_db),
