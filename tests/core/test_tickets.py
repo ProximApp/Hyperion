@@ -1518,6 +1518,62 @@ def test_create_category(client: TestClient):
     assert category["quota"] == 10
 
 
+# create_question
+
+
+def test_create_question_with_non_existing_event(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{uuid.uuid4()}/questions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "Test Question",
+            "answer_type": "text",
+            "price": 100,
+            "required": False,
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_create_question_as_non_authorised_seller(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/questions/",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "question": "Test Question",
+            "answer_type": "text",
+            "price": 100,
+            "required": False,
+        },
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_create_question(client: TestClient):
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/questions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "New Test Question",
+            "answer_type": "text",
+            "price": 100,
+            "required": True,
+        },
+    )
+    assert response.status_code == 201
+    question = response.json()
+    assert question["question"] == "New Test Question"
+    assert question["answer_type"] == "text"
+    assert question["price"] == 100
+    assert question["required"] is True
+    assert question["disabled"] is False
+    assert question["event_id"] == str(global_event.id)
+
+
 # update_category
 
 

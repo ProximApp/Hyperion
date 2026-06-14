@@ -345,6 +345,24 @@ async def create_event_category(
     db.add(db_category)
 
 
+async def create_event_question(
+    question_id: UUID,
+    event_id: UUID,
+    question: schemas_tickets.QuestionCreate,
+    db: AsyncSession,
+):
+    db_question = models_tickets.Question(
+        id=question_id,
+        event_id=event_id,
+        question=question.question,
+        answer_type=question.answer_type,
+        price=question.price,
+        required=question.required,
+        disabled=False,
+    )
+    db.add(db_question)
+
+
 async def get_category_by_id(
     category_id: UUID,
     db: AsyncSession,

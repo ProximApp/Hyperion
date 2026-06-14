@@ -989,6 +989,59 @@ async def delete_category(
     )
 
 
+@router.post(
+    "/tickets/admin/events/{event_id}/questions",
+    response_model=schemas_tickets.Question,
+    status_code=201,
+)
+async def create_question(
+    event_id: UUID,
+    question_create: schemas_tickets.QuestionCreate,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a question for an event
+
+    **The user should have the right to manage the event seller**
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    question_id = uuid.uuid4()
+
+    await cruds_tickets.create_event_question(
+        question_id=question_id,
+        event_id=event_id,
+        question=question_create,
+        db=db,
+    )
+
+    question = await cruds_tickets.get_question_by_id(
+        question_id=question_id,
+        db=db,
+    )
+    if question is None:
+        raise ObjectExpectedInDbNotFoundError(
+            object_name="Question",
+            object_id=question_id,
+        )
+    return question
+
+
 @router.patch(
     "/tickets/admin/events/{event_id}/questions/{question_id}",
     status_code=204,
