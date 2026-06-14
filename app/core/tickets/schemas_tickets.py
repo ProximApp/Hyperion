@@ -192,6 +192,7 @@ class EventUpdate(BaseModel):
     quota: int | None = None
     open_datetime: datetime | None = None
     close_datetime: datetime | None = None
+    disabled: bool | None = None
 
 
 class AnswerValue(BaseModel):

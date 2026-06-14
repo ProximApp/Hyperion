@@ -1222,6 +1222,70 @@ def test_update_event(client: TestClient):
     assert response.status_code == 204
 
 
+def test_update_event_disable(client: TestClient):
+    create_response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event To Disable",
+            "open_datetime": (datetime.now(tz=UTC) - timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 10,
+            "sessions": [
+                {
+                    "name": "Test Session",
+                    "start_datetime": (
+                        datetime.now(tz=UTC) + timedelta(days=1)
+                    ).isoformat(),
+                    "quota": 10,
+                },
+            ],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 1000,
+                    "quota": 10,
+                    "required_membership": None,
+                },
+            ],
+            "questions": [],
+        },
+    )
+    assert create_response.status_code == 201
+    event_id = create_response.json()["id"]
+
+    response = client.patch(
+        f"/tickets/admin/events/{event_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+        },
+    )
+    assert response.status_code == 204
+
+    admin_response = client.get(
+        f"/tickets/admin/events/{event_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert admin_response.status_code == 200
+    assert admin_response.json()["disabled"] is True
+
+    public_response = client.get(
+        f"/tickets/events/{event_id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert public_response.status_code == 400
+    assert public_response.json()["detail"] == "Event is disabled"
+
+    open_events_response = client.get(
+        "/tickets/events",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert open_events_response.status_code == 200
+    assert event_id not in {event["id"] for event in open_events_response.json()}
+
+
 # create_session
 
 
