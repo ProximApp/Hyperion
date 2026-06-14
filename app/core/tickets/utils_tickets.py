@@ -16,6 +16,10 @@ def allows_update_with_checkouts_or_tickets(update: BaseModel) -> bool:
     return set(update.model_dump(exclude_unset=True).keys()) <= {"disabled"}
 
 
+def has_checkouts_or_tickets(nb_checkouts: int, nb_tickets: int) -> bool:
+    return nb_checkouts + nb_tickets > 0
+
+
 async def mypayment_callback_callback(
     checkout_id: UUID,
     db: AsyncSession,

@@ -1769,6 +1769,208 @@ async def test_update_question(client: TestClient):
     assert response.status_code == 204
 
 
+# delete_event
+
+
+def test_delete_event_not_found(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{uuid.uuid4()}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+def test_delete_event_as_non_authorised_seller(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
+
+
+def test_delete_event_with_checkouts_or_tickets(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Cannot delete event with checkouts or tickets"
+
+
+def test_delete_event(client: TestClient):
+    create_response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event To Delete",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "close_datetime": (datetime.now(tz=UTC) + timedelta(days=2)).isoformat(),
+            "quota": 10,
+            "sessions": [
+                {
+                    "name": "Test Session",
+                    "start_datetime": (
+                        datetime.now(tz=UTC) + timedelta(days=1)
+                    ).isoformat(),
+                    "quota": 10,
+                },
+            ],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 1000,
+                    "quota": 10,
+                    "required_membership": None,
+                },
+            ],
+            "questions": [],
+        },
+    )
+    assert create_response.status_code == 201
+    event_id = create_response.json()["id"]
+
+    response = client.delete(
+        f"/tickets/admin/events/{event_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 204
+
+    admin_response = client.get(
+        f"/tickets/admin/events/{event_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert admin_response.status_code == 404
+
+
+# delete_session
+
+
+def test_delete_session_with_checkouts_or_tickets(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/sessions/{event_session.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot delete session with checkouts or tickets"
+    )
+
+
+async def test_delete_session(client: TestClient):
+    session_without_tickets = models_tickets.EventSession(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        name="Test Session to delete",
+        start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        quota=None,
+        disabled=False,
+    )
+    await add_object_to_db(session_without_tickets)
+
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/sessions/{session_without_tickets.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 204
+
+    admin_response = client.get(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert admin_response.status_code == 200
+    session_ids = {session["id"] for session in admin_response.json()["sessions"]}
+    assert str(session_without_tickets.id) not in session_ids
+
+
+# delete_category
+
+
+def test_delete_category_with_checkouts_or_tickets(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot delete category with checkouts or tickets"
+    )
+
+
+async def test_delete_category(client: TestClient):
+    category_without_tickets = models_tickets.Category(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        name="Test Category to delete",
+        quota=None,
+        disabled=False,
+        price=1000,
+        required_membership=None,
+    )
+    await add_object_to_db(category_without_tickets)
+
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/categories/{category_without_tickets.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 204
+
+    admin_response = client.get(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert admin_response.status_code == 200
+    category_ids = {
+        category["id"] for category in admin_response.json()["categories"]
+    }
+    assert str(category_without_tickets.id) not in category_ids
+
+
+# delete_question
+
+
+def test_delete_question_with_answers(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Cannot delete question with answers"
+
+
+async def test_delete_question(client: TestClient):
+    question_without_answers = models_tickets.Question(
+        id=uuid.uuid4(),
+        event_id=global_event.id,
+        question="Test Question to delete",
+        answer_type=AnswerType.TEXT,
+        price=None,
+        required=False,
+        disabled=False,
+    )
+    await add_object_to_db(question_without_answers)
+
+    response = client.delete(
+        f"/tickets/admin/events/{global_event.id}/questions/{question_without_answers.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 204
+
+    admin_response = client.get(
+        f"/tickets/admin/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert admin_response.status_code == 200
+    question_ids = {
+        question["id"] for question in admin_response.json()["questions"]
+    }
+    assert str(question_without_answers.id) not in question_ids
+
+
 # get_event_tickets
 
 

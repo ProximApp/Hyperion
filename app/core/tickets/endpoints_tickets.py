@@ -627,6 +627,54 @@ async def update_event(
     )
 
 
+@router.delete(
+    "/tickets/admin/events/{event_id}",
+    status_code=204,
+)
+async def delete_event(
+    event_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete one event for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_event_id(
+        event_id=event_id,
+        db=db,
+    )
+    nb_tickets = await cruds_tickets.count_tickets_by_event_id(
+        event_id=event_id,
+        db=db,
+    )
+    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+        raise HTTPException(
+            400,
+            "Cannot delete event with checkouts or tickets",
+        )
+
+    await cruds_tickets.delete_event(
+        event_id=event_id,
+        db=db,
+    )
+
+
 @router.post(
     "/tickets/admin/events/{event_id}/sessions",
     response_model=schemas_tickets.SessionComplete,
@@ -727,6 +775,59 @@ async def update_session(
     await cruds_tickets.update_session(
         session_id=session_id,
         session_update=session_update,
+        db=db,
+    )
+
+
+@router.delete(
+    "/tickets/admin/events/{event_id}/sessions/{session_id}",
+    status_code=204,
+)
+async def delete_session(
+    event_id: UUID,
+    session_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete one session for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    session = await cruds_tickets.get_session_by_id(session_id=session_id, db=db)
+    if session is None or session.event_id != event_id:
+        raise HTTPException(404, "Session not found")
+
+    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_session_id(
+        session_id=session_id,
+        db=db,
+    )
+    nb_tickets = await cruds_tickets.count_tickets_by_session_id(
+        session_id=session_id,
+        db=db,
+    )
+    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+        raise HTTPException(
+            400,
+            "Cannot delete session with checkouts or tickets",
+        )
+
+    await cruds_tickets.delete_session(
+        session_id=session_id,
         db=db,
     )
 
@@ -835,6 +936,59 @@ async def update_category(
     )
 
 
+@router.delete(
+    "/tickets/admin/events/{event_id}/categories/{category_id}",
+    status_code=204,
+)
+async def delete_category(
+    event_id: UUID,
+    category_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete one category for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    category = await cruds_tickets.get_category_by_id(category_id=category_id, db=db)
+    if category is None or category.event_id != event_id:
+        raise HTTPException(404, "Category not found")
+
+    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
+        category_id=category_id,
+        db=db,
+    )
+    nb_tickets = await cruds_tickets.count_tickets_by_category_id(
+        category_id=category_id,
+        db=db,
+    )
+    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+        raise HTTPException(
+            400,
+            "Cannot delete category with checkouts or tickets",
+        )
+
+    await cruds_tickets.delete_category(
+        category_id=category_id,
+        db=db,
+    )
+
+
 @router.patch(
     "/tickets/admin/events/{event_id}/questions/{question_id}",
     status_code=204,
@@ -884,6 +1038,55 @@ async def update_question(
     await cruds_tickets.update_question(
         question_id=question_id,
         question_update=question_update,
+        db=db,
+    )
+
+
+@router.delete(
+    "/tickets/admin/events/{event_id}/questions/{question_id}",
+    status_code=204,
+)
+async def delete_question(
+    event_id: UUID,
+    question_id: UUID,
+    user: CoreUser = Depends(
+        is_user(),
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete one question for admin
+    """
+    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    if event is None:
+        raise HTTPException(404, "Event not found")
+
+    if not await utils_mypayment.can_user_manage_events(
+        user_id=user.id,
+        store_id=event.store_id,
+        db=db,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="User is not authorized to manage store's events",
+        )
+
+    question = await cruds_tickets.get_question_by_id(question_id=question_id, db=db)
+    if question is None or question.event_id != event_id:
+        raise HTTPException(404, "Question not found")
+
+    nb_answers = await cruds_tickets.count_answers_by_question_id(
+        question_id=question_id,
+        db=db,
+    )
+    if nb_answers > 0:
+        raise HTTPException(
+            400,
+            "Cannot delete question with answers",
+        )
+
+    await cruds_tickets.delete_question(
+        question_id=question_id,
         db=db,
     )
 
