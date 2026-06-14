@@ -1699,6 +1699,55 @@ async def test_update_question_with_answer(client: TestClient):
     assert response.json()["detail"] == "Cannot update question with answers"
 
 
+def test_update_question_disable_with_answers_and_other_field(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+            "question": "Updated Test Question",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Cannot update question with answers"
+
+
+def test_update_question_disable_with_answers(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+        },
+    )
+    assert response.status_code == 204
+
+    checkout_response = client.post(
+        f"/tickets/events/{global_event.id}/checkout",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "category_id": str(free_event_category.id),
+            "session_id": str(event_session.id),
+            "answers": [
+                {
+                    "question_id": str(global_event_optionnal_question_id),
+                    "answer": {
+                        "answer_type": "text",
+                        "answer": "Test Answer",
+                    },
+                },
+            ],
+            "mypayment_request_method": "transfer_request",
+            "mypayment_transfer_redirect_url": "http://localhost:3000/payment_callback",
+        },
+    )
+    assert checkout_response.status_code == 400
+    assert (
+        checkout_response.json()["detail"]
+        == f"Question with id {global_event_optionnal_question_id} is disabled"
+    )
+
+
 async def test_update_question(client: TestClient):
     question_without_tickets = models_tickets.Question(
         id=uuid.uuid4(),

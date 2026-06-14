@@ -873,7 +873,9 @@ async def update_question(
         question_id=question_id,
         db=db,
     )
-    if nb_answers > 0:
+    if nb_answers > 0 and not utils_tickets.allows_update_with_checkouts_or_tickets(
+        question_update,
+    ):
         raise HTTPException(
             400,
             "Cannot update question with answers",
