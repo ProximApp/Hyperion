@@ -1391,6 +1391,42 @@ def test_update_session_with_existing_tickets(client: TestClient):
     )
 
 
+def test_update_session_disable_with_existing_tickets(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{event_sold_out_session.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+        },
+    )
+    assert response.status_code == 204
+
+    public_response = client.get(
+        f"/tickets/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert public_response.status_code == 200
+    session_ids = {session["id"] for session in public_response.json()["sessions"]}
+    assert str(event_sold_out_session.id) not in session_ids
+
+
+def test_update_session_disable_with_existing_tickets_and_other_field(
+    client: TestClient,
+):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/sessions/{event_sold_out_session.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+            "name": "Updated Test Session",
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot update session with checkouts or tickets"
+    )
+
+
 async def test_update_session(client: TestClient):
     session_without_tickets = models_tickets.EventSession(
         id=uuid.uuid4(),
@@ -1528,6 +1564,42 @@ def test_update_category_with_existing_tickets(client: TestClient):
         f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
+            "name": "Updated Test Category",
+        },
+    )
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "Cannot update category with checkouts or tickets"
+    )
+
+
+def test_update_category_disable_with_existing_tickets(client: TestClient):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_sold_out_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
+        },
+    )
+    assert response.status_code == 204
+
+    public_response = client.get(
+        f"/tickets/events/{global_event.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert public_response.status_code == 200
+    category_ids = {category["id"] for category in public_response.json()["categories"]}
+    assert str(event_sold_out_category.id) not in category_ids
+
+
+def test_update_category_disable_with_existing_tickets_and_other_field(
+    client: TestClient,
+):
+    response = client.patch(
+        f"/tickets/admin/events/{global_event.id}/categories/{event_sold_out_category.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "disabled": True,
             "name": "Updated Test Category",
         },
     )
