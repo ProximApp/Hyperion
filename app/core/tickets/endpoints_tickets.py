@@ -764,8 +764,11 @@ async def update_session(
         session_id=session_id,
         db=db,
     )
-    if nb_checkouts + nb_tickets > 0 and not utils_tickets.allows_update_with_checkouts_or_tickets(
-        session_update,
+    if (
+        nb_checkouts + nb_tickets > 0
+        and not utils_tickets.allows_update_with_checkouts_or_tickets(
+            session_update,
+        )
     ):
         raise HTTPException(
             400,
@@ -921,8 +924,11 @@ async def update_category(
         category_id=category_id,
         db=db,
     )
-    if nb_checkouts + nb_tickets > 0 and not utils_tickets.allows_update_with_checkouts_or_tickets(
-        category_update,
+    if (
+        nb_checkouts + nb_tickets > 0
+        and not utils_tickets.allows_update_with_checkouts_or_tickets(
+            category_update,
+        )
     ):
         raise HTTPException(
             400,

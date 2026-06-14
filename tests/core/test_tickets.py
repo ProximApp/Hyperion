@@ -1980,9 +1980,7 @@ async def test_delete_category(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
     )
     assert admin_response.status_code == 200
-    category_ids = {
-        category["id"] for category in admin_response.json()["categories"]
-    }
+    category_ids = {category["id"] for category in admin_response.json()["categories"]}
     assert str(category_without_tickets.id) not in category_ids
 
 
@@ -2021,9 +2019,7 @@ async def test_delete_question(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
     )
     assert admin_response.status_code == 200
-    question_ids = {
-        question["id"] for question in admin_response.json()["questions"]
-    }
+    question_ids = {question["id"] for question in admin_response.json()["questions"]}
     assert str(question_without_answers.id) not in question_ids
 
 
