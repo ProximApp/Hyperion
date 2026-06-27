@@ -92,8 +92,10 @@ class CategoryCreate(BaseModel):
 
 class CategoryUpdate(BaseModel):
     name: str | None = None
+    # price can not be updated if there are already checkouts or tickets for this category
     price: int | None = None
     quota: int | None = None
+    # required_membership can not be updated if there are already checkouts or tickets for this category
     required_membership: UUID | None = None
     disabled: bool | None = None
 
@@ -131,7 +133,9 @@ class QuestionCreate(BaseModel):
 
 class QuestionUpdate(BaseModel):
     question: str | None = None
+    # answer_type can not be updated if there are already answers for this question
     answer_type: AnswerType | None = None
+    # price can not be updated if there are already answers for this question
     price: int | None = None
     required: bool | None = None
     disabled: bool | None = None

@@ -1478,56 +1478,6 @@ def test_update_session_with_non_existing_session(client: TestClient):
     assert response.json()["detail"] == "Session not found"
 
 
-def test_update_session_with_existing_tickets(client: TestClient):
-    response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/sessions/{event_session.id}",
-        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
-        json={
-            "name": "Updated Test Session",
-        },
-    )
-    assert response.status_code == 400
-    assert (
-        response.json()["detail"] == "Cannot update session with checkouts or tickets"
-    )
-
-
-def test_update_session_disable_with_existing_tickets(client: TestClient):
-    response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/sessions/{event_sold_out_session.id}",
-        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
-        json={
-            "disabled": True,
-        },
-    )
-    assert response.status_code == 204
-
-    public_response = client.get(
-        f"/tickets/events/{global_event.id}",
-        headers={"Authorization": f"Bearer {user_token}"},
-    )
-    assert public_response.status_code == 200
-    session_ids = {session["id"] for session in public_response.json()["sessions"]}
-    assert str(event_sold_out_session.id) not in session_ids
-
-
-def test_update_session_disable_with_existing_tickets_and_other_field(
-    client: TestClient,
-):
-    response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/sessions/{event_sold_out_session.id}",
-        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
-        json={
-            "disabled": True,
-            "name": "Updated Test Session",
-        },
-    )
-    assert response.status_code == 400
-    assert (
-        response.json()["detail"] == "Cannot update session with checkouts or tickets"
-    )
-
-
 async def test_update_session(client: TestClient):
     session_without_tickets = models_tickets.EventSession(
         id=uuid.uuid4(),
@@ -1535,7 +1485,7 @@ async def test_update_session(client: TestClient):
         name="Test Session without tickets",
         start_datetime=datetime.now(tz=UTC) - timedelta(days=1),
         quota=None,
-        disabled=False,
+        disabled=True,
     )
     await add_object_to_db(session_without_tickets)
     response = client.patch(
@@ -1543,6 +1493,7 @@ async def test_update_session(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "name": "Updated Test Session",
+            "disabled": True,
         },
     )
     assert response.status_code == 204
@@ -1716,53 +1667,35 @@ def test_update_category_with_non_existing_category(client: TestClient):
     assert response.json()["detail"] == "Category not found"
 
 
-def test_update_category_with_existing_tickets(client: TestClient):
+def test_update_category_price_with_existing_tickets(client: TestClient):
     response = client.patch(
         f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "name": "Updated Test Category",
+            "price": 2000,
         },
     )
     assert response.status_code == 400
     assert (
-        response.json()["detail"] == "Cannot update category with checkouts or tickets"
+        response.json()["detail"]
+        == "Cannot update category price or required_membership with checkouts or tickets"
     )
 
 
-def test_update_category_disable_with_existing_tickets(client: TestClient):
+def test_update_category_required_membership_with_existing_tickets(client: TestClient):
     response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/categories/{event_sold_out_category.id}",
+        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
-            "disabled": True,
-        },
-    )
-    assert response.status_code == 204
-
-    public_response = client.get(
-        f"/tickets/events/{global_event.id}",
-        headers={"Authorization": f"Bearer {user_token}"},
-    )
-    assert public_response.status_code == 200
-    category_ids = {category["id"] for category in public_response.json()["categories"]}
-    assert str(event_sold_out_category.id) not in category_ids
-
-
-def test_update_category_disable_with_existing_tickets_and_other_field(
-    client: TestClient,
-):
-    response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/categories/{event_sold_out_category.id}",
-        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
-        json={
-            "disabled": True,
             "name": "Updated Test Category",
+            "required_membership": str(uuid.uuid4()),
         },
     )
     assert response.status_code == 400
     assert (
-        response.json()["detail"] == "Cannot update category with checkouts or tickets"
+        response.json()["detail"]
+        == "Cannot update category price or required_membership with checkouts or tickets"
     )
 
 
@@ -1798,6 +1731,7 @@ async def test_update_category(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "name": "Updated Test Category",
+            "disabled": True,
         },
     )
     assert response.status_code == 204
@@ -1844,29 +1778,36 @@ def test_update_question_with_non_existing_question(client: TestClient):
     assert response.json()["detail"] == "Question not found"
 
 
-async def test_update_question_with_answer(client: TestClient):
+async def test_update_question_answer_type_with_answer(client: TestClient):
     response = client.patch(
         f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "question": "Updated Test Question",
+            "answer_type": "number",
         },
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Cannot update question with answers"
+    assert (
+        response.json()["detail"]
+        == "Cannot update answer_type or price for question with answers"
+    )
 
 
-def test_update_question_disable_with_answers_and_other_field(client: TestClient):
+async def test_update_question_price_with_answer(client: TestClient):
     response = client.patch(
         f"/tickets/admin/events/{global_event.id}/questions/{global_event_optionnal_question_id}",
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
-            "disabled": True,
             "question": "Updated Test Question",
+            "price": 100,
         },
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Cannot update question with answers"
+    assert (
+        response.json()["detail"]
+        == "Cannot update answer_type or price for question with answers"
+    )
 
 
 def test_update_question_disable_with_answers(client: TestClient):
@@ -1875,6 +1816,7 @@ def test_update_question_disable_with_answers(client: TestClient):
         headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
         json={
             "disabled": True,
+            "question": "Updated Test Question",
         },
     )
     assert response.status_code == 204

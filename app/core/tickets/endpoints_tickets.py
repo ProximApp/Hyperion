@@ -762,20 +762,6 @@ async def update_session(
     if session is None or session.event_id != event_id:
         raise HTTPException(404, "Session not found")
 
-    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_session_id(
-        session_id=session_id,
-        db=db,
-    )
-    nb_tickets = await cruds_tickets.count_tickets_by_session_id(
-        session_id=session_id,
-        db=db,
-    )
-    if nb_checkouts + nb_tickets > 0:
-        raise HTTPException(
-            400,
-            "Cannot update session with checkouts or tickets",
-        )
-
     await cruds_tickets.update_session(
         session_id=session_id,
         session_update=session_update,
@@ -917,19 +903,22 @@ async def update_category(
     if category is None or category.event_id != event_id:
         raise HTTPException(404, "Category not found")
 
-    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
-        category_id=category_id,
-        db=db,
-    )
-    nb_tickets = await cruds_tickets.count_tickets_by_category_id(
-        category_id=category_id,
-        db=db,
-    )
-    if nb_checkouts + nb_tickets > 0:
-        raise HTTPException(
-            400,
-            "Cannot update category with checkouts or tickets",
+    # Some fields cannot be updated if the category has checkouts or tickets
+    fields_to_update = category_update.model_dump(exclude_unset=True).keys()
+    if "price" in fields_to_update or "required_membership" in fields_to_update:
+        nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
+            category_id=category_id,
+            db=db,
         )
+        nb_tickets = await cruds_tickets.count_tickets_by_category_id(
+            category_id=category_id,
+            db=db,
+        )
+        if nb_checkouts + nb_tickets > 0:
+            raise HTTPException(
+                400,
+                "Cannot update category price or required_membership with checkouts or tickets",
+            )
 
     await cruds_tickets.update_category(
         category_id=category_id,
@@ -1078,15 +1067,18 @@ async def update_question(
     if question is None or question.event_id != event_id:
         raise HTTPException(404, "Question not found")
 
-    nb_answers = await cruds_tickets.count_answers_by_question_id(
-        question_id=question_id,
-        db=db,
-    )
-    if nb_answers > 0:
-        raise HTTPException(
-            400,
-            "Cannot update question with answers",
+    # Some fields cannot be updated if the question has answers
+    fields_to_update = question_update.model_dump(exclude_unset=True).keys()
+    if "answer_type" in fields_to_update or "price" in fields_to_update:
+        nb_answers = await cruds_tickets.count_answers_by_question_id(
+            question_id=question_id,
+            db=db,
         )
+        if nb_answers > 0:
+            raise HTTPException(
+                400,
+                "Cannot update answer_type or price for question with answers",
+            )
 
     await cruds_tickets.update_question(
         question_id=question_id,
