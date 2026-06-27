@@ -669,7 +669,7 @@ async def delete_event(
         event_id=event_id,
         db=db,
     )
-    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+    if nb_checkouts + nb_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete event with checkouts or tickets",
@@ -770,12 +770,7 @@ async def update_session(
         session_id=session_id,
         db=db,
     )
-    if (
-        nb_checkouts + nb_tickets > 0
-        and not utils_tickets.allows_update_with_checkouts_or_tickets(
-            session_update,
-        )
-    ):
+    if nb_checkouts + nb_tickets > 0:
         raise HTTPException(
             400,
             "Cannot update session with checkouts or tickets",
@@ -829,7 +824,7 @@ async def delete_session(
         session_id=session_id,
         db=db,
     )
-    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+    if nb_checkouts + nb_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete session with checkouts or tickets",
@@ -930,12 +925,7 @@ async def update_category(
         category_id=category_id,
         db=db,
     )
-    if (
-        nb_checkouts + nb_tickets > 0
-        and not utils_tickets.allows_update_with_checkouts_or_tickets(
-            category_update,
-        )
-    ):
+    if nb_checkouts + nb_tickets > 0:
         raise HTTPException(
             400,
             "Cannot update category with checkouts or tickets",
@@ -989,7 +979,7 @@ async def delete_category(
         category_id=category_id,
         db=db,
     )
-    if utils_tickets.has_checkouts_or_tickets(nb_checkouts, nb_tickets):
+    if nb_checkouts + nb_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete category with checkouts or tickets",
@@ -1092,9 +1082,7 @@ async def update_question(
         question_id=question_id,
         db=db,
     )
-    if nb_answers > 0 and not utils_tickets.allows_update_with_checkouts_or_tickets(
-        question_update,
-    ):
+    if nb_answers > 0:
         raise HTTPException(
             400,
             "Cannot update question with answers",
