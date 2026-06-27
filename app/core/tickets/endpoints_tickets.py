@@ -449,7 +449,6 @@ async def ticket_request_change_over(
 
 @router.get(
     "/tickets/user/me/tickets/change-over/accept",
-    status_code=200,
 )
 async def ticket_accept_change_over(
     token: str,

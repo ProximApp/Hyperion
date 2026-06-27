@@ -1075,6 +1075,11 @@ async def test_ticket_request_change_over(
     )
     await add_object_to_db(ticket_to_transfer)
 
+    generate_token_patch = mocker.patch(
+        "app.core.tickets.endpoints_tickets.security.generate_token",
+        return_value="token",
+    )
+
     response = client.post(
         "/tickets/user/me/tickets/change-over/request",
         headers={"Authorization": f"Bearer {user_token}"},
@@ -1084,16 +1089,27 @@ async def test_ticket_request_change_over(
         },
     )
     assert response.status_code == 204
-
-    mocker.patch(
-        "app.core.tickets.endpoints_tickets.security.generate_token",
-        return_value="token",
-    )
+    generate_token_patch.assert_called()
 
     response = client.get(
         "/tickets/user/me/tickets/change-over/accept?token=token",
+        follow_redirects=False,
     )
-    assert response.status_code == 200
+
+    assert response.status_code == 307
+    assert "message?type=ticket_change_over_success" in response.headers["location"]
+
+
+# ticket_accept_change_over
+
+
+def test_ticket_accept_change_over_with_invalid_token(client: TestClient):
+    response = client.get(
+        "/tickets/user/me/tickets/change-over/accept?token=invalid_token",
+        follow_redirects=False,
+    )
+    assert response.status_code == 307
+    assert "message?type=ticket_change_over_invalid" in response.headers["location"]
 
 
 # get_event_admin
