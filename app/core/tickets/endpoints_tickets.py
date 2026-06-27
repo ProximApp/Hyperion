@@ -415,6 +415,8 @@ async def ticket_request_change_over(
             giver_name=user.full_name,
         )
 
+        confirmation_url = "No account exists for this email"
+
     else:
         await cruds_tickets.create_ticket_change_over_invitation(
             ticket_id=ticket.id,
@@ -431,13 +433,18 @@ async def ticket_request_change_over(
             confirmation_url=confirmation_url,
         )
 
-    background_tasks.add_task(
-        send_email,
-        recipient=ticket_transfer.email,
-        subject=f"{settings.school.application_name} - Ticket transfer for {event.name}",
-        content=mail,
-        settings=settings,
-    )
+    if settings.SMTP_ACTIVE:
+        background_tasks.add_task(
+            send_email,
+            recipient=ticket_transfer.email,
+            subject=f"{settings.school.application_name} - Ticket transfer for {event.name}",
+            content=mail,
+            settings=settings,
+        )
+    else:
+        hyperion_security_logger.info(
+            f"You can confirm the transfer by clicking the following link: {confirmation_url}",
+        )
 
 
 @router.get(

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from fastapi.testclient import TestClient
+from pytest_mock import MockerFixture
 
 from app.core.associations.models_associations import CoreAssociation
 from app.core.groups.groups_type import GroupType
@@ -1009,6 +1010,90 @@ def test_get_user_tickets(client: TestClient):
     )
     assert ticket is not None
     assert len(ticket["answers"]) > 0
+
+
+# ticket_request_change_over
+
+
+async def test_ticket_request_change_over_for_non_existing_ticket(client: TestClient):
+    response = client.post(
+        "/tickets/user/me/tickets/change-over/request",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "ticket_id": str(uuid.uuid4()),
+            "email": "test@test.fr",
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Ticket not found"
+
+
+async def test_ticket_request_change_over_for_ticket_from_different_user(
+    client: TestClient,
+):
+    response = client.post(
+        "/tickets/user/me/tickets/change-over/request",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "ticket_id": str(ticket_sold_out_event.id),
+            "email": "test@test.fr",
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User is not the owner of the ticket"
+
+
+async def test_ticket_request_change_over_for_ticket_for_non_existing_user_email(
+    client: TestClient,
+):
+    response = client.post(
+        "/tickets/user/me/tickets/change-over/request",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "ticket_id": str(ticket_for_user_with_answer.id),
+            "email": "non-existing@test.fr",
+        },
+    )
+    assert response.status_code == 204
+
+
+async def test_ticket_request_change_over(
+    client: TestClient,
+    mocker: MockerFixture,
+):
+    ticket_to_transfer = models_tickets.Checkout(
+        id=uuid.uuid4(),
+        category_id=event_category.id,
+        session_id=event_session.id,
+        event_id=global_event.id,
+        user_id=user.id,
+        price=10,
+        scanned=False,
+        paid=True,
+        expiration=datetime.now(tz=UTC) + timedelta(hours=1),
+        answers=[],
+    )
+    await add_object_to_db(ticket_to_transfer)
+
+    response = client.post(
+        "/tickets/user/me/tickets/change-over/request",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={
+            "ticket_id": str(ticket_to_transfer.id),
+            "email": seller_can_manage_event_user.email,
+        },
+    )
+    assert response.status_code == 204
+
+    mocker.patch(
+        "app.core.tickets.endpoints_tickets.security.generate_token",
+        return_value="token",
+    )
+
+    response = client.get(
+        "/tickets/user/me/tickets/change-over/accept?token=token",
+    )
+    assert response.status_code == 200
 
 
 # get_event_admin
