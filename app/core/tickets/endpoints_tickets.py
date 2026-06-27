@@ -675,6 +675,17 @@ async def delete_event(
             "Cannot delete event with checkouts or tickets",
         )
 
+    # We want to check if the event is linked to the feed
+    if await utils_feed.check_if_module_object_id_is_linked_to_feed(
+        module=core_module.root,
+        module_object_id=event.id,
+        db=db,
+    ):
+        raise HTTPException(
+            400,
+            "Cannot delete event linked to the feed",
+        )
+
     await cruds_tickets.delete_event(
         event_id=event_id,
         db=db,

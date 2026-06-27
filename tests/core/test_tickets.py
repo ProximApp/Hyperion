@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from pytest_mock import MockerFixture
 
 from app.core.associations.models_associations import CoreAssociation
+from app.core.feed import models_feed
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
@@ -55,6 +56,8 @@ category_sold_out_event: models_tickets.Category
 ticket_sold_out_event: models_tickets.Checkout
 
 ticket_for_user_with_answer: models_tickets.Checkout
+
+event_linked_to_feed: models_tickets.TicketEvent
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
@@ -340,6 +343,36 @@ async def init_objects() -> None:
         ],
     )
     await add_object_to_db(ticket_for_user_with_answer)
+
+    global event_linked_to_feed
+    event_linked_to_feed = models_tickets.TicketEvent(
+        id=uuid.uuid4(),
+        store_id=store.id,
+        name="Test Event Linked to Feed",
+        open_datetime=datetime.now(tz=UTC) - timedelta(days=1),
+        close_datetime=datetime.now(tz=UTC) + timedelta(days=1),
+        quota=10,
+        disabled=False,
+        sessions=[],
+        categories=[],
+        questions=[],
+    )
+    await add_object_to_db(event_linked_to_feed)
+    feed = models_feed.News(
+        id=uuid.uuid4(),
+        title="Test Feed News",
+        module="tickets",
+        module_object_id=event_linked_to_feed.id,
+        start=datetime.now(tz=UTC) - timedelta(days=1),
+        end=datetime.now(tz=UTC) + timedelta(days=1),
+        entity="Test Entity",
+        location="Test Location",
+        action_start=datetime.now(tz=UTC) - timedelta(days=1),
+        image_directory="test_directory",
+        image_id=uuid.uuid4(),
+        status=models_feed.NewsStatus.PUBLISHED,
+    )
+    await add_object_to_db(feed)
 
 
 async def test_payment_callback(client: TestClient):
@@ -1898,6 +1931,15 @@ def test_delete_event_with_checkouts_or_tickets(client: TestClient):
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Cannot delete event with checkouts or tickets"
+
+
+def test_delete_event_linked_to_feed(client: TestClient):
+    response = client.delete(
+        f"/tickets/admin/events/{event_linked_to_feed.id}",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Cannot delete event linked to the feed"
 
 
 def test_delete_event(client: TestClient):
