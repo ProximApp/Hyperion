@@ -449,6 +449,7 @@ async def ticket_request_change_over(
 
 @router.get(
     "/tickets/user/me/tickets/change-over/accept",
+    status_code=307,
 )
 async def ticket_accept_change_over(
     token: str,
@@ -1024,7 +1025,7 @@ async def update_question(
 
     # Some fields cannot be updated if the question has answers
     fields_to_update = question_update.model_dump(exclude_unset=True).keys()
-    if "answer_type" in fields_to_update or "price" in fields_to_update:
+    if any(field in fields_to_update for field in ["answer_type", "price"]):
         nb_answers = await cruds_tickets.count_answers_by_question_id(
             question_id=question_id,
             db=db,
