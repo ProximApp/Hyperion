@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pytest_mock import MockerFixture
 
 from app.core.associations.models_associations import CoreAssociation
-from app.core.feed import models_feed
+from app.core.feed import models_feed, types_feed
 from app.core.groups.groups_type import GroupType
 from app.core.memberships import models_memberships
 from app.core.mypayment import models_mypayment
@@ -370,7 +370,7 @@ async def init_objects() -> None:
         action_start=datetime.now(tz=UTC) - timedelta(days=1),
         image_directory="test_directory",
         image_id=uuid.uuid4(),
-        status=models_feed.NewsStatus.PUBLISHED,
+        status=types_feed.NewsStatus.PUBLISHED,
     )
     await add_object_to_db(feed)
 
