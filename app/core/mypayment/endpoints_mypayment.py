@@ -340,7 +340,7 @@ async def delete_structure(
 
 @router.post(
     "/mypayment/structures/{structure_id}/init-manager-transfer",
-    status_code=201,
+    status_code=204,
 )
 async def init_transfer_structure_manager(
     structure_id: UUID,
