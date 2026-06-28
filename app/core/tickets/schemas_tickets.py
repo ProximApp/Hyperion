@@ -95,7 +95,6 @@ class CategoryUpdate(BaseModel):
     # price can not be updated if there are already checkouts or tickets for this category
     price: int | None = None
     quota: int | None = None
-    # required_membership can not be updated if there are already checkouts or tickets for this category
     required_membership: UUID | None = None
     disabled: bool | None = None
 

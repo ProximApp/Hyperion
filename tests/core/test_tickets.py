@@ -1716,22 +1716,6 @@ def test_update_category_price_with_existing_tickets(client: TestClient):
     )
 
 
-def test_update_category_required_membership_with_existing_tickets(client: TestClient):
-    response = client.patch(
-        f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",
-        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
-        json={
-            "name": "Updated Test Category",
-            "required_membership": str(uuid.uuid4()),
-        },
-    )
-    assert response.status_code == 400
-    assert (
-        response.json()["detail"]
-        == "Cannot update category price or required_membership with checkouts or tickets"
-    )
-
-
 async def test_update_category_with_price_to_low(client: TestClient):
     response = client.patch(
         f"/tickets/admin/events/{global_event.id}/categories/{event_category.id}",

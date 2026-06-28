@@ -916,7 +916,7 @@ async def update_category(
 
     # Some fields cannot be updated if the category has checkouts or tickets
     fields_to_update = category_update.model_dump(exclude_unset=True).keys()
-    if "price" in fields_to_update or "required_membership" in fields_to_update:
+    if "price" in fields_to_update:
         nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
             category_id=category_id,
             db=db,
