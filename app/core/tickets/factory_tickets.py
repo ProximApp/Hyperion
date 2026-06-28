@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.mypayment.factory_mypayment import MyPaymentFactory
-from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.tickets import cruds_tickets, schemas_tickets, types_tickets
 from app.core.utils.config import Settings
 from app.types.factory import Factory
 
@@ -53,19 +53,19 @@ class TicketsFactory(Factory):
                         questions=[
                             schemas_tickets.QuestionCreate(
                                 question="Question 1",
-                                answer_type=schemas_tickets.AnswerType.TEXT,
+                                answer_type=types_tickets.AnswerType.TEXT,
                                 required=True,
                                 price=10,
                             ),
                             schemas_tickets.QuestionCreate(
                                 question="Question 2",
-                                answer_type=schemas_tickets.AnswerType.BOOLEAN,
+                                answer_type=types_tickets.AnswerType.BOOLEAN,
                                 required=False,
                                 price=0,
                             ),
                             schemas_tickets.QuestionCreate(
                                 question="Question 2",
-                                answer_type=schemas_tickets.AnswerType.NUMBER,
+                                answer_type=types_tickets.AnswerType.NUMBER,
                                 required=False,
                                 price=0,
                             ),
