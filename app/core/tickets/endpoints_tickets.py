@@ -661,15 +661,15 @@ async def delete_event(
             detail="User is not authorized to manage store's events",
         )
 
-    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_event_id(
-        event_id=event_id,
-        db=db,
     )
-    nb_tickets = await cruds_tickets.count_tickets_by_event_id(
-        event_id=event_id,
-        db=db,
+
+    nb_checkouts_and_tickets = (
+        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
+            event_id=event_id,
+            db=db,
+        )
     )
-    if nb_checkouts + nb_tickets > 0:
+    if nb_checkouts_and_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete event with checkouts or tickets",
@@ -813,15 +813,13 @@ async def delete_session(
     if session is None or session.event_id != event_id:
         raise HTTPException(404, "Session not found")
 
-    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_session_id(
-        session_id=session_id,
-        db=db,
+    nb_checkouts_and_tickets = (
+        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
+            event_id=event_id,
+            db=db,
+        )
     )
-    nb_tickets = await cruds_tickets.count_tickets_by_session_id(
-        session_id=session_id,
-        db=db,
-    )
-    if nb_checkouts + nb_tickets > 0:
+    if nb_checkouts_and_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete session with checkouts or tickets",
@@ -917,15 +915,13 @@ async def update_category(
     # Some fields cannot be updated if the category has checkouts or tickets
     fields_to_update = category_update.model_dump(exclude_unset=True).keys()
     if "price" in fields_to_update:
-        nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
-            category_id=category_id,
-            db=db,
+        nb_checkouts_and_tickets = (
+            await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
+                event_id=event_id,
+                db=db,
+            )
         )
-        nb_tickets = await cruds_tickets.count_tickets_by_category_id(
-            category_id=category_id,
-            db=db,
-        )
-        if nb_checkouts + nb_tickets > 0:
+        if nb_checkouts_and_tickets > 0:
             raise HTTPException(
                 400,
                 "Cannot update category price or required_membership with checkouts or tickets",
@@ -971,15 +967,13 @@ async def delete_category(
     if category is None or category.event_id != event_id:
         raise HTTPException(404, "Category not found")
 
-    nb_checkouts = await cruds_tickets.count_valid_checkouts_by_category_id(
-        category_id=category_id,
-        db=db,
+    nb_checkouts_and_tickets = (
+        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
+            event_id=event_id,
+            db=db,
+        )
     )
-    nb_tickets = await cruds_tickets.count_tickets_by_category_id(
-        category_id=category_id,
-        db=db,
-    )
-    if nb_checkouts + nb_tickets > 0:
+    if nb_checkouts_and_tickets > 0:
         raise HTTPException(
             400,
             "Cannot delete category with checkouts or tickets",
