@@ -98,6 +98,7 @@ async def read_permission(
 
 @router.post(
     "/permissions/",
+    response_model=dict[str, str],
     status_code=201,
 )
 async def create_permission(
