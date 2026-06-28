@@ -2213,6 +2213,7 @@ async def validate_can_scan_qrcode(
 @router.post(
     "/mypayment/stores/{store_id}/scan",
     status_code=201,
+    response_model=schemas_mypayment.TransactionBase,
 )
 async def store_scan_qrcode(
     store_id: UUID,
