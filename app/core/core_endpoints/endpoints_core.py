@@ -1,6 +1,6 @@
 from anyio import Path
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from app.core.core_endpoints import schemas_core
 from app.core.utils.config import Settings
@@ -145,15 +145,16 @@ async def read_robots_txt(settings: Settings = Depends(get_settings)):
 
 @router.get(
     "/account-deletion",
+    response_class=HTMLResponse,
     status_code=200,
 )
 async def read_account_deletion(settings: Settings = Depends(get_settings)):
     """
-    Return Hyperion account deletion information
+    Return Hyperion account deletion page
     """
 
     return patch_identity_in_text(
-        await Path("assets/account-deletion.md").read_text(encoding="utf-8"),
+        await Path("assets/account-deletion.html").read_text(encoding="utf-8"),
         settings,
     )
 

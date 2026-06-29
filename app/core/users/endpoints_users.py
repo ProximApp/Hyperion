@@ -966,10 +966,40 @@ async def read_user(
 
 
 @router.post(
+    "/users/ask-deletion",
+    response_model=standard_responses.Result,
+    status_code=201,
+)
+async def ask_deletion_by_email(
+    email: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Ask administrators to process the deletion of the account linked to the provided email.
+
+    This endpoint does not require authentication and always returns the same response,
+    whether the account exists or not.
+
+    This manual verification is needed to prevent data from being deleted for other users.
+    """
+    db_user = await cruds_users.get_user_by_email(db=db, email=email)
+    if db_user is None:
+        hyperion_security_logger.info(
+            f"Account deletion requested for {email}, user does not exist",
+        )
+    else:
+        hyperion_security_logger.info(
+            f"User {db_user.email} - {db_user.id} has requested to delete their account.",
+        )
+
+    return standard_responses.Result()
+
+
+@router.post(
     "/users/me/ask-deletion",
     status_code=204,
 )
-async def delete_user(
+async def ask_deletion_current_user(
     user: models_users.CoreUser = Depends(is_user()),
 ):
     """
