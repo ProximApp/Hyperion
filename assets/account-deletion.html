@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delete your {application_name} account</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        line-height: 1.5;
+      }
+
+      body {
+        margin: 0;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
+      }
+
+      h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.75rem;
+      }
+
+      p,
+      ol {
+        margin-top: 0;
+        margin-bottom: 1rem;
+      }
+
+      form {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        padding: 1.25rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        background: #ffffff;
+      }
+
+      label {
+        font-weight: 600;
+      }
+
+      input[type="email"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.65rem 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        font: inherit;
+      }
+
+      button {
+        justify-self: start;
+        padding: 0.65rem 1rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: #0f172a;
+        color: #ffffff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+
+      #form-message {
+        margin-top: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 0.5rem;
+      }
+
+      #form-message.success {
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+      }
+
+      #form-message.error {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Delete your {application_name} account</h1>
+
+      <p>
+        Submit your account email below to request deletion. An administrator
+        will review and process your request manually.
+      </p>
+
+      <p>You can also request deletion from the application:</p>
+      <ol>
+        <li>Go to <em>settings</em></li>
+        <li>Press the <em>Account deletion</em> button</li>
+        <li>Confirm</li>
+      </ol>
+
+      <form id="account-deletion-form">
+        <label for="email">Email address</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="{email_placeholder}"
+          autocomplete="email"
+          required
+        />
+        <button type="submit">Request account deletion</button>
+      </form>
+
+      <p id="form-message" class="hidden" role="status"></p>
+    </main>
+
+    <script>
+      const form = document.getElementById("account-deletion-form");
+      const message = document.getElementById("form-message");
+      const submitButton = form.querySelector("button[type='submit']");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        message.className = "hidden";
+        submitButton.disabled = true;
+
+        try {
+          const response = await fetch("/users/ask-deletion", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: form.email.value.trim(),
+            }),
+          });
+
+          if (response.ok) {
+            message.textContent =
+              "Your deletion request has been submitted. An administrator will process it shortly.";
+            message.className = "success";
+            form.reset();
+          } else if (response.status === 429) {
+            message.textContent =
+              "Too many requests. Please wait a moment and try again.";
+            message.className = "error";
+          } else {
+            message.textContent =
+              "Unable to submit your request right now. Please try again later.";
+            message.className = "error";
+          }
+        } catch {
+          message.textContent =
+            "Unable to submit your request right now. Please try again later.";
+          message.className = "error";
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
