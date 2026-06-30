@@ -1163,7 +1163,9 @@ def test_get_event_admin_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_get_event_admin(client: TestClient):
@@ -1199,7 +1201,9 @@ def test_create_event_as_non_authorised_seller(client: TestClient):
         },
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_create_event_without_sessions(client: TestClient):
@@ -2110,7 +2114,9 @@ def test_get_event_tickets_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_get_event_tickets(client: TestClient):
@@ -2142,7 +2148,9 @@ def test_get_event_tickets_csv_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_get_event_tickets_csv(client: TestClient):
@@ -2171,7 +2179,9 @@ def test_check_ticket_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_check_ticket(client: TestClient):
@@ -2203,7 +2213,9 @@ def test_scan_ticket_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_scan_ticket(client: TestClient):
@@ -2266,7 +2278,9 @@ def test_get_events_by_association_as_non_authorised_seller(client: TestClient):
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "User is not authorized to manage store events"
+    assert (
+        response.json()["detail"] == "User is not authorized to manage store's events"
+    )
 
 
 def test_get_events_by_association(client: TestClient):
