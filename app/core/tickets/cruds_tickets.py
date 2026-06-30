@@ -764,6 +764,46 @@ async def count_valid_checkouts_and_tickets_by_event_id(
     return result.scalar() or 0
 
 
+async def count_valid_checkouts_and_tickets_by_session_id(
+    session_id: UUID,
+    db: AsyncSession,
+) -> int:
+    """
+    Count unpaid checkouts that are not expired and paid tickets
+    """
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.session_id == session_id,
+            or_(
+                models_tickets.Checkout.paid,
+                models_tickets.Checkout.expiration >= datetime.now(UTC),
+            ),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
+async def count_valid_checkouts_and_tickets_by_category_id(
+    category_id: UUID,
+    db: AsyncSession,
+) -> int:
+    """
+    Count unpaid checkouts that are not expired and paid tickets
+    """
+    result = await db.execute(
+        select(func.count()).where(
+            models_tickets.Checkout.category_id == category_id,
+            or_(
+                models_tickets.Checkout.paid,
+                models_tickets.Checkout.expiration >= datetime.now(UTC),
+            ),
+        ),
+    )
+
+    return result.scalar() or 0
+
+
 async def count_valid_checkouts_by_category_id(
     category_id: UUID,
     db: AsyncSession,

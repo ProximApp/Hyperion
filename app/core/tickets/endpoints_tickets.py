@@ -785,8 +785,8 @@ async def delete_session(
         raise HTTPException(404, "Session not found")
 
     nb_checkouts_and_tickets = (
-        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
-            event_id=event_id,
+        await cruds_tickets.count_valid_checkouts_and_tickets_by_session_id(
+            session_id=session_id,
             db=db,
         )
     )
@@ -879,8 +879,8 @@ async def update_category(
     fields_to_update = category_update.model_dump(exclude_unset=True).keys()
     if "price" in fields_to_update:
         nb_checkouts_and_tickets = (
-            await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
-                event_id=event_id,
+            await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
+                category_id=category_id,
                 db=db,
             )
         )
@@ -927,8 +927,8 @@ async def delete_category(
         raise HTTPException(404, "Category not found")
 
     nb_checkouts_and_tickets = (
-        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
-            event_id=event_id,
+        await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
+            category_id=category_id,
             db=db,
         )
     )
