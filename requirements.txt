@@ -1,6 +1,6 @@
 alembic==1.18.5                     # database migrations
 anyio==4.14.2
-arq==0.28.0                         # Scheduler 
+arq==0.28.0                         # Scheduler, [not maintained, see https://github.com/python-arq/arq/issues/510]
 asyncpg==0.31.0                     # PostgreSQL adapter for asynchronous operations
 authlib==1.7.2
 bcrypt==5.0.0                       # password hashing
@@ -24,11 +24,11 @@ psycopg[binary]==3.3.4              # PostgreSQL adapter for *synchronous* opera
 pydantic-extra-types==2.11.1
 pydantic-settings==2.14.2
 pydantic==2.13.4
-pyjwt[crypto]==2.13.0                # generate and verify the JWT tokens, imported as `jwt`
-PyMuPDF==1.28.0                    # PDF processing, imported as `fitz`
+pyjwt[crypto]==2.13.0               # generate and verify the JWT tokens, imported as `jwt`
+PyMuPDF==1.28.0                     # PDF processing, imported as `fitz`
 pypdf==6.14.2
-python-multipart==0.0.32             # a form data parser, as oauth flow requires form-data parameters
-redis==5.3.1
+python-multipart==0.0.32            # a form data parser, as oauth flow requires form-data parameters
+redis==5.3.1                        # arq requires redis<6
 requests==2.34.2
 sqlalchemy-utils == 0.42.1          # used to identify foreign keys when merging users
 SQLAlchemy[asyncio]==2.0.51         # [asyncio] allows greenlet to be installed on Apple M1 devices.
