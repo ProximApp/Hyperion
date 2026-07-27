@@ -458,7 +458,7 @@ async def get_order_by_id(
 async def add_order_to_delievery(
     order: schemas_amap.OrderBase,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
@@ -532,12 +532,12 @@ async def add_order_to_delievery(
         raise HTTPException(status_code=400, detail="You can't order nothing")
 
     redis_key = "amap_" + order.user_id
-    if not isinstance(redis_client, Redis) or await locker_get(
+    if not isinstance(redis_client, Redis) or locker_get(
         redis_client=redis_client,
         key=redis_key,
     ):
         raise HTTPException(status_code=429, detail="Too fast !")
-    await locker_set(redis_client=redis_client, key=redis_key, lock=True)
+    locker_set(redis_client=redis_client, key=redis_key, lock=True)
 
     try:
         await cruds_amap.add_order_to_delivery(
@@ -600,7 +600,7 @@ async def add_order_to_delievery(
             delivery_name=orderret.delivery.name,
         )
     finally:
-        await locker_set(redis_client=redis_client, key=redis_key, lock=False)
+        locker_set(redis_client=redis_client, key=redis_key, lock=False)
 
 
 @module.router.patch(
@@ -611,7 +611,7 @@ async def edit_order_from_delivery(
     order_id: str,
     order: schemas_amap.OrderEdit,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
@@ -694,12 +694,12 @@ async def edit_order_from_delivery(
             raise HTTPException(status_code=404, detail="No cash found")
 
         redis_key = "amap_" + previous_order.user_id
-        if not isinstance(redis_client, Redis) or await locker_get(
+        if not isinstance(redis_client, Redis) or locker_get(
             redis_client=redis_client,
             key=redis_key,
         ):
             raise HTTPException(status_code=429, detail="Too fast !")
-        await locker_set(redis_client=redis_client, key=redis_key, lock=True)
+        locker_set(redis_client=redis_client, key=redis_key, lock=True)
 
         try:
             await cruds_amap.edit_order_with_products(
@@ -727,7 +727,7 @@ async def edit_order_from_delivery(
             )
 
         finally:
-            await locker_set(redis_client=redis_client, key=redis_key, lock=False)
+            locker_set(redis_client=redis_client, key=redis_key, lock=False)
 
 
 @module.router.delete(
@@ -737,7 +737,7 @@ async def edit_order_from_delivery(
 async def remove_order(
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
@@ -778,12 +778,12 @@ async def remove_order(
 
     redis_key = "amap_" + order.user_id
 
-    if not isinstance(redis_client, Redis) or await locker_get(
+    if not isinstance(redis_client, Redis) or locker_get(
         redis_client=redis_client,
         key=redis_key,
     ):
         raise HTTPException(status_code=429, detail="Too fast !")
-    await locker_set(redis_client=redis_client, key=redis_key, lock=True)
+    locker_set(redis_client=redis_client, key=redis_key, lock=True)
 
     try:
         await cruds_amap.remove_order(
@@ -801,7 +801,7 @@ async def remove_order(
         return Response(status_code=204)
 
     finally:
-        await locker_set(redis_client=redis_client, key=redis_key, lock=False)
+        locker_set(redis_client=redis_client, key=redis_key, lock=False)
 
 
 @module.router.post(
