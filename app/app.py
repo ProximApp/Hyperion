@@ -52,7 +52,7 @@ from app.utils.redis import limiter
 from app.utils.state import LifespanState
 
 if TYPE_CHECKING:
-    from redis import Redis
+    from redis.asyncio import Redis
 
     from app.types.factory import Factory
 
@@ -702,7 +702,7 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         # We test the ip address with the redis limiter
         process = True
         if redis_client and settings.ENABLE_RATE_LIMITER:  # If redis is configured
-            process, log = limiter(
+            process, log = await limiter(
                 redis_client,
                 ip_address,
                 settings.REDIS_LIMIT,
