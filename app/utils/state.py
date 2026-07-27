@@ -30,7 +30,7 @@ class GlobalState(TypedDict):
     # Database session creator
     SessionLocal: SessionLocalType
     # We may not have a Redis Client if it was not configured
-    redis_client: redis.Redis[bytes] | None
+    redis_client: redis.Redis | None
     scheduler: Scheduler
     ws_manager: WebsocketConnectionManager
     notification_manager: NotificationManager
@@ -79,12 +79,12 @@ def init_SessionLocal(engine: AsyncEngine) -> SessionLocalType:
 def init_redis_client(
     settings: Settings,
     hyperion_error_logger: logging.Logger,
-) -> redis.Redis[bytes] | None:
+) -> redis.Redis | None:
     """
     Initialize the Redis client if the settings specify a Redis connection.
     Returns None if Redis is not configured.
     """
-    redis_client: redis.Redis[bytes] | None = None
+    redis_client: redis.Redis | None = None
     if settings.REDIS_HOST is not None and settings.REDIS_HOST != "":
         try:
             redis_client = redis.Redis(
@@ -101,7 +101,7 @@ def init_redis_client(
     return redis_client
 
 
-def disconnect_redis_client(redis_client: redis.Redis[bytes] | None) -> None:
+def disconnect_redis_client(redis_client: redis.Redis | None) -> None:
     if redis_client is not None:
         redis_client.flushdb()
         redis_client.close()

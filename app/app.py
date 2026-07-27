@@ -523,7 +523,7 @@ async def init_lifespan(
         hyperion_error_logger=hyperion_error_logger,
     )
 
-    redis_client: Redis[bytes] | None = app.dependency_overrides.get(
+    redis_client: Redis | None = app.dependency_overrides.get(
         get_redis_client,
         get_redis_client,
     )()
@@ -697,12 +697,12 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         port = request.client.port
         client_address = f"{ip_address}:{port}"
 
-        redis_client: Redis[bytes] | None = get_redis_client_dependency()
+        redis_client: Redis | None = get_redis_client_dependency()
 
         # We test the ip address with the redis limiter
         process = True
         if redis_client and settings.ENABLE_RATE_LIMITER:  # If redis is configured
-            process, log = limiter(
+            process, log = await limiter(
                 redis_client,
                 ip_address,
                 settings.REDIS_LIMIT,

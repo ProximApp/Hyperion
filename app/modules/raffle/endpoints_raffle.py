@@ -480,7 +480,7 @@ async def get_tickets(
 async def buy_ticket(
     pack_id: str,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis[bytes] | None = Depends(get_redis_client),
+    redis_client: Redis | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([RafflePermissions.access_raffle]),
     ),
@@ -522,13 +522,13 @@ async def buy_ticket(
 
     redis_key = "raffle_" + user.id
 
-    if not isinstance(redis_client, Redis) or locker_get(
+    if not isinstance(redis_client, Redis) or await locker_get(
         redis_client=redis_client,
         key=redis_key,
     ):
         raise HTTPException(status_code=429, detail="Too fast !")
 
-    locker_set(redis_client=redis_client, key=redis_key, lock=True)
+    await locker_set(redis_client=redis_client, key=redis_key, lock=True)
 
     try:
         new_amount = balance.balance - pack_ticket.price
@@ -550,7 +550,7 @@ async def buy_ticket(
         return tickets
 
     finally:
-        locker_set(redis_client=redis_client, key=redis_key, lock=False)
+        await locker_set(redis_client=redis_client, key=redis_key, lock=False)
 
 
 @module.router.get(
@@ -981,7 +981,7 @@ async def edit_cash_by_id(
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([RafflePermissions.manage_cash]),
     ),
-    redis_client: Redis[bytes] = Depends(get_redis_client),
+    redis_client: Redis = Depends(get_redis_client),
 ):
     """
     Edit cash for an user. This will add the balance to the current balance.
@@ -1002,12 +1002,12 @@ async def edit_cash_by_id(
 
     redis_key = "raffle_" + user_id
 
-    if not isinstance(redis_client, Redis) or locker_get(
+    if not isinstance(redis_client, Redis) or await locker_get(
         redis_client=redis_client,
         key=redis_key,
     ):
         raise HTTPException(status_code=403, detail="Too fast !")
-    locker_set(redis_client=redis_client, key=redis_key, lock=True)
+    await locker_set(redis_client=redis_client, key=redis_key, lock=True)
 
     try:
         await cruds_raffle.edit_cash(
@@ -1016,7 +1016,7 @@ async def edit_cash_by_id(
             db=db,
         )
     finally:
-        locker_set(redis_client=redis_client, key=redis_key, lock=False)
+        await locker_set(redis_client=redis_client, key=redis_key, lock=False)
 
 
 @module.router.post(
