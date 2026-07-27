@@ -480,7 +480,7 @@ async def get_tickets(
 async def buy_ticket(
     pack_id: str,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([RafflePermissions.access_raffle]),
     ),
@@ -981,7 +981,7 @@ async def edit_cash_by_id(
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([RafflePermissions.manage_cash]),
     ),
-    redis_client: Redis = Depends(get_redis_client),
+    redis_client: Redis[bytes] = Depends(get_redis_client),
 ):
     """
     Edit cash for an user. This will add the balance to the current balance.

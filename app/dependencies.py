@@ -239,7 +239,7 @@ async def get_unsafe_db() -> AsyncGenerator[AsyncSession]:
         yield db
 
 
-def get_redis_client() -> redis.Redis | None:
+def get_redis_client() -> redis.Redis[bytes] | None:
     """
     Dependency that returns the redis client
 

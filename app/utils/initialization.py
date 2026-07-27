@@ -300,7 +300,7 @@ R = TypeVar("R")
 async def use_lock_for_workers[**P, R](
     job_function: Callable[P, R],
     key: str,
-    redis_client: redis.Redis | None,
+    redis_client: redis.Redis[bytes] | None,
     number_of_workers: int,
     logger: logging.Logger,
     unlock_key: str | None = None,

@@ -458,7 +458,7 @@ async def get_order_by_id(
 async def add_order_to_delievery(
     order: schemas_amap.OrderBase,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
@@ -611,7 +611,7 @@ async def edit_order_from_delivery(
     order_id: str,
     order: schemas_amap.OrderEdit,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
@@ -737,7 +737,7 @@ async def edit_order_from_delivery(
 async def remove_order(
     order_id: str,
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_client: Redis[bytes] | None = Depends(get_redis_client),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([AmapPermissions.access_amap]),
     ),
