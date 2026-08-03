@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-LATEST_TOS = 2
+LATEST_TOS = 3
 QRCODE_EXPIRATION = 5  # minutes
 REQUEST_EXPIRATION = 8  # minutes
 RETENTION_DURATION = 10 * 365  # 10 years in days
