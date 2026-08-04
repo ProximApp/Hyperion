@@ -16,7 +16,7 @@ Conformément aux articles L. 521-3 et L. 525-5 du Code monétaire et financier,
 
 Lors de son inscription, l’utilisateur se voit attribuer un portefeuille numérique personnel. Pour respecter les seuils de vigilance relatifs à la lutte contre le blanchiment et le financement du terrorisme (LCB-FT), le portefeuille est soumis aux limites suivantes :
 
-- Le solde du compte ne peut excéder 150 ʍ.
+- Le solde du compte ne peut excéder {mypayment_max_balance} ʍ.
 - Un portefeuille ne peut jamais être en solde négatif.
 - La monnaie virtuelle ne peut pas être cédée ou transférée à d’autres utilisateurs.
 
