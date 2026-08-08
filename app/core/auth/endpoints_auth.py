@@ -71,6 +71,7 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    request_id: str = Depends(get_request_id),
 ):
     """
     Ask for a JWT access token using oauth password flow.
@@ -79,8 +80,12 @@ async def login_for_access_token(
 
     Note: the request body needs to use **form-data** and not json.
     """
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    email = form_data.username
+    user = await authenticate_user(db, email, form_data.password)
     if not user:
+        hyperion_access_logger.warning(
+            f"Authorize-validation: Invalid user email or password for email {email} ({request_id})",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect login or password",
@@ -90,7 +95,10 @@ async def login_for_access_token(
     # The subject `sub` is a JWT registered claim name, see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
     data = schemas_auth.TokenData(sub=user.id, scopes=ScopeType.auth)
     access_token = create_access_token(settings=settings, data=data)
-    return {"access_token": access_token, "token_type": "bearer"}
+    return schemas_auth.AccessToken(
+        access_token=access_token,
+        token_type="bearer",  # noqa: S106
+    )
 
 
 # Authorization Code Grant #
