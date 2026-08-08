@@ -6,8 +6,7 @@ example_AuthorizeValidation = {
     "state": "azerty",
     "code_challenge": "c2cf464b7901205c037cd821bc493b191943bdb5244a665e9fcab6478bf79415",  # hashlib.sha256("AntoineMonBelAntoine".encode()).hexdigest()
     "code_challenge_method": "S256",
-    "email": "email@myecl.fr",
-    "password": "azerty",
+    "auth_access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30",
 }
 
 example_TokenReq_access_token = {

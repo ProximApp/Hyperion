@@ -38,9 +38,10 @@ from app.dependencies import (
     get_token_data,
     get_user_from_token_with_scopes,
 )
-from app.types.exceptions import AuthHTTPException
+from app.types.exceptions import AuthHTTPException, ObjectExpectedInDbNotFoundError
 from app.types.module import CoreModule
 from app.types.scopes_type import ScopeType
+from app.utils.auth import auth_utils
 from app.utils.auth.providers import BaseAuthClient
 from app.utils.tools import has_user_permission
 
@@ -61,7 +62,6 @@ hyperion_security_logger = logging.getLogger("hyperion.security")
 # WARNING: if new flow are added, openid_config should be updated accordingly
 
 
-# TODO: maybe remove
 @router.post(
     "/auth/simple_token",
     response_model=schemas_auth.AccessToken,
@@ -229,8 +229,7 @@ async def authorize_validation(
 
 
     * parameters that allows to authenticate the user and know which scopes he grants access to.
-        * `email`
-        * `password`
+        * `auth_access_token`: a JWT granting the scope *auth*
 
     References:
      * https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2
@@ -308,20 +307,35 @@ async def authorize_validation(
             url += "&state=" + authorizereq.state
         return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
 
-    # TODO: Currently if the user enters the wrong credentials in the form, they won't be redirected to the login page again but the OAuth process will fail.
-    user = await authenticate_user(db, authorizereq.email, authorizereq.password)
-    if not user:
+    # We check the validity of the jwt token
+    try:
+        token_data = auth_utils.get_token_data(
+            settings=settings,
+            token=authorizereq.auth_access_token,
+            request_id=request_id,
+        )
+    except HTTPException as e:
+        # OAuth specifications requires to redirect to the `redirect_uri` with an error parameter if the request is invalid
+        # instead of returning a 4xx error code
         hyperion_access_logger.warning(
-            f"Authorize-validation: Invalid user email or password for email {authorizereq.email} ({request_id})",
+            f"Authorize-validation: Invalid auth_access_token {e.status_code}: {e.detail} ({request_id})",
         )
-        return RedirectResponse(
-            settings.CLIENT_URL
-            + calypsso.get_login_relative_url(
-                **authorizereq.model_dump(exclude={"email", "password"}),
-                credentials_error=True,
-            ),
-            status_code=status.HTTP_302_FOUND,
-        )
+        url = redirect_uri + "?error=" + e.detail
+        if authorizereq.state:
+            url += "&state=" + authorizereq.state
+        return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+
+    # The token should have the scope *auth* in order to be able to use this endpoint
+    user_id = auth_utils.get_user_id_from_token_with_scopes(
+        scopes=[[ScopeType.auth]],
+        token_data=token_data,
+    )
+    user = await cruds_users.get_user_by_id(
+        db=db,
+        user_id=user_id,
+    )
+    if not user:
+        raise ObjectExpectedInDbNotFoundError("user", user_id)
 
     # The auth_client may restrict the usage of the client to specific Hyperion permissions
     if auth_client.permission is not None:
@@ -333,7 +347,7 @@ async def authorize_validation(
             )
         ):
             hyperion_access_logger.warning(
-                f"Authorize-validation: user is not member of an allowed group {authorizereq.email} ({request_id})",
+                f"Authorize-validation: user is not member of an allowed group {user.email} ({request_id})",
             )
             return RedirectResponse(
                 settings.CLIENT_URL
