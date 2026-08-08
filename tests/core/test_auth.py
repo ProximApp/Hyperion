@@ -135,6 +135,19 @@ def test_simple_token(client: TestClient):
     )
 
 
+def test_simple_token_with_invalid_password(client: TestClient):
+    response = client.post(
+        "/auth/simple_token",
+        data={
+            "username": "email@myecl.fr",
+            "password": "invalid_password",
+        },
+    )
+    assert response.status_code == 401
+    json = response.json()
+    assert json["detail"] == "Incorrect login or password"
+
+
 def test_authorization_code_flow_PKCE(client: TestClient) -> None:
     code_verifier = "AntoineMonBelAntoine"
     code_challenge = "ws9GS3kBIFwDfNghvEk7GRlDvbUkSmZen8q2R4v3lBU="  # base64.urlsafe_b64encode(hashlib.sha256("AntoineMonBelAntoine".encode()).digest())
