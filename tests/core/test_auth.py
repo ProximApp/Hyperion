@@ -129,6 +129,10 @@ def test_simple_token(client: TestClient):
         },
     )
     assert response.status_code == 403  # forbidden
+    assert (
+        response.json()["detail"]
+        == "Unauthorized, token does not contain at least one of the following scope_set [['API']]"
+    )
 
 
 def test_authorization_code_flow_PKCE(client: TestClient) -> None:
