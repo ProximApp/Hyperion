@@ -2012,6 +2012,9 @@ async def test_get_user_tos(client: TestClient):
     assert response.status_code == 200
     assert response.json()["latest_tos_version"] == LATEST_TOS
     assert response.json()["accepted_tos_version"] == LATEST_TOS
+    # Check that the TOS content does not contain any placeholders
+    assert "{" not in response.json()["tos_content"]
+    assert "}" not in response.json()["tos_content"]
 
 
 async def test_register_new_user(client: TestClient):

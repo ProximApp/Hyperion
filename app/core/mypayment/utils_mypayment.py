@@ -13,6 +13,7 @@ from app.core.checkout.payment_tool import CheckoutTool
 from app.core.checkout.types_checkout import HelloAssoConfigName
 from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
 from app.core.mypayment import cruds_mypayment, models_mypayment, schemas_mypayment
+from app.core.mypayment.coredata_mypayment import MyPaymentBankAccountHolder
 from app.core.mypayment.exceptions_mypayment import (
     InvalidCheckoutToolError,
     InvalidRequestTypeError,
@@ -42,7 +43,9 @@ from app.core.notification.schemas_notification import Message
 from app.core.users import schemas_users
 from app.core.utils.config import Settings
 from app.module import all_modules
+from app.types.exceptions import CoreDataNotFoundError
 from app.utils.communication.notifications import NotificationTool
+from app.utils.tools import get_core_data, patch_identity_in_text
 
 hyperion_security_logger = logging.getLogger("hyperion.security")
 hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
@@ -440,3 +443,35 @@ async def ensure_user_can_manage_events(
             403,
             detail="User is not authorized to manage store's events",
         )
+
+
+async def patch_payment_identity_in_text(
+    text: str,
+    settings: Settings,
+    db: AsyncSession,
+) -> str:
+    """
+    Replace placeholders in the text with the corresponding values from the settings.
+    """
+    try:
+        bank_account_holder = await get_core_data(
+            MyPaymentBankAccountHolder,
+            db=db,
+        )
+        structure = await cruds_mypayment.get_structure_by_id(
+            db=db,
+            structure_id=bank_account_holder.holder_structure_id,
+        )
+    except CoreDataNotFoundError:
+        structure = None
+    text = patch_identity_in_text(
+        text,
+        settings=settings,
+    )
+    return text.replace(
+        "{mypayment_max_balance}",
+        "%.2f" % (settings.MYPAYMENT_MAXIMUM_WALLET_BALANCE / 100.0),
+    ).replace(
+        "{bank_account_holder}",
+        structure.name if structure else "N/A",
+    )
