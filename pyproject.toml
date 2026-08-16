@@ -6,7 +6,7 @@ authors = [{ name = "AEECL ECLAIR" }]
 
 # Hyperion follows Semantic Versioning
 # https://semver.org/
-version = "6.0.5"
+version = "6.1.0"
 requires-python = ">= 3.14, < 3.15"
 
 license = "MIT"
@@ -18,7 +18,7 @@ license-files = [
 ]
 
 [tool.titan]
-minimal-titan-version-code = 197
+minimal-titan-version-code = 223
 
 [tool.ruff]
 # By default ruff also respect gitignore files
