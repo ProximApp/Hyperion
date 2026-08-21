@@ -2,9 +2,12 @@
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
+import webauthn
+import webauthn.helpers.structs
 from fastapi import Form
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.utils.examples import examples_auth
 
@@ -168,3 +171,58 @@ class IntrospectTokenReq(BaseModel):
 
 class IntrospectTokenResponse(BaseModel):
     active: bool
+
+
+# Webauthn schemas
+
+
+class WebAuthnBaseModel(BaseModel):
+    """
+    Models inherits from webauthn helpers structs
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+    )
+
+
+class PublicKeyCredentialCreationOptionsSchema(
+    WebAuthnBaseModel,
+    webauthn.helpers.structs.PublicKeyCredentialCreationOptions,
+):
+    pass
+
+
+class RegistrationOptionsResponse(BaseModel):
+    registration_options: PublicKeyCredentialCreationOptionsSchema
+    registration_options_id: UUID
+
+
+class RegistrationCredentialSchema(
+    WebAuthnBaseModel,
+    webauthn.helpers.structs.RegistrationCredential,
+):
+    pass
+
+
+class RegistrationVerification(BaseModel):
+    registration_credential: RegistrationCredentialSchema
+    registration_options_id: UUID
+
+
+class AuthenticationOptionsResponse(BaseModel):
+    authentication_options: PublicKeyCredentialCreationOptionsSchema
+    authentication_options_id: UUID
+
+
+class AuthenticationCredentialSchema(
+    WebAuthnBaseModel,
+    webauthn.helpers.structs.AuthenticationCredential,
+):
+    pass
+
+
+class AuthenticationVerification(BaseModel):
+    authentication_credential: AuthenticationCredentialSchema
+    authentication_options_id: UUID

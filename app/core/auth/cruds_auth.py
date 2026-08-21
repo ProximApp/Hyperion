@@ -1,9 +1,12 @@
 """File defining the functions called by the endpoints, making queries to the table using the models"""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from webauthn.helpers.structs import CredentialDeviceType
 
 from app.core.auth import models_auth
 
@@ -121,3 +124,126 @@ async def revoke_refresh_token_by_user_id(
         .values(revoked_on=datetime.now(UTC)),
     )
     await db.flush()
+
+
+async def create_webauthn_registration_options(
+    registration_options_id: UUID,
+    user_id: str,
+    created_on: datetime,
+    challenge: bytes,
+    db: AsyncSession,
+) -> None:
+    """Create a new webauthn registration options in database and return it"""
+
+    db.add(
+        models_auth.WebAuthnRegistrationOptions(
+            registration_options_id=registration_options_id,
+            user_id=user_id,
+            created_on=created_on,
+            challenge=challenge,
+        ),
+    )
+
+
+async def get_webauthn_registration_options_by_id(
+    db: AsyncSession,
+    registration_options_id: UUID,
+) -> models_auth.WebAuthnRegistrationOptions | None:
+    """Return webauthn registration options from database"""
+    result = await db.execute(
+        select(models_auth.WebAuthnRegistrationOptions).where(
+            models_auth.WebAuthnRegistrationOptions.registration_options_id
+            == registration_options_id,
+        ),
+    )
+    return result.scalars().first()
+
+
+async def create_webauthn_authentication_options(
+    authentication_options_id: UUID,
+    created_on: datetime,
+    challenge: bytes,
+    db: AsyncSession,
+) -> None:
+    """Create a new webauthn authentication options in database and return it"""
+
+    db.add(
+        models_auth.WebAuthnAuthenticationOptions(
+            authentication_options_id=authentication_options_id,
+            created_on=created_on,
+            challenge=challenge,
+        ),
+    )
+
+
+async def get_webauthn_authentication_options_by_id(
+    db: AsyncSession,
+    authentication_options_id: UUID,
+) -> models_auth.WebAuthnAuthenticationOptions | None:
+    """Return webauthn authentication options from database"""
+    result = await db.execute(
+        select(models_auth.WebAuthnAuthenticationOptions).where(
+            models_auth.WebAuthnAuthenticationOptions.authentication_options_id
+            == authentication_options_id,
+        ),
+    )
+    return result.scalars().first()
+
+
+async def create_webauthn_passkey(
+    passkey: models_auth.WebAuthnPasskey,
+    db: AsyncSession,
+) -> None:
+
+    db.add(
+        passkey,
+    )
+
+
+async def get_webauthn_passkeys_by_user_id(
+    db: AsyncSession,
+    user_id: str,
+) -> Sequence[models_auth.WebAuthnPasskey]:
+    """Return webauthn passkeys from database"""
+    result = await db.execute(
+        select(models_auth.WebAuthnPasskey).where(
+            models_auth.WebAuthnPasskey.user_id == user_id,
+        ),
+    )
+    return result.scalars().all()
+
+
+async def get_webauthn_passkey_by_passkey_id(
+    db: AsyncSession,
+    passkey_id: str,
+) -> models_auth.WebAuthnPasskey | None:
+    """Return webauthn passkey from database"""
+    result = await db.execute(
+        select(models_auth.WebAuthnPasskey).where(
+            models_auth.WebAuthnPasskey.passkey_id == passkey_id,
+        ),
+    )
+    return result.scalars().first()
+
+
+async def update_webauthn_passkey(
+    db: AsyncSession,
+    # The id of the WebAuthnPasskey object, not the passkey_id
+    webauthn_passkey_id: UUID,
+    new_passkey_sign_count: int,
+    new_passkey_device_type: CredentialDeviceType,
+    new_passkey_backed_up: bool,
+) -> None:
+    """Update webauthn passkey user_id in database"""
+
+    await db.execute(
+        update(models_auth.WebAuthnPasskey)
+        .where(
+            models_auth.WebAuthnPasskey.id == webauthn_passkey_id,
+        )
+        .values(
+            passkey_sign_count=new_passkey_sign_count,
+            passkey_device_type=new_passkey_device_type,
+            passkey_backed_up=new_passkey_backed_up,
+        ),
+    )

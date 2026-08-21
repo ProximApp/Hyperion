@@ -4,9 +4,11 @@ import logging
 import urllib.parse
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 import calypsso
 import jwt
+import webauthn
 from fastapi import (
     APIRouter,
     Depends,
@@ -19,8 +21,25 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
+from webauthn import (
+    base64url_to_bytes,
+    generate_authentication_options,
+    verify_authentication_response,
+    verify_registration_response,
+)
+from webauthn.helpers import options_to_json_dict
+from webauthn.helpers.structs import (
+    AttestationConveyancePreference,
+    AuthenticatorSelectionCriteria,
+    ResidentKeyRequirement,
+    UserVerificationRequirement,
+)
 
 from app.core.auth import cruds_auth, models_auth, schemas_auth
+from app.core.auth.cruds_auth import (
+    create_webauthn_registration_options,
+    get_webauthn_registration_options_by_id,
+)
 from app.core.users import cruds_users, models_users
 from app.core.utils.config import Settings
 from app.core.utils.security import (
@@ -37,6 +56,7 @@ from app.dependencies import (
     get_settings,
     get_token_data,
     get_user_from_token_with_scopes,
+    is_user,
 )
 from app.types.exceptions import AuthHTTPException, ObjectExpectedInDbNotFoundError
 from app.types.module import CoreModule
@@ -1214,3 +1234,253 @@ def get_oidc_provider_metadata(settings: Settings):
         # The terms of service document URL, omitted if none.
         # op_tos_uri = ""
     }
+
+
+@router.get(
+    "/webauthn/generate-registration-options",
+    response_model=schemas_auth.RegistrationOptionsResponse,
+    response_model_exclude_unset=True,
+    status_code=200,
+)
+async def webauthn_register_options(
+    user: models_users.CoreUser = Depends(
+        is_user(),
+    ),
+    settings: Settings = Depends(get_settings),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Init a Webauthn registration flow.
+
+    Return the registration options to be used by the client to register a new Webauthn device for the current user
+    """
+
+    existing_passkeys = await cruds_auth.get_webauthn_passkeys_by_user_id(
+        db=db,
+        user_id=user.id,
+    )
+
+    registration_options = webauthn.generate_registration_options(
+        rp_id=settings.WEBAUTHN_RELYING_PARTY_ID,
+        rp_name=settings.WEBAUTHN_RELYING_PARTY_NAME,
+        # Indicates a way for the user to identify which account is used for the key
+        user_name=user.email + "+1",
+        user_display_name=user.full_name,
+        # Don't prompt users for additional information about the authenticator
+        # (Recommended for smoother UX)
+        attestation=AttestationConveyancePreference.NONE,
+        # exclude_credentials=[
+        #     PublicKeyCredentialDescriptor(
+        #         id=passkey.passkey_id,
+        #         type=passkey.passkey_type,
+        #         # transports=passkey.transports,
+        #     )
+        #     for passkey in existing_passkeys
+        # ],
+        # See https://simplewebauthn.dev/docs/packages/server#guiding-use-of-authenticators-via-authenticatorselection
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED,
+            # authenticator_attachment=AuthenticatorAttachment.CROSS_PLATFORM,
+            user_verification=UserVerificationRequirement.PREFERRED,
+        ),
+    )
+
+    registration_options_id = uuid4()
+
+    # Save these options, so we can verify the response later
+    await create_webauthn_registration_options(
+        registration_options_id=registration_options_id,
+        user_id=user.id,
+        created_on=datetime.now(UTC),
+        challenge=registration_options.challenge,
+        db=db,
+    )
+
+    print(registration_options)
+
+    return schemas_auth.RegistrationOptionsResponse(
+        registration_options=options_to_json_dict(registration_options),
+        # registration_options=options_to_json(registration_options),
+        registration_options_id=registration_options_id,
+    )
+
+
+@router.post(
+    "/webauthn/verify-registration",
+    status_code=204,
+)
+async def webauthn_register_verify(
+    registration_verification: schemas_auth.RegistrationVerification,
+    user: models_users.CoreUser = Depends(
+        is_user(),
+    ),
+    settings: Settings = Depends(get_settings),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify the registration of a WebAuthn device.
+    """
+
+    registration_credential = registration_verification.registration_credential
+    registration_options_id = registration_verification.registration_options_id
+
+    registration_options = await get_webauthn_registration_options_by_id(
+        db=db,
+        registration_options_id=registration_options_id,
+    )
+
+    if registration_options is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid registration options id",
+        )
+
+    if registration_options.user_id != user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid user id",
+        )
+
+    if registration_options.created_on + timedelta(minutes=5) < datetime.now(UTC):
+        raise HTTPException(
+            status_code=400,
+            detail="Registration options expired",
+        )
+
+    verification = verify_registration_response(
+        # Can be a `str` or `dict`
+        credential=registration_credential,
+        # The value of `options.challenge` from above
+        expected_challenge=registration_options.challenge,  # base64url_to_bytes("..."),
+        expected_rp_id=settings.WEBAUTHN_RELYING_PARTY_ID,
+        expected_origin="http://localhost:3001",  # settings.WEBAUTHN_RELYING_PARTY_ORIGIN,
+        require_user_verification=True,
+    )
+
+    await cruds_auth.create_webauthn_passkey(
+        passkey=models_auth.WebAuthnPasskey(
+            id=uuid4(),
+            user_id=user.id,
+            created_on=datetime.now(UTC),
+            passkey_id=verification.credential_id,
+            passkey_public_key=verification.credential_public_key,
+            passkey_sign_count=verification.sign_count,
+            passkey_type=verification.credential_type,
+            passkey_device_type=verification.credential_device_type,
+            passkey_backed_up=verification.credential_backed_up,
+            transports=registration_credential.response.transports,
+        ),
+        db=db,
+    )
+
+
+@router.get(
+    "/webauthn/generate-authentication-options",
+    response_model=schemas_auth.AuthenticationOptionsResponse,
+    response_model_exclude_unset=True,
+    status_code=200,
+)
+async def webauthn_authentication_options(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return information about Hyperion. This endpoint can be used to check if the API is up.
+    """
+    authentication_options = generate_authentication_options(
+        rp_id="localhost",
+    )
+
+    authentication_options_id = uuid4()
+
+    await cruds_auth.create_webauthn_authentication_options(
+        authentication_options_id=authentication_options_id,
+        created_on=datetime.now(UTC),
+        challenge=authentication_options.challenge,
+        db=db,
+    )
+
+    return schemas_auth.AuthenticationOptionsResponse(
+        authentication_options_id=authentication_options_id,
+        authentication_options=options_to_json_dict(authentication_options),
+    )
+
+
+@router.post(
+    "/webauthn/verify-authentication",
+    response_model=schemas_auth.AccessToken,
+    status_code=200,
+)
+async def webauthn_authentication_verify(
+    authentication_verification: schemas_auth.AuthenticationVerification,
+    settings: Settings = Depends(get_settings),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify the authentication of a WebAuthn device.
+    """
+
+    authentication_credential = authentication_verification.authentication_credential
+    authentication_options_id = authentication_verification.authentication_options_id
+
+    authentication_options = await cruds_auth.get_webauthn_authentication_options_by_id(
+        db=db,
+        authentication_options_id=authentication_options_id,
+    )
+
+    if authentication_options is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid authentication options id",
+        )
+
+    if authentication_options.created_on + timedelta(minutes=5) < datetime.now(UTC):
+        raise HTTPException(
+            status_code=400,
+            detail="Authentication options expired",
+        )
+
+    passkey = await cruds_auth.get_webauthn_passkey_by_passkey_id(
+        db=db,
+        passkey_id=base64url_to_bytes(authentication_credential["id"]),
+    )
+
+    if passkey is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid passkey id",
+        )
+
+    verification = verify_authentication_response(
+        # Can be a `str` or `dict`
+        credential=authentication_credential,
+        # The value of `options.challenge` from above
+        expected_challenge=authentication_options.challenge,  # base64url_to_bytes("..."),
+        expected_rp_id=settings.WEBAUTHN_RELYING_PARTY_ID,
+        expected_origin="http://localhost:3001",  # settings.WEBAUTHN_RELYING_PARTY_ORIGIN,
+        credential_public_key=passkey.passkey_public_key,  # base64url_to_bytes("..."),
+        credential_current_sign_count=passkey.passkey_sign_count,
+        require_user_verification=True,
+    )
+
+    await cruds_auth.update_webauthn_passkey(
+        db=db,
+        webauthn_passkey_id=passkey.id,
+        new_passkey_sign_count=verification.new_sign_count,
+        new_passkey_device_type=verification.credential_device_type,
+        new_passkey_backed_up=verification.credential_backed_up,
+    )
+
+    # We put the user id in the subject field of the token.
+    # The subject `sub` is a JWT registered claim name, see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
+    data = schemas_auth.TokenData(sub=passkey.user_id, scopes=ScopeType.auth)
+    access_token = create_access_token(settings=settings, data=data)
+
+    raise HTTPException(
+        status_code=400,
+        detail="Authentication successful",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    return schemas_auth.AccessToken(
+        access_token=access_token,
+        token_type="bearer",  # noqa: S106
+    )
