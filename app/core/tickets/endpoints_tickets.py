@@ -20,6 +20,7 @@ from app.core.feed import schemas_feed, utils_feed
 from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, schemas_mypayment, utils_mypayment
 from app.core.mypayment.mypayment_tool import MyPaymentTool
+from app.core.notification.schemas_notification import Message
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
 from app.core.tickets.factory_tickets import TicketsFactory
@@ -456,6 +457,7 @@ async def ticket_accept_change_over(
     token: str,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    notification_tool: NotificationTool = Depends(get_notification_tool),
 ):
     """
     Accept a ticket transfer invitation. The user will become the new owner of the ticket.
@@ -472,6 +474,39 @@ async def ticket_accept_change_over(
                 message_type=calypsso.TypeMessage.ticket_change_over_invalid,
             ),
         )
+
+    ticket = await cruds_tickets.get_ticket_by_id(
+        ticket_id=invitation.ticket_id,
+        db=db,
+    )
+    if ticket is None:
+        raise ObjectExpectedInDbNotFoundError("ticket", invitation.ticket_id)
+    event = await cruds_tickets.get_event_simple_by_id(
+        event_id=ticket.event_id,
+        db=db,
+    )
+    if event is None:
+        raise ObjectExpectedInDbNotFoundError("event", ticket.event_id)
+
+    message = Message(
+        title="🎟️ Transfert de ticket accepté",
+        content=f"La demande de transfert de ticket pour l'événement {event.name} a été acceptée",
+        action_module="loan",
+    )
+    await notification_tool.send_notification_to_user(
+        user_id=ticket.user_id,
+        message=message,
+    )
+
+    message = Message(
+        title="🎟️ Ticket transféré",
+        content=f"Tu viens d'accepter un ticket pour l'événement {event.name}",
+        action_module="loan",
+    )
+    await notification_tool.send_notification_to_user(
+        user_id=invitation.new_user_id,
+        message=message,
+    )
 
     await cruds_tickets.delete_ticket_change_over_invitation(
         ticket_id=invitation.ticket_id,
