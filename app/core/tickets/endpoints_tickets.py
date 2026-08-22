@@ -488,13 +488,26 @@ async def ticket_accept_change_over(
     if event is None:
         raise ObjectExpectedInDbNotFoundError("event", ticket.event_id)
 
+    previous_user_id = ticket.user_id
+
+    await cruds_tickets.delete_ticket_change_over_invitation(
+        ticket_id=invitation.ticket_id,
+        db=db,
+    )
+
+    await cruds_tickets.change_ticket_owner(
+        ticket_id=invitation.ticket_id,
+        new_user_id=invitation.new_user_id,
+        db=db,
+    )
+
     message = Message(
         title="🎟️ Transfert de ticket accepté",
         content=f"La demande de transfert de ticket pour l'événement {event.name} a été acceptée",
         action_module="loan",
     )
     await notification_tool.send_notification_to_user(
-        user_id=ticket.user_id,
+        user_id=previous_user_id,
         message=message,
     )
 
@@ -506,17 +519,6 @@ async def ticket_accept_change_over(
     await notification_tool.send_notification_to_user(
         user_id=invitation.new_user_id,
         message=message,
-    )
-
-    await cruds_tickets.delete_ticket_change_over_invitation(
-        ticket_id=invitation.ticket_id,
-        db=db,
-    )
-
-    await cruds_tickets.change_ticket_owner(
-        ticket_id=invitation.ticket_id,
-        new_user_id=invitation.new_user_id,
-        db=db,
     )
 
     return RedirectResponse(
