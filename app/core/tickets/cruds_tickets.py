@@ -711,7 +711,7 @@ async def count_tickets_by_event_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_tickets_by_category_id(
@@ -725,7 +725,7 @@ async def count_tickets_by_category_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_tickets_by_session_id(
@@ -739,7 +739,7 @@ async def count_tickets_by_session_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_by_event_id(
@@ -757,7 +757,7 @@ async def count_valid_checkouts_by_event_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_and_tickets_by_event_id(
@@ -777,7 +777,7 @@ async def count_valid_checkouts_and_tickets_by_event_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_and_tickets_by_session_id(
@@ -797,7 +797,7 @@ async def count_valid_checkouts_and_tickets_by_session_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_and_tickets_by_category_id(
@@ -817,7 +817,7 @@ async def count_valid_checkouts_and_tickets_by_category_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_by_category_id(
@@ -835,7 +835,7 @@ async def count_valid_checkouts_by_category_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_valid_checkouts_by_session_id(
@@ -853,7 +853,7 @@ async def count_valid_checkouts_by_session_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def count_answers_by_question_id(
@@ -866,7 +866,7 @@ async def count_answers_by_question_id(
         ),
     )
 
-    return result.scalar() or 0
+    return result.scalar()
 
 
 async def update_event(
