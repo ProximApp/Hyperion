@@ -45,7 +45,7 @@ async def get_permissions(
 
 async def get_permissions_by_permission_name(
     db: AsyncSession,
-    permission_name: ModulePermissions,
+    permission_name: ModulePermissions | str,
 ) -> schemas_permissions.CorePermission:
     """Return permissions with name from database"""
     result_group = (
