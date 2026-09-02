@@ -1,7 +1,6 @@
 """File defining the functions called by the endpoints, making queries to the table using the models"""
 
 from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.groups.groups_type import AccountType
@@ -46,7 +45,7 @@ async def get_permissions(
 
 async def get_permissions_by_permission_name(
     db: AsyncSession,
-    permission_name: ModulePermissions,
+    permission_name: ModulePermissions | str,
 ) -> schemas_permissions.CorePermission:
     """Return permissions with name from database"""
     result_group = (
@@ -150,11 +149,6 @@ async def create_group_permission(
     )
 
     db.add(permission_db)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise
 
 
 async def create_account_type_permission(
@@ -168,11 +162,6 @@ async def create_account_type_permission(
     )
 
     db.add(permission_db)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise
 
 
 async def delete_group_permission(
@@ -187,7 +176,6 @@ async def delete_group_permission(
             models_permissions.CorePermissionGroup.group_id == permission.group_id,
         ),
     )
-    await db.commit()
 
 
 async def delete_account_type_permission(
@@ -203,7 +191,6 @@ async def delete_account_type_permission(
             == permission.account_type,
         ),
     )
-    await db.commit()
 
 
 async def delete_permissions_by_permission_name(
@@ -222,4 +209,3 @@ async def delete_permissions_by_permission_name(
             == permission_name,
         ),
     )
-    await db.commit()
