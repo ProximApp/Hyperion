@@ -35,6 +35,10 @@ class CompetitionEditionEdit(BaseModel):
     end_date: datetime | None = None
 
 
+class CompetitionEnableInscription(BaseModel):
+    enable: bool
+
+
 class SchoolExtensionBase(BaseModel):
     school_id: UUID
     from_lyon: bool

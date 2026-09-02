@@ -3,6 +3,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
@@ -106,6 +107,54 @@ async def init_objects() -> None:
     await add_object_to_db(revoked_refresh_token_db)
 
 
+@pytest.fixture(scope="module")
+def auth_token(
+    client: TestClient,
+) -> str:
+    response = client.post(
+        "/auth/simple_token",
+        data={
+            "username": "email@myecl.fr",
+            "password": "azerty",
+        },
+    )
+    assert response.status_code == 200
+    json = response.json()
+    return json["access_token"]
+
+
+@pytest.fixture(scope="module")
+def auth_token_of_an_allowed_group(
+    client: TestClient,
+) -> str:
+    response = client.post(
+        "/auth/simple_token",
+        data={
+            "username": "email@etu.ec-lyon.fr",
+            "password": "azerty",
+        },
+    )
+    assert response.status_code == 200
+    json = response.json()
+    return json["access_token"]
+
+
+@pytest.fixture(scope="module")
+def auth_token_of_an_external(
+    client: TestClient,
+) -> str:
+    response = client.post(
+        "/auth/simple_token",
+        data={
+            "username": "external@myecl.fr",
+            "password": "azerty",
+        },
+    )
+    assert response.status_code == 200
+    json = response.json()
+    return json["access_token"]
+
+
 def test_simple_token(client: TestClient):
     response = client.post(
         "/auth/simple_token",
@@ -129,11 +178,67 @@ def test_simple_token(client: TestClient):
         },
     )
     assert response.status_code == 403  # forbidden
+    assert (
+        response.json()["detail"]
+        == "Unauthorized, token does not contain at least one of the following scope_set [['API']]"
+    )
 
 
-def test_authorization_code_flow_PKCE(client: TestClient) -> None:
+def test_simple_token_with_invalid_password(client: TestClient):
+    response = client.post(
+        "/auth/simple_token",
+        data={
+            "username": "email@myecl.fr",
+            "password": "invalid_password",
+        },
+    )
+    assert response.status_code == 401
+    json = response.json()
+    assert json["detail"] == "Incorrect login or password"
+
+
+def test_get_authorize_page(client: TestClient):
+    code_challenge = "ws9GS3kBIFwDfNghvEk7GRlDvbUkSmZen8q2R4v3lBU="  # base64.urlsafe_b64encode(hashlib.sha256("AntoineMonBelAntoine".encode()).digest())
+
+    response = client.get(
+        "/auth/authorize",
+        params={
+            "client_id": "AppAuthClientWithPKCE",
+            "redirect_uri": "http://127.0.0.1:8000/docs",
+            "response_type": "code",
+            "scope": "API openid",
+            "state": "azerty",
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_post_authorize_page(client: TestClient):
+    code_challenge = "ws9GS3kBIFwDfNghvEk7GRlDvbUkSmZen8q2R4v3lBU="  # base64.urlsafe_b64encode(hashlib.sha256("AntoineMonBelAntoine".encode()).digest())
+
+    response = client.post(
+        "/auth/authorize",
+        data={
+            "client_id": "AppAuthClientWithPKCE",
+            "redirect_uri": "http://127.0.0.1:8000/docs",
+            "response_type": "code",
+            "scope": "API openid",
+            "state": "azerty",
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_authorization_code_flow_PKCE(client: TestClient, auth_token: str) -> None:
     code_verifier = "AntoineMonBelAntoine"
     code_challenge = "ws9GS3kBIFwDfNghvEk7GRlDvbUkSmZen8q2R4v3lBU="  # base64.urlsafe_b64encode(hashlib.sha256("AntoineMonBelAntoine".encode()).digest())
+
     data = {
         "client_id": "AppAuthClientWithPKCE",
         "redirect_uri": "http://127.0.0.1:8000/docs",
@@ -142,8 +247,7 @@ def test_authorization_code_flow_PKCE(client: TestClient) -> None:
         "state": "azerty",
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -212,7 +316,8 @@ def test_authorization_code_flow_PKCE(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_authorization_code_flow_secret(client: TestClient) -> None:
+def test_authorization_code_flow_secret(client: TestClient, auth_token: str) -> None:
+
     data = {
         "client_id": "AppAuthClientWithClientSecret",
         "client_secret": "secret",
@@ -220,8 +325,7 @@ def test_authorization_code_flow_secret(client: TestClient) -> None:
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -293,7 +397,8 @@ def test_authorization_code_flow_secret(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_get_user_info(client: TestClient) -> None:
+def test_get_user_info(client: TestClient, auth_token: str) -> None:
+
     # We first need an access token to query user info endpoints #
     data = {
         "client_id": "AccountTypePermissionAuthClient",
@@ -302,8 +407,7 @@ def test_get_user_info(client: TestClient) -> None:
         "response_type": "code",
         "scope": "openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -342,7 +446,8 @@ def test_get_user_info(client: TestClient) -> None:
     assert json["name"] == user.full_name
 
 
-def test_get_user_info_in_id_token(client: TestClient) -> None:
+def test_get_user_info_in_id_token(client: TestClient, auth_token: str) -> None:
+
     # We first need an access token to query user info endpoints #
     data = {
         "client_id": "AccountTypePermissionAuthClient",
@@ -351,8 +456,7 @@ def test_get_user_info_in_id_token(client: TestClient) -> None:
         "response_type": "code",
         "scope": "openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -392,7 +496,11 @@ def test_get_user_info_in_id_token(client: TestClient) -> None:
 
 
 # Invalid service configuration
-def test_authorization_code_flow_with_invalid_client_id(client: TestClient) -> None:
+def test_authorization_code_flow_with_invalid_client_id(
+    client: TestClient,
+    auth_token: str,
+) -> None:
+
     data_with_invalid_client_id = {
         "client_id": "InvalidClientId",
         "client_secret": "secret",
@@ -400,8 +508,7 @@ def test_authorization_code_flow_with_invalid_client_id(client: TestClient) -> N
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -416,7 +523,11 @@ def test_authorization_code_flow_with_invalid_client_id(client: TestClient) -> N
 
 
 # Invalid service configuration
-def test_authorization_code_flow_with_invalid_redirect_uri(client: TestClient) -> None:
+def test_authorization_code_flow_with_invalid_redirect_uri(
+    client: TestClient,
+    auth_token: str,
+) -> None:
+
     data_with_invalid_client_id = {
         "client_id": "AppAuthClientWithClientSecret",
         "client_secret": "secret",
@@ -424,8 +535,7 @@ def test_authorization_code_flow_with_invalid_redirect_uri(client: TestClient) -
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -441,7 +551,11 @@ def test_authorization_code_flow_with_invalid_redirect_uri(client: TestClient) -
 
 
 # Invalid service configuration
-def test_authorization_code_flow_with_invalid_response_type(client: TestClient) -> None:
+def test_authorization_code_flow_with_invalid_response_type(
+    client: TestClient,
+    auth_token: str,
+) -> None:
+
     data_with_invalid_client_id = {
         "client_id": "AppAuthClientWithClientSecret",
         "client_secret": "secret",
@@ -449,8 +563,7 @@ def test_authorization_code_flow_with_invalid_response_type(client: TestClient) 
         "response_type": "invalid_response_type",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -465,9 +578,11 @@ def test_authorization_code_flow_with_invalid_response_type(client: TestClient) 
 
 
 # Invalid user response
-def test_authorization_code_flow_with_invalid_user_credentials(
+def test_authorization_code_flow_with_invalid_auth_token(
     client: TestClient,
 ) -> None:
+    auth_access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30"
+
     data_with_invalid_client_id = {
         "client_id": "AppAuthClientWithClientSecret",
         "client_secret": "secret",
@@ -475,8 +590,7 @@ def test_authorization_code_flow_with_invalid_user_credentials(
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@myecl.fr",
-        "password": "other invalid password",
+        "auth_access_token": auth_access_token,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -486,13 +600,14 @@ def test_authorization_code_flow_with_invalid_user_credentials(
     assert response.status_code == 302
     assert response.next_request is not None
     assert str(response.next_request.url).endswith(
-        "calypsso/login/?client_id=AppAuthClientWithClientSecret&response_type=code&redirect_uri=http%3A%2F%2F127.0.0.1%3A8000%2Fdocs&scope=API+openid&state=azerty&credentials_error=True",
+        "?error=Could%20not%20validate%20credentials&state=azerty",
     )
 
 
 # Valid user response
 def test_authorization_code_flow_with_group_permission_and_user_member_of_an_allowed_group(
     client: TestClient,
+    auth_token_of_an_allowed_group: str,
 ) -> None:
     # For an user that is a member of a required group #
     data_with_invalid_client_id = {
@@ -502,8 +617,7 @@ def test_authorization_code_flow_with_group_permission_and_user_member_of_an_all
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "email@etu.ec-lyon.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token_of_an_allowed_group,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -520,7 +634,9 @@ def test_authorization_code_flow_with_group_permission_and_user_member_of_an_all
 
 def test_authorization_code_flow_with_group_permission_and_user_not_member_of_an_allowed_group(
     client: TestClient,
+    auth_token_of_an_external: str,
 ) -> None:
+
     # For an user that is not a member of a required group #
     data_with_invalid_client_id = {
         "client_id": "GroupPermissionAuthClient",
@@ -529,8 +645,7 @@ def test_authorization_code_flow_with_group_permission_and_user_not_member_of_an
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "external@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token_of_an_external,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
@@ -569,7 +684,9 @@ def test_authorization_code_flow_with_group_permission_and_user_not_member_of_an
 
 def test_authorization_code_flow_with_account_type_permission_and_wrong_account_type(
     client: TestClient,
+    auth_token_of_an_external: str,
 ) -> None:
+
     # For an user that is not a member of a required group #
     data_with_invalid_client_id = {
         "client_id": "AccountTypePermissionAuthClient",
@@ -578,8 +695,7 @@ def test_authorization_code_flow_with_account_type_permission_and_wrong_account_
         "response_type": "code",
         "scope": "API openid",
         "state": "azerty",
-        "email": "external@myecl.fr",
-        "password": "azerty",
+        "auth_access_token": auth_token_of_an_external,
     }
     response = client.post(
         "/auth/authorization-flow/authorize-validation",
