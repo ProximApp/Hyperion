@@ -10,6 +10,7 @@ from sqlalchemy.sql import delete, select
 
 from app.core.tickets import models_tickets, schemas_tickets
 from app.core.users import schemas_users
+from app.types.exceptions import NoneResultWhenCountingDbError
 
 
 async def get_all_events(db: AsyncSession) -> Sequence[schemas_tickets.EventSimple]:
@@ -711,7 +712,11 @@ async def count_tickets_by_event_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_tickets_by_category_id(
@@ -725,7 +730,11 @@ async def count_tickets_by_category_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_tickets_by_session_id(
@@ -739,7 +748,11 @@ async def count_tickets_by_session_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_by_event_id(
@@ -757,7 +770,11 @@ async def count_valid_checkouts_by_event_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_and_tickets_by_event_id(
@@ -777,7 +794,11 @@ async def count_valid_checkouts_and_tickets_by_event_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_and_tickets_by_session_id(
@@ -797,7 +818,11 @@ async def count_valid_checkouts_and_tickets_by_session_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_and_tickets_by_category_id(
@@ -817,7 +842,11 @@ async def count_valid_checkouts_and_tickets_by_category_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_by_category_id(
@@ -835,7 +864,11 @@ async def count_valid_checkouts_by_category_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_valid_checkouts_by_session_id(
@@ -853,7 +886,11 @@ async def count_valid_checkouts_by_session_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def count_answers_by_question_id(
@@ -866,7 +903,11 @@ async def count_answers_by_question_id(
         ),
     )
 
-    return result.scalar()
+    nb = result.scalar()
+    if nb is None:
+        raise NoneResultWhenCountingDbError()
+
+    return nb
 
 
 async def update_event(

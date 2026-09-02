@@ -237,3 +237,8 @@ class ObjectExpectedInDbNotFoundError(Exception):
         super().__init__(
             f"Object {object_name} with id {object_id} was expected in database but not found",
         )
+
+
+class NoneResultWhenCountingDbError(Exception):
+    def __init__(self):
+        super().__init__("Counting rows in db should never return None")
