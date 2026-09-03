@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -379,7 +380,7 @@ async def add_event(
         )
         if event.notification:
             ticket_date = (
-                f", SG le {ticket_url_opening.strftime('%d/%m/%Y à %H:%M')}"
+                f", SG le {ticket_url_opening.astimezone(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y à %H:%M')}"
                 if ticket_url_opening
                 else ""
             )
@@ -591,7 +592,7 @@ async def confirm_event(
             if association is None:
                 raise HTTPException(status_code=404, detail="Association not found")
             ticket_date = (
-                f", SG le {event.ticket_url_opening.strftime('%d/%m/%Y à %H:%M')}"
+                f", SG le {event.ticket_url_opening.astimezone(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y à %H:%M')}"
                 if event.ticket_url_opening
                 else ""
             )
