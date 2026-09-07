@@ -40,7 +40,7 @@ def get_token_data(
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
-    except (InvalidTokenError, ValidationError):
+    except InvalidTokenError, ValidationError:
         hyperion_access_logger.exception(
             f"Get_token_data: Failed to decode a token ({request_id})",
         )
