@@ -2,7 +2,7 @@ import logging
 
 import jwt
 from fastapi import HTTPException, status
-from jwt.exceptions import DecodeError, ExpiredSignatureError, InvalidTokenError
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from pydantic import ValidationError
 
 from app.core.auth import schemas_auth
@@ -31,29 +31,23 @@ def get_token_data(
         hyperion_access_logger.info(
             f"Get_token_data: Decoded a token for user {token_data.sub} ({request_id})",
         )
+    except ExpiredSignatureError:
+        hyperion_access_logger.info(
+            f"Get_token_data: Token has expired ({request_id})",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
     except InvalidTokenError, ValidationError:
         hyperion_access_logger.exception(
             f"Get_token_data: Failed to decode a token ({request_id})",
         )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
-        ) from None
-    except ExpiredSignatureError:
-        hyperion_access_logger.exception(
-            f"Get_token_data: Token has expired ({request_id})",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Token has expired",
-        ) from None
-    except DecodeError:
-        hyperion_access_logger.exception(
-            f"Get_token_data: Failed to decode a token ({request_id})",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
     return token_data
