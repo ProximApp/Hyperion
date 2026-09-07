@@ -698,6 +698,22 @@ def test_token_introspection_with_an_expired_access_token(
     assert json["active"] is False
 
 
+def test_expired_access_token_returns_unauthorized(client: TestClient):
+    expired_access_token = create_api_access_token(
+        user,
+        expires_delta=timedelta(seconds=-1),
+    )
+
+    response = client.get(
+        "/users/me",
+        headers={"Authorization": f"Bearer {expired_access_token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Token has expired"}
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
 def test_token_introspection_with_invalid_refresh_token(
     client: TestClient,
 ):
