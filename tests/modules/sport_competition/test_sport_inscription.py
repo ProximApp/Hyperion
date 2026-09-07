@@ -977,7 +977,7 @@ async def test_enable_inscription_not_active(
     response = client.post(
         f"/competition/editions/{old_edition.id}/inscription",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json=True,
+        json={"enable": True},
     )
     assert response.status_code == 400, response.json()
     editions = client.get(
@@ -1000,7 +1000,7 @@ async def test_enable_inscription(
     response = client.post(
         f"/competition/editions/{active_edition.id}/inscription",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json=True,
+        json={"enable": True},
     )
     assert response.status_code == 204, response.json()
     editions = client.get(

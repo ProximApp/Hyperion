@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from uuid import UUID, uuid4
 
-from fastapi import Body, Depends, HTTPException, Query, Response
+from fastapi import Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -271,12 +271,12 @@ async def activate_edition(
     status_code=204,
 )
 async def enable_inscription(
+    enable_inscription: schemas_sport_competition.CompetitionEnableInscription,
     edition_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: models_users.CoreUser = Depends(
         is_user_allowed_to([SportCompetitionPermissions.manage_sport_competition]),
     ),
-    enable: bool = Body(),
 ) -> None:
     """
     Enable inscription for a competition edition.
@@ -293,7 +293,11 @@ async def enable_inscription(
             status_code=400,
             detail="Edition is not active, cannot patch inscription",
         )
-    await cruds_sport_competition.patch_edition_inscription(edition_id, enable, db)
+    await cruds_sport_competition.patch_edition_inscription(
+        edition_id,
+        enable_inscription.enable,
+        db,
+    )
 
 
 @module.router.patch(

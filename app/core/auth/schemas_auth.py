@@ -4,9 +4,8 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Form
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
-from app.utils import validators
 from app.utils.examples import examples_auth
 
 
@@ -34,8 +33,7 @@ class AuthorizeValidation(Authorize):
     ```
     """
 
-    email: str
-    password: str
+    auth_access_token: str
 
     # If we don't add these parameters
     # the heritage from Authorize does not allow Mypy to infer the str | None
@@ -45,12 +43,6 @@ class AuthorizeValidation(Authorize):
     nonce: str | None = None
     code_challenge: str | None = None
     code_challenge_method: str | None = None
-
-    # Email normalization, this will modify the email variable
-    # https://pydantic-docs.helpmanual.io/usage/validators/#reuse-validators
-    _normalize_email = field_validator(
-        "email",
-    )(validators.email_normalizer)
 
     class config:
         schema_extra = {"example": examples_auth.example_AuthorizeValidation}
@@ -66,8 +58,7 @@ class AuthorizeValidation(Authorize):
         nonce: str | None = Form(None),
         code_challenge: str | None = Form(None),
         code_challenge_method: str | None = Form(None),
-        email: str = Form(...),
-        password: str = Form(...),
+        auth_access_token: str = Form(...),
     ):
         if nonce == "None":
             nonce = None
@@ -81,14 +72,13 @@ class AuthorizeValidation(Authorize):
             nonce=nonce,
             code_challenge=code_challenge,
             code_challenge_method=code_challenge_method,
-            email=email,
-            password=password,
+            auth_access_token=auth_access_token,
         )
 
 
 class AccessToken(BaseModel):
     access_token: str
-    token_type: str
+    token_type: Literal["bearer"]
 
 
 class TokenData(BaseModel):
