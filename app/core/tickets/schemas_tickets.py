@@ -41,7 +41,7 @@ class SessionCreate(BaseModel):
     name: str
     start_datetime: datetime
 
-    quota: int | None
+    quota: int | None = None
 
 
 class SessionUpdate(BaseModel):
@@ -80,8 +80,8 @@ class CategoryAdmin(CategoryComplete):
 class CategoryCreate(BaseModel):
     name: str
     price: int
-    quota: int | None
-    required_membership: UUID | None
+    quota: int | None = None
+    required_membership: UUID | None = None
 
     @field_validator("price")
     def null_or_greater_than_one_euro(cls, v: int) -> int:
@@ -126,7 +126,7 @@ class QuestionAdmin(Question):
 class QuestionCreate(BaseModel):
     question: str
     answer_type: AnswerType
-    price: int | None
+    price: int | None = None
     required: bool
 
 
@@ -182,9 +182,9 @@ class EventAdmin(EventWithoutSessionsAndCategories):
 class EventCreate(BaseModel):
     store_id: UUID
     name: str
-    quota: int | None
+    quota: int | None = None
     open_datetime: datetime
-    close_datetime: datetime | None
+    close_datetime: datetime | None = None
     sessions: list[SessionCreate]
     categories: list[CategoryCreate]
     questions: list[QuestionCreate]
