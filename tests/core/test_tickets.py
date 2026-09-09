@@ -1319,6 +1319,44 @@ def test_create_event(client: TestClient):
     assert event["tickets_in_checkout"] == 0
 
 
+def test_create_event_omitting_optional_nullable_fields(client: TestClient):
+    """Clients that drop null keys (e.g. generated Dart API clients) must be
+    able to omit the nullable fields entirely instead of sending an explicit
+    null."""
+
+    response = client.post(
+        "/tickets/admin/events/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "store_id": str(store.id),
+            "name": "Test Event",
+            "open_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+            "sessions": [
+                {
+                    "name": "Test Session",
+                    "start_datetime": (
+                        datetime.now(tz=UTC) + timedelta(days=1)
+                    ).isoformat(),
+                },
+            ],
+            "categories": [
+                {
+                    "name": "Test Category",
+                    "price": 1000,
+                },
+            ],
+            "questions": [],
+        },
+    )
+    assert response.status_code == 201
+    event = response.json()
+    assert event["quota"] is None
+    assert event["close_datetime"] is None
+    assert event["sessions"][0]["quota"] is None
+    assert event["categories"][0]["quota"] is None
+    assert event["categories"][0]["required_membership"] is None
+
+
 # update_event
 
 
@@ -1474,6 +1512,22 @@ def test_create_session(client: TestClient):
     assert session["event_id"] == str(global_event.id)
 
 
+def test_create_session_omitting_optional_nullable_fields(client: TestClient):
+    """Clients that drop null keys must be able to omit `quota` entirely."""
+
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/sessions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Session",
+            "start_datetime": (datetime.now(tz=UTC) + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert response.status_code == 201
+    session = response.json()
+    assert session["quota"] is None
+
+
 # update_session
 
 
@@ -1607,6 +1661,24 @@ def test_create_category(client: TestClient):
     assert category["quota"] == 10
 
 
+def test_create_category_omitting_optional_nullable_fields(client: TestClient):
+    """Clients that drop null keys must be able to omit `quota` and
+    `required_membership` entirely."""
+
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/categories/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "name": "Test Category",
+            "price": 1000,
+        },
+    )
+    assert response.status_code == 201
+    category = response.json()
+    assert category["quota"] is None
+    assert category["required_membership"] is None
+
+
 # create_question
 
 
@@ -1661,6 +1733,23 @@ def test_create_question(client: TestClient):
     assert question["required"] is True
     assert question["disabled"] is False
     assert question["event_id"] == str(global_event.id)
+
+
+def test_create_question_omitting_optional_nullable_fields(client: TestClient):
+    """Clients that drop null keys must be able to omit `price` entirely."""
+
+    response = client.post(
+        f"/tickets/admin/events/{global_event.id}/questions/",
+        headers={"Authorization": f"Bearer {seller_can_manage_event_user_token}"},
+        json={
+            "question": "New Test Question",
+            "answer_type": "text",
+            "required": True,
+        },
+    )
+    assert response.status_code == 201
+    question = response.json()
+    assert question["price"] is None
 
 
 # update_category
