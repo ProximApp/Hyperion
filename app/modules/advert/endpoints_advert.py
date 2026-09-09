@@ -192,6 +192,8 @@ async def create_advert(
             end=None,
             entity=association.name,
             location=None,
+            news_related_module_root=module.root,
+            news_related_module_object_id=advert_id,
             action_start=None,
             module=module.root,
             module_object_id=advert_id,

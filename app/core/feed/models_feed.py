@@ -22,10 +22,18 @@ class News(Base):
     # The news may be related to a specific location
     location: Mapped[str | None]
 
+    # The news is created by an other module in relation to
+    # a specific object
+    news_related_module_root: Mapped[str]
+    news_related_module_object_id: Mapped[UUID]
+
     # The news may be related to a specific action
     # If so, the action button should be displayed at this datetime
     action_start: Mapped[datetime | None]
 
+    # The module root corresponding to the news _action_ related module
+    # For example a news can be created by Calendar in relation to an event
+    # but the _action_ should use the ticket module with a specific TicketEvent
     module: Mapped[str]
     # UUID of the related object in the module database
     module_object_id: Mapped[UUID]
