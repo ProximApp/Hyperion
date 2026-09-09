@@ -7,8 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import cruds_associations
-from app.core.feed import cruds_feed, utils_feed
-from app.core.feed.types_feed import NewsStatus
+from app.core.feed import utils_feed
 from app.core.groups.groups_type import AccountType
 from app.core.notification.schemas_notification import Message
 from app.core.notification.utils_notification import get_topic_by_root_and_identifier
@@ -509,11 +508,16 @@ async def edit_event(
 
     if old_event.decision != Decision.pending and not has_user_calendar_admin_access:
         # We want to remove the feed related news if the event was previously approved
-        await delete_event_feed_news(
-            module=previous_feed_module,
-            module_object_id=previous_feed_module_object_id,
+        news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+            news_related_module_root=module.root,
+            news_related_module_object_id=event_id,
             db=db,
         )
+        if news is not None:
+            await delete_event_feed_news(
+                news_id=news.id,
+                db=db,
+            )
     else:
         # If we approve the event directly, we want to update the feed news
 
@@ -524,13 +528,18 @@ async def edit_event(
             new_feed_module != previous_feed_module
             or new_feed_module_object_id != previous_feed_module_object_id
         ):
-            await utils_feed.update_news_module_and_object_id(
-                module=previous_feed_module,
-                module_object_id=previous_feed_module_object_id,
-                new_module=new_feed_module,
-                new_module_object_id=new_feed_module_object_id,
+            news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+                news_related_module_root=previous_feed_module,
+                news_related_module_object_id=previous_feed_module_object_id,
                 db=db,
             )
+            if news is not None:
+                await utils_feed.update_news_module_and_object_id(
+                    news_id=news.id,
+                    new_module=new_feed_module,
+                    new_module_object_id=new_feed_module_object_id,
+                    db=db,
+                )
 
         await utils_calendar.edit_event_feed_news(
             event=event_db,
@@ -667,12 +676,17 @@ async def delete_event(
             db=db,
             settings=settings,
         )
-        await cruds_feed.change_news_status_by_module_object_id(
-            module=module.root,
-            module_object_id=event_id,
-            status=NewsStatus.REJECTED,
+        news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+            news_related_module_root=utils_calendar.root,
+            news_related_module_object_id=event_id,
             db=db,
         )
+        if news is not None:
+            await utils_feed.delete_feed_news(
+                news_id=news.id,
+                db=db,
+            )
+
         await delete_file_from_data(
             directory="event",
             filename=event_id,

@@ -642,16 +642,21 @@ async def update_event(
 
     if event_update.open_datetime is not None:
         # We want to update the datetime in the feed
-        await utils_feed.edit_feed_news(
-            module=core_module.root,
-            module_object_id=event.id,
-            news_edit=schemas_feed.NewsEdit(
-                action_start=event_update.open_datetime,
-            ),
-            require_feed_admin_approval=False,
+        news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+            news_related_module_root=core_module.root,
+            news_related_module_object_id=event.id,
             db=db,
-            notification_tool=notification_tool,
         )
+        if news is not None:
+            await utils_feed.edit_feed_news(
+                news_id=news.id,
+                news_edit=schemas_feed.NewsEdit(
+                    action_start=event_update.open_datetime,
+                ),
+                require_feed_admin_approval=False,
+                db=db,
+                notification_tool=notification_tool,
+            )
 
     await cruds_tickets.update_event(
         event_id=event_id,
@@ -697,11 +702,20 @@ async def delete_event(
         )
 
     # We want to check if the event is linked to the feed
-    if await utils_feed.check_if_module_object_id_is_linked_to_feed(
-        module=core_module.root,
-        module_object_id=event.id,
+    news_from_tickets = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+        news_related_module_root=core_module.root,
+        news_related_module_object_id=event.id,
         db=db,
-    ):
+    )
+    news_with_action_on_tickets_exists = (
+        await utils_feed.check_if_module_object_id_is_linked_to_feed(
+            module=core_module.root,
+            module_object_id=event.id,
+            db=db,
+        )
+    )
+
+    if news_from_tickets is not None or news_with_action_on_tickets_exists:
         raise HTTPException(
             400,
             "Cannot delete event linked to the feed",

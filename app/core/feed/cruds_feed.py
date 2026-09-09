@@ -50,21 +50,8 @@ async def get_news_by_id(
     return result.scalars().first()
 
 
-async def change_news_status(
+async def update_news_module_and_object_id_by_id(
     news_id: UUID,
-    status: NewsStatus,
-    db: AsyncSession,
-) -> None:
-    await db.execute(
-        update(models_feed.News)
-        .where(models_feed.News.id == news_id)
-        .values(status=status),
-    )
-
-
-async def update_news_module_and_object_id(
-    module: str,
-    module_object_id: UUID,
     new_module: str,
     new_module_object_id: UUID,
     db: AsyncSession,
@@ -75,8 +62,7 @@ async def update_news_module_and_object_id(
     await db.execute(
         update(models_feed.News)
         .where(
-            models_feed.News.module == module,
-            models_feed.News.module_object_id == module_object_id,
+            models_feed.News.id == news_id,
         )
         .values(
             module=new_module,
@@ -85,39 +71,59 @@ async def update_news_module_and_object_id(
     )
 
 
-async def change_news_status_by_module_object_id(
-    module: str,
-    module_object_id: UUID,
+async def change_news_status_by_id(
+    news_id: UUID,
     status: NewsStatus,
     db: AsyncSession,
 ) -> None:
     await db.execute(
         update(models_feed.News)
         .where(
-            models_feed.News.module == module,
-            models_feed.News.module_object_id == module_object_id,
+            models_feed.News.id == news_id,
         )
         .values(status=status),
     )
 
 
-async def edit_news_by_module_object_id(
-    module: str,
-    module_object_id: UUID,
+async def delete_news_by_id(
+    news_id: UUID,
+    db: AsyncSession,
+) -> None:
+    await db.execute(
+        delete(models_feed.News).where(
+            models_feed.News.id == news_id,
+        ),
+    )
+
+
+async def edit_news_by_id(
+    news_id: UUID,
     news_edit: schemas_feed.NewsEdit,
     db: AsyncSession,
 ) -> None:
     await db.execute(
         update(models_feed.News)
-        .where(
-            models_feed.News.module == module,
-            models_feed.News.module_object_id == module_object_id,
-        )
+        .where(models_feed.News.id == news_id)
         .values(**news_edit.model_dump(exclude_unset=True)),
     )
 
 
-async def get_news_by_module_object_id(
+async def get_news_by_news_related_module_root_and_news_related_module_object_id(
+    news_related_module_root: str,
+    news_related_module_object_id: UUID,
+    db: AsyncSession,
+) -> models_feed.News | None:
+    result = await db.execute(
+        select(models_feed.News).where(
+            models_feed.News.news_related_module_root == news_related_module_root,
+            models_feed.News.news_related_module_object_id
+            == news_related_module_object_id,
+        ),
+    )
+    return result.scalars().first()
+
+
+async def get_news_by_module_and_module_object_id(
     module: str,
     module_object_id: UUID,
     db: AsyncSession,
@@ -129,16 +135,3 @@ async def get_news_by_module_object_id(
         ),
     )
     return result.scalars().first()
-
-
-async def delete_news_by_module_object_id(
-    module: str,
-    module_object_id: UUID,
-    db: AsyncSession,
-) -> None:
-    await db.execute(
-        delete(models_feed.News).where(
-            models_feed.News.module == module,
-            models_feed.News.module_object_id == module_object_id,
-        ),
-    )

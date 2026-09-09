@@ -367,6 +367,8 @@ async def init_objects() -> None:
         end=datetime.now(tz=UTC) + timedelta(days=1),
         entity="Test Entity",
         location="Test Location",
+        news_related_module_root="calendar",
+        news_related_module_object_id=event_linked_to_feed.id,
         action_start=datetime.now(tz=UTC) - timedelta(days=1),
         image_directory="test_directory",
         image_id=uuid.uuid4(),

@@ -17,6 +17,8 @@ async def create_feed_news(
     end: datetime | None,
     entity: str,
     location: str | None,
+    news_related_module_root: str,
+    news_related_module_object_id: uuid.UUID,
     action_start: datetime | None,
     module: str,
     module_object_id: uuid.UUID,
@@ -47,8 +49,10 @@ async def create_feed_news(
         end=end,
         entity=entity,
         location=location,
-        action_start=action_start,
+        news_related_module_root=news_related_module_root,
+        news_related_module_object_id=news_related_module_object_id,
         module=module,
+        action_start=action_start,
         module_object_id=module_object_id,
         image_directory=image_directory,
         image_id=image_id,
@@ -75,9 +79,23 @@ async def create_feed_news(
             )
 
 
+async def get_news_by_news_related_module_root_and_news_related_module_object_id(
+    news_related_module_root: str,
+    news_related_module_object_id: uuid.UUID,
+    db: AsyncSession,
+) -> models_feed.News | None:
+    """
+    Get a news in the feed by its related module root and related module object id
+    """
+    return await cruds_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+        news_related_module_root=news_related_module_root,
+        news_related_module_object_id=news_related_module_object_id,
+        db=db,
+    )
+
+
 async def edit_feed_news(
-    module: str,
-    module_object_id: uuid.UUID,
+    news_id: uuid.UUID,
     news_edit: schemas_feed.NewsEdit,
     require_feed_admin_approval: bool,
     db: AsyncSession,
@@ -95,16 +113,14 @@ async def edit_feed_news(
     action_start: optional datetime corresponding to an action related to the news. If provided, an action button should be displayed at this datetime
     """
 
-    await cruds_feed.edit_news_by_module_object_id(
-        module=module,
-        module_object_id=module_object_id,
+    await cruds_feed.edit_news_by_id(
+        news_id=news_id,
         news_edit=news_edit,
         db=db,
     )
     if require_feed_admin_approval:
-        await cruds_feed.change_news_status_by_module_object_id(
-            module=module,
-            module_object_id=module_object_id,
+        await cruds_feed.change_news_status_by_id(
+            news_id=news_id,
             status=NewsStatus.WAITING_APPROVAL,
             db=db,
         )
@@ -126,8 +142,7 @@ async def edit_feed_news(
 
 
 async def update_news_module_and_object_id(
-    module: str,
-    module_object_id: uuid.UUID,
+    news_id: uuid.UUID,
     new_module: str,
     new_module_object_id: uuid.UUID,
     db: AsyncSession,
@@ -135,9 +150,8 @@ async def update_news_module_and_object_id(
     """
     Change the module and module_object_id of a news in the feed
     """
-    await cruds_feed.update_news_module_and_object_id(
-        module=module,
-        module_object_id=module_object_id,
+    await cruds_feed.update_news_module_and_object_id_by_id(
+        news_id=news_id,
         new_module=new_module,
         new_module_object_id=new_module_object_id,
         db=db,
@@ -145,8 +159,7 @@ async def update_news_module_and_object_id(
 
 
 async def delete_feed_news(
-    module: str,
-    module_object_id: uuid.UUID,
+    news_id: uuid.UUID,
     db: AsyncSession,
 ):
     """
@@ -156,9 +169,8 @@ async def delete_feed_news(
     module_object_id: identifier of the object that is linked to the news in the module, may be used to open the right page in the app
     """
 
-    await cruds_feed.delete_news_by_module_object_id(
-        module=module,
-        module_object_id=module_object_id,
+    await cruds_feed.delete_news_by_id(
+        news_id=news_id,
         db=db,
     )
 
@@ -168,7 +180,7 @@ async def check_if_module_object_id_is_linked_to_feed(
     module_object_id: uuid.UUID,
     db: AsyncSession,
 ) -> bool:
-    result = await cruds_feed.get_news_by_module_object_id(
+    result = await cruds_feed.get_news_by_module_and_module_object_id(
         module=module,
         module_object_id=module_object_id,
         db=db,

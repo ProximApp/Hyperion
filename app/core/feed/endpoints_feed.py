@@ -117,7 +117,7 @@ async def approve_news(
     **This endpoint is only usable by feed administrators**
     """
 
-    return await cruds_feed.change_news_status(
+    return await cruds_feed.change_news_status_by_id(
         news_id=news_id,
         status=NewsStatus.PUBLISHED,
         db=db,
@@ -141,7 +141,7 @@ async def reject_news(
     **This endpoint is only usable by feed administrators**
     """
 
-    await cruds_feed.change_news_status(
+    await cruds_feed.change_news_status_by_id(
         news_id=news_id,
         status=NewsStatus.REJECTED,
         db=db,
