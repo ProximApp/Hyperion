@@ -5,3 +5,8 @@ class NewsStatus(StrEnum):
     WAITING_APPROVAL = "waiting_approval"
     REJECTED = "rejected"
     PUBLISHED = "published"
+
+
+class OrderBy(StrEnum):
+    ASC = "asc"
+    DESC = "desc"

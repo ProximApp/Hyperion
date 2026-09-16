@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import cruds_feed, schemas_feed
 from app.core.feed.permissions_feed import FeedPermissions
-from app.core.feed.types_feed import NewsStatus
+from app.core.feed.types_feed import NewsStatus, OrderBy
 from app.core.users import models_users
 from app.dependencies import (
     get_db,
@@ -40,9 +40,8 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 async def get_published_news(
     limit: int = Query(default=50, gt=0, le=200),
     offset: int = Query(default=0, ge=0),
-    order: str = Query(
-        default="asc",
-        pattern="^(asc|desc)$",
+    order: OrderBy = Query(
+        default=OrderBy.ASC,
         description="Sort order on (start, end, id): ascending (oldest first) or descending (newest first)",
     ),
     start_after: datetime | None = Query(

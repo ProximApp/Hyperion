@@ -6,7 +6,7 @@ from sqlalchemy import delete, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import models_feed, schemas_feed
-from app.core.feed.types_feed import NewsStatus
+from app.core.feed.types_feed import NewsStatus, OrderBy
 
 
 async def create_news(
@@ -25,11 +25,11 @@ async def get_news(
     db: AsyncSession,
     limit: int,
     offset: int = 0,
-    order: str = "asc",
+    order: OrderBy = OrderBy.ASC,
     start_after: datetime | None = None,
     start_before: datetime | None = None,
 ) -> Sequence[models_feed.News]:
-    sign = "" if order == "asc" else "desc"
+    sign = "" if order == OrderBy.ASC else "desc"
     result = await db.execute(
         select(models_feed.News)
         .where(
