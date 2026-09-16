@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, true, update
+from sqlalchemy import asc, delete, desc, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import models_feed, schemas_feed
@@ -29,7 +29,6 @@ async def get_news(
     start_after: datetime | None = None,
     start_before: datetime | None = None,
 ) -> Sequence[models_feed.News]:
-    sign = "" if order == OrderBy.ASC else "desc"
     result = await db.execute(
         select(models_feed.News)
         .where(
@@ -46,9 +45,19 @@ async def get_news(
             models_feed.News.start <= start_before if start_before else true(),
         )
         .order_by(
-            getattr(models_feed.News.start, f"{sign}")(),
-            getattr(models_feed.News.end, f"{sign}")(),
-            getattr(models_feed.News.id, f"{sign}")(),
+            asc(models_feed.News.start)
+            if order == OrderBy.ASC
+            else desc(models_feed.News.start),
+        )
+        .order_by(
+            asc(models_feed.News.end)
+            if order == OrderBy.ASC
+            else desc(models_feed.News.end),
+        )
+        .order_by(
+            asc(models_feed.News.id)
+            if order == OrderBy.ASC
+            else desc(models_feed.News.id),
         )
         .offset(offset)
         .limit(limit),
