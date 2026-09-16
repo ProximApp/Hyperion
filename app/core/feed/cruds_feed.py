@@ -1,7 +1,8 @@
 from collections.abc import Sequence
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import models_feed, schemas_feed
@@ -22,11 +23,35 @@ async def create_news(
 async def get_news(
     status: list[NewsStatus],
     db: AsyncSession,
+    limit: int,
+    offset: int = 0,
+    order: str = "asc",
+    start_after: datetime | None = None,
+    start_before: datetime | None = None,
 ) -> Sequence[models_feed.News]:
+    sign = "" if order == "asc" else "desc"
     result = await db.execute(
-        select(models_feed.News).where(
+        select(models_feed.News)
+        .where(
             models_feed.News.status.in_(status),
-        ),
+            # Inclusive date-window filters: `start >= start_after` if given,
+            # and `start <= start_before` if given. Combined with the
+            # deterministic (start, end, id) ordering, they let clients fetch
+            # the pages before/after a given date (e.g. "around today")
+            # without an extra count or search query. Both bounds are
+            # inclusive so that paging from the previous page's last item
+            # never skips events sharing its start date; clients dedupe the
+            # re-included boundary item by id.
+            models_feed.News.start >= start_after if start_after else true(),
+            models_feed.News.start <= start_before if start_before else true(),
+        )
+        .order_by(
+            getattr(models_feed.News.start, f"{sign}")(),
+            getattr(models_feed.News.end, f"{sign}")(),
+            getattr(models_feed.News.id, f"{sign}")(),
+        )
+        .offset(offset)
+        .limit(limit),
     )
     return result.scalars().all()
 
