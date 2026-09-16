@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -45,7 +45,9 @@ async def get_published_news(
         description="Sort order on (start, end, id): ascending (oldest first) or descending (newest first)",
     ),
     start_after: datetime | None = Query(
-        default=None,
+        # TODO: temporary default to a 5 days before today restriction
+        default=datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        - timedelta(days=5),
         description="Only return news starting at or after this datetime (inclusive window filters for paging before/after a date)",
     ),
     start_before: datetime | None = Query(
