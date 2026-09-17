@@ -11,7 +11,6 @@ from app.core.feed.utils_feed import (
     create_feed_news,
     delete_feed_news,
     edit_feed_news,
-    get_news_by_news_related_module_root_and_news_related_module_object_id,
 )
 from app.core.utils.config import Settings
 from app.modules.calendar import models_calendar
@@ -54,32 +53,26 @@ async def add_event_to_feed(
 
 
 async def edit_event_feed_news(
+    news_id: UUID,
     event: models_calendar.Event,
-    module: str,
-    module_object_id: UUID,
     db: AsyncSession,
     notification_tool: NotificationTool,
 ):
-    news = await get_news_by_news_related_module_root_and_news_related_module_object_id(
-        news_related_module_root=root,
-        news_related_module_object_id=event.id,
+
+    await edit_feed_news(
+        news_id=news_id,
+        news_edit=schemas_feed.NewsEdit(
+            title=event.name,
+            start=event.start,
+            end=event.end,
+            entity=event.association.name,
+            location=event.location,
+            action_start=event.ticket_url_opening,
+        ),
+        require_feed_admin_approval=False,
         db=db,
+        notification_tool=notification_tool,
     )
-    if news is not None:
-        await edit_feed_news(
-            news_id=news.id,
-            news_edit=schemas_feed.NewsEdit(
-                title=event.name,
-                start=event.start,
-                end=event.end,
-                entity=event.association.name,
-                location=event.location,
-                action_start=event.ticket_url_opening,
-            ),
-            require_feed_admin_approval=False,
-            db=db,
-            notification_tool=notification_tool,
-        )
 
 
 async def delete_event_feed_news(
