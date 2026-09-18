@@ -439,11 +439,6 @@ async def edit_event(
     if old_event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    previous_feed_module = (
-        "tickets" if old_event.ticket_event_id else utils_calendar.root
-    )
-    previous_feed_module_object_id = old_event.ticket_event_id or event_id
-
     if event_edit.ticket_event_id:
         if event_edit.ticket_url or event_edit.ticket_url_opening:
             raise HTTPException(
@@ -524,16 +519,17 @@ async def edit_event(
         new_feed_module = "tickets" if event_db.ticket_event_id else utils_calendar.root
         new_feed_module_object_id = event_db.ticket_event_id or event_id
 
-        if (
-            new_feed_module != previous_feed_module
-            or new_feed_module_object_id != previous_feed_module_object_id
-        ):
-            news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
-                news_related_module_root=previous_feed_module,
-                news_related_module_object_id=previous_feed_module_object_id,
-                db=db,
-            )
-            if news is not None:
+        news = await utils_feed.get_news_by_news_related_module_root_and_news_related_module_object_id(
+            news_related_module_root=utils_calendar.root,
+            news_related_module_object_id=event_db.id,
+            db=db,
+        )
+
+        if news is not None:
+            if (
+                new_feed_module != news.module
+                or new_feed_module_object_id != news.module_object_id
+            ):
                 await utils_feed.update_news_module_and_object_id(
                     news_id=news.id,
                     new_module=new_feed_module,
@@ -541,13 +537,12 @@ async def edit_event(
                     db=db,
                 )
 
-        await utils_calendar.edit_event_feed_news(
-            event=event_db,
-            module=new_feed_module,
-            module_object_id=new_feed_module_object_id,
-            db=db,
-            notification_tool=notification_tool,
-        )
+            await utils_calendar.edit_event_feed_news(
+                news_id=news.id,
+                event=event_db,
+                db=db,
+                notification_tool=notification_tool,
+            )
 
 
 @module.router.patch(
