@@ -33,7 +33,7 @@ from app.core.notification.cruds_notification import get_notification_topic
 from app.core.schools import models_schools
 from app.core.schools.schools_type import SchoolType
 from app.core.utils.config import Settings
-from app.core.utils.log import LogConfig
+from app.core.utils.log import LogConfig, RequestData
 from app.dependencies import (
     disconnect_state,
     get_db,
@@ -716,15 +716,15 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
 
             hyperion_access_logger.info(
                 "request",
-                extra={
-                    "ip": ip_address,
-                    "port": port,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
-                    "duration_ms": duration_ms,
-                    "request_id": request_id,
-                },
+                extra=RequestData(
+                    ip=ip_address,
+                    port=port,
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                    request_id=request_id,
+                ).model_dump(mode="json"),
             )
         else:
             response = Response(status_code=429, content="Too Many Requests")

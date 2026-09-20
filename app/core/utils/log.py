@@ -7,10 +7,29 @@ from enum import StrEnum
 from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-import uvicorn
+import uvicorn.logging
+from pydantic import BaseModel, ValidationError
 
 from app.core.utils.config import Settings
+
+
+class RequestData(BaseModel):
+    ip: str
+    port: int
+    method: str
+    path: str
+    status_code: int
+    duration_ms: float
+    request_id: UUID
+
+
+# Attributs standards d'un LogRecord : on les exclut pour ne pas les dupliquer
+# quand on ajoute les champs passés via extra={...} au JSON.
+_RESERVED_RECORD_ATTRS = frozenset(
+    logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys(),
+) | {"message", "asctime"}
 
 
 class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
@@ -55,32 +74,38 @@ class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
             record.levelno,
             self.formatters[logging.ERROR],
         )
-        return formatter.format(record)
 
+        # We check if the record has extra fields, which are passed via extra={...} at the call site (logger.info(...)). If so, we add them to the message.
+        extra_fields = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _RESERVED_RECORD_ATTRS
+        }
+        if not extra_fields:
+            return formatter.format(record)
 
-# Attributs standards d'un LogRecord : on les exclut pour ne pas les dupliquer
-# quand on ajoute les champs passés via extra={...} au JSON.
-_RESERVED_RECORD_ATTRS = frozenset(
-    logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys(),
-) | {"message", "asctime"}
+        # We temporarily modify the record to include the extra fields in the message, then we restore the original message and args after formatting.
+        # The restoration is necessary because the record is reused by other handlers, and we don't want to modify it permanently.
+        original_msg = record.msg
+        original_args = record.args
+        try:
+            # If the extra fields correspond to the RequestData model, we format them as request string for better readability in the console.
+            # Request format : "IP:PORT - METHOD /path" status_code (request_id)"
+            request_data = RequestData.model_validate(extra_fields)
+            record.msg = f'{request_data.ip}:{request_data.port} - "{request_data.method} {request_data.path}" {request_data.status_code} ({request_data.request_id})'
+            record.args = None
+            return formatter.format(record)
+        except ValidationError:
+            # If the extra fields do not correspond to the RequestData model, we format them as key=value pairs for better readability in the console.
+            record.msg = f"{record.msg} - {', '.join(f'{key}={value}' for key, value in extra_fields.items())}"
+            record.args = None
+            return formatter.format(record)
+        finally:
+            record.msg = original_msg
+            record.args = original_args
 
 
 class JSONFormatter(logging.Formatter):
-    """Une ligne JSON par log au lieu d'un format texte fait à la main.
-
-    - Timestamp en ISO 8601 UTC explicite (ex: "2026-09-16T18:55:34+00:00"),
-      qui règle le problème qu'on a eu avec "%d-%b-%y %H:%M:%S" : ce format
-      n'indique aucun fuseau, on ne peut pas savoir en le lisant s'il s'agit
-      d'UTC ou d'heure locale.
-    - Tout champ passé via extra={...} au call site (logger.info(...)) est
-      inclus tel quel dans le JSON, au lieu d'être noyé dans une chaîne
-      "ip:port - "METHOD path" status (request_id)" qu'il faut ensuite
-      re-parser à coup de split/regex.
-
-    Ne remplace PAS les formatters "mypayment" (format figé, ne pas toucher)
-    et "matrix"/"console_formatter" (pensés pour être lus par des humains).
-    """
-
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
