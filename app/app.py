@@ -1,6 +1,7 @@
 """File defining the Metadata. And the basic functions creating the database tables and calling the router"""
 
 import logging
+import time
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -647,6 +649,7 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         lifespan=lifespan,
         generate_unique_id_function=use_route_path_as_operation_id,
     )
+    Instrumentator().instrument(app).expose(app)
     app.include_router(api.api_router)
 
     app.add_middleware(
@@ -674,34 +677,23 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         This middleware is called around each request.
         It logs the request and inject a unique identifier in the request that should be used to associate logs saved during the request.
         """
-        # We use a middleware to log every request
-        # See https://fastapi.tiangolo.com/tutorial/middleware/
-
-        # We generate a unique identifier for the request and save it as a state.
-        # This identifier will allow combining logs associated with the same request
-        # https://www.starlette.io/requests/#other-state
         request_id = str(uuid.uuid4())
-
         request.state.request_id = request_id
 
-        # This should never happen, but we log it just in case
         if request.client is None:
             hyperion_security_logger.warning(
-                f"Client information not available for {request.url.path}",
+                "Client information not available",
+                extra={"path": request.url.path},
             )
             raise HTTPException(status_code=400, detail="No client information")
 
-        ip_address = str(
-            request.client.host,
-        )  # host can be an Object of type IPv4Address or IPv6Address and would be refused by redis
+        ip_address = str(request.client.host)
         port = request.client.port
-        client_address = f"{ip_address}:{port}"
 
         redis_client: Redis | None = get_redis_client_dependency()
 
-        # We test the ip address with the redis limiter
         process = True
-        if redis_client and settings.ENABLE_RATE_LIMITER:  # If redis is configured
+        if redis_client and settings.ENABLE_RATE_LIMITER:
             process, log = await limiter(
                 redis_client,
                 ip_address,
@@ -710,13 +702,29 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             )
             if log:
                 hyperion_security_logger.warning(
-                    f"Rate limit reached for {ip_address} (limit: {settings.REDIS_LIMIT}, window: {settings.REDIS_WINDOW})",
+                    "Rate limit reached",
+                    extra={
+                        "ip": ip_address,
+                        "limit": settings.REDIS_LIMIT,
+                        "window": settings.REDIS_WINDOW,
+                    },
                 )
         if process:
+            start_time = time.perf_counter()
             response = await call_next(request)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
             hyperion_access_logger.info(
-                f'{client_address} - "{request.method} {request.url.path}" {response.status_code} ({request_id})',
+                "request",
+                extra={
+                    "ip": ip_address,
+                    "port": port,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": duration_ms,
+                    "request_id": request_id,
+                },
             )
         else:
             response = Response(status_code=429, content="Too Many Requests")
@@ -727,9 +735,12 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         request: Request,
         exc: RequestValidationError,
     ):
-        # We use a Debug logger to log the error as personal data may be present in the request
         hyperion_error_logger.debug(
-            f"Validation error: {exc.errors()} ({request.state.request_id})",
+            "Validation error",
+            extra={
+                "errors": exc.errors(),
+                "request_id": request.state.request_id,
+            },
         )
 
         return JSONResponse(

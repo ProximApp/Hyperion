@@ -1,12 +1,14 @@
+import json
 import logging
 import logging.config
 import queue
+from datetime import UTC, datetime
 from enum import StrEnum
 from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from typing import Any
 
-import uvicorn.logging
+import uvicorn
 
 from app.core.utils.config import Settings
 
@@ -56,6 +58,47 @@ class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
         return formatter.format(record)
 
 
+# Attributs standards d'un LogRecord : on les exclut pour ne pas les dupliquer
+# quand on ajoute les champs passés via extra={...} au JSON.
+_RESERVED_RECORD_ATTRS = frozenset(
+    logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys(),
+) | {"message", "asctime"}
+
+
+class JSONFormatter(logging.Formatter):
+    """Une ligne JSON par log au lieu d'un format texte fait à la main.
+
+    - Timestamp en ISO 8601 UTC explicite (ex: "2026-09-16T18:55:34+00:00"),
+      qui règle le problème qu'on a eu avec "%d-%b-%y %H:%M:%S" : ce format
+      n'indique aucun fuseau, on ne peut pas savoir en le lisant s'il s'agit
+      d'UTC ou d'heure locale.
+    - Tout champ passé via extra={...} au call site (logger.info(...)) est
+      inclus tel quel dans le JSON, au lieu d'être noyé dans une chaîne
+      "ip:port - "METHOD path" status (request_id)" qu'il faut ensuite
+      re-parser à coup de split/regex.
+
+    Ne remplace PAS les formatters "mypayment" (format figé, ne pas toucher)
+    et "matrix"/"console_formatter" (pensés pour être lus par des humains).
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+            "logger": record.name,
+            "level": record.levelname,
+            "message": record.getMessage(),
+        }
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        for key, value in record.__dict__.items():
+            if key not in _RESERVED_RECORD_ATTRS and key not in payload:
+                payload[key] = value
+
+        return json.dumps(payload, default=str, ensure_ascii=False)
+
+
 class LogConfig:
     """
     Logging configuration to be set for the server
@@ -72,7 +115,6 @@ class LogConfig:
         BOLD = "\033[1m"
         END = "\033[0m"
 
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     MATRIX_LOG_FORMAT: str = "%(asctime)s - %(name)s - <code>%(levelname)s</code> - <font color ='green'>%(message)s</font>"
     MYPAYMENT_LOG_FORMAT: str = "%(message)s"  # Do not change at any cost
 
@@ -94,8 +136,7 @@ class LogConfig:
             "disable_existing_loggers": not settings.LOG_DEBUG_MESSAGES,
             "formatters": {
                 "default": {
-                    "format": self.LOG_FORMAT,
-                    "datefmt": "%d-%b-%y %H:%M:%S",
+                    "()": "app.core.utils.log.JSONFormatter",
                 },
                 "console_formatter": {
                     "()": "app.core.utils.log.ColoredConsoleFormatter",
@@ -148,9 +189,7 @@ class LogConfig:
                     "s3_bucket_name": settings.S3_BUCKET_NAME,
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
-                    "folder": "mypayment"
-                    if not settings.S3_DIRECTORY
-                    else settings.S3_DIRECTORY + "/mypayment",
+                    "folder": "mypayment",
                 },
                 "s3": {
                     "formatter": "mypayment",
@@ -159,9 +198,7 @@ class LogConfig:
                     "s3_bucket_name": settings.S3_BUCKET_NAME,
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
-                    "folder": ""
-                    if not settings.S3_DIRECTORY
-                    else settings.S3_DIRECTORY,
+                    "folder": "",
                 },
                 # There is a handler per log file #
                 # They are based on RotatingFileHandler to logs in multiple 1024 bytes files
@@ -204,7 +241,7 @@ class LogConfig:
                     "level": "DEBUG",
                 },
                 "file_s3": {
-                    # file_s3 is there to log all operations related to s3 that failed to be logged in the S3 bucket
+                    # file_mypayment is there to log all operations related to MyPayment that failed to be logged in the S3 bucket
                     "formatter": "default",
                     "class": "logging.handlers.RotatingFileHandler",
                     "filename": "logs/s3.log",
