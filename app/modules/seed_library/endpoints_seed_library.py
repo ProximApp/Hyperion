@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -36,9 +35,6 @@ module = Module(
     factory=SeedLibraryFactory(),
     permissions=SeedLibraryPermissions,
 )
-
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

@@ -66,7 +66,10 @@ def build_data_rows(
             sport = sport_dict[sports_quota.sport_id]
         except KeyError as e:
             hyperion_error_logger.exception(
-                f"Missing data for school quota {sports_quota.sport_id}",
+                "Competition: Missing related data for school quota",
+                extra={
+                    "sport_id": sports_quota.sport_id,
+                },
             )
             raise MissingDataError(  # noqa: TRY003
                 f"Missing related data for school quota {sports_quota.sport_id}",
@@ -87,7 +90,10 @@ def build_data_rows(
             product = product_dict[product_quota.product_id]
         except KeyError as e:
             hyperion_error_logger.exception(
-                f"Missing data for school product quota {product_quota.product_id}",
+                "Competition: Missing related data for school product quota",
+                extra={
+                    "product_id": product_quota.product_id,
+                },
             )
             raise MissingDataError(  # noqa: TRY003
                 f"Missing related data for school product quota {product_quota.product_id}",

@@ -54,7 +54,6 @@ module = Module(
 )
 
 hyperion_amap_logger = logging.getLogger("hyperion.amap")
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

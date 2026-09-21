@@ -356,7 +356,10 @@ async def update_cdr_user(
             )
         except Exception:
             hyperion_error_logger.exception(
-                f"Error while sending a message to the room {HyperionWebsocketsRoom.CDR}",
+                "Cdr user update: could not send websocket message to room",
+                extra={
+                    "room_id": HyperionWebsocketsRoom.CDR,
+                },
             )
 
 
@@ -493,10 +496,6 @@ async def generate_and_send_results(
             ),
         )
 
-    hyperion_error_logger.info(
-        f"Data for seller {seller.name} fetched. Generating the Excel file.",
-    )
-
     excel_io = BytesIO()
 
     construct_dataframe_from_users_purchases(
@@ -514,26 +513,6 @@ async def generate_and_send_results(
     excel_io.close()
 
     return res
-
-    # Not working, we have to keep the file in the server
-    # hyperion_error_logger.debug(
-    #     f"Excel file for seller {seller.name} generated. Sending the email.",
-    # )
-    # send_email(
-    #     recipient=emails.emails,
-    #     subject=f"Résultats de ventes pour {seller.name}",
-    #     content=f"Bonjour,\n\nVous trouverez en pièce jointe le fichier Excel contenant les résultats de ventes pour la CdR pour l'association {seller.name}.",
-    #     settings=settings,
-    #     file_directory=file_directory,
-    #     file_uuid=file_uuid,
-    #     file_name=file_name,
-    #     main_type="text",
-    #     sub_type="xlsx",
-    # )
-    # hyperion_error_logger.info(
-    #     f"Results for seller {seller.name} sent to {emails.emails}",
-    # )
-    # Path.unlink(Path(file_directory, file_name))
 
 
 @module.router.get(
@@ -1998,7 +1977,12 @@ async def validate_purchase_batch(
                 )
             except HTTPException as e:
                 hyperion_error_logger.info(
-                    f"Batch validation failed for user {email} with {e}",
+                    "Cdr batch validation: failed for user",
+                    extra={
+                        "user_email": email,
+                        "product_variant_id": batch.product_variant_id,
+                        "error": e,
+                    },
                 )
                 continue
         # If the user does not exist, we will pass silently
@@ -2464,7 +2448,10 @@ async def create_curriculum_membership(
             )
         except Exception:
             hyperion_error_logger.exception(
-                f"Error while sending a message to the room {HyperionWebsocketsRoom.CDR}",
+                "Cdr create curriculum membership: failed to send message to websocket room",
+                extra={
+                    "room_id": HyperionWebsocketsRoom.CDR,
+                },
             )
 
 
@@ -2544,7 +2531,10 @@ async def update_curriculum_membership(
             )
         except Exception:
             hyperion_error_logger.exception(
-                f"Error while sending a message to the room {HyperionWebsocketsRoom.CDR}",
+                "Cdr update curriculum membership: failed to send message to websocket room",
+                extra={
+                    "room_id": HyperionWebsocketsRoom.CDR,
+                },
             )
 
 
@@ -2621,7 +2611,10 @@ async def delete_curriculum_membership(
             )
         except Exception:
             hyperion_error_logger.exception(
-                f"Error while sending a message to the room {HyperionWebsocketsRoom.CDR}",
+                "Cdr delete curriculum membership: failed to send message to websocket room",
+                extra={
+                    "room_id": HyperionWebsocketsRoom.CDR,
+                },
             )
 
 
@@ -2821,7 +2814,10 @@ async def get_payment_url(
         payer_user=user_schema,
         db=db,
     )
-    hyperion_error_logger.info(f"CDR: Logging Checkout id {checkout.id}")
+    hyperion_error_logger.info(
+        "CDR: Logging Checkout",
+        extra={"checkout_id": checkout.id},
+    )
     cruds_cdr.create_checkout(
         db=db,
         checkout=models_cdr.Checkout(

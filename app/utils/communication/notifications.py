@@ -74,7 +74,13 @@ class NotificationManager:
                             mismatching_tokens.append(tokens[idx])
                         else:
                             hyperion_error_logger.error(
-                                f"Firebase: Failed to send firebase notification to token {tokens[idx]}: {resp.exception}",
+                                "Firebase: Failed to send firebase notification to token",
+                                extra={
+                                    "token": tokens[idx],
+                                    "error": str(resp.exception),
+                                    "message_title": message_content.title,
+                                    "message_module": message_content.action_module,
+                                },
                             )
                     # The order of responses corresponds to the order of the registration tokens.
                     failed_tokens.append(tokens[idx])
@@ -84,16 +90,21 @@ class NotificationManager:
                     db=db,
                 )
                 hyperion_error_logger.error(
-                    "Firebase: SenderId mismatch for notification '%s' (%s module) for %s/%s tokens (%s users) : %s",
-                    message_content.title,
-                    message_content.action_module,
-                    len(mismatching_tokens),
-                    response.success_count + response.failure_count,
-                    len(usernames),
-                    ", ".join(usernames),
+                    "Firebase: SenderId mismatch for notification and tokens",
+                    extra={
+                        "message_title": message_content.title,
+                        "message_module": message_content.action_module,
+                        "mismatching_tokens_count": len(mismatching_tokens),
+                        "total_tokens_count": response.success_count
+                        + response.failure_count,
+                        "usernames": usernames,
+                    },
                 )
             hyperion_error_logger.info(
-                f"{response.failure_count} messages failed to be send, removing their tokens from the database.",
+                "Firebase: Failed to send notification, removing related tokens from the database",
+                extra={
+                    "failed_tokens_count": response.failure_count,
+                },
             )
             await cruds_notification.batch_delete_firebase_device_by_token(
                 tokens=failed_tokens,
@@ -180,18 +191,23 @@ class NotificationManager:
             result: messaging.BatchResponse = messaging.send_each([message])
         except Exception:
             hyperion_error_logger.exception(
-                f"Notification: Unable to send firebase notification for topic {topic}",
+                "Notification: Unable to send firebase notification for topic",
+                extra={
+                    "topic": topic,
+                },
             )
             raise
 
         if result.failure_count > 0:
             hyperion_error_logger.error(
-                "Firebase: Failed to send notification '%s' for topic %s (%s module) for %s/%s tokens",
-                message_content.title,
-                topic,
-                message_content.action_module,
-                result.failure_count,
-                result.success_count + result.failure_count,
+                "Firebase: Failed to send notification for topic",
+                extra={
+                    "topic": topic,
+                    "message_title": message_content.title,
+                    "message_module": message_content.action_module,
+                    "failure_count": result.failure_count,
+                    "total_count": result.success_count + result.failure_count,
+                },
             )
 
     async def subscribe_tokens_to_topic(
@@ -215,7 +231,11 @@ class NotificationManager:
         )
         if response.failure_count > 0:
             hyperion_error_logger.info(
-                f"Notification: Failed to subscribe to topic {topic} due to {[error.reason for error in response.errors]}",
+                "Firebase: Failed to subscribe some tokens to topic",
+                extra={
+                    "topic": topic,
+                    "errors": [error.reason for error in response.errors],
+                },
             )
 
     async def unsubscribe_tokens_to_topic(
@@ -267,7 +287,13 @@ class NotificationManager:
             )
         except Exception as error:
             hyperion_error_logger.warning(
-                f"Notification: Unable to send firebase notification to users {user_ids} with device: {error}",
+                "Notification: Unable to send firebase notification to users",
+                extra={
+                    "user_ids": user_ids,
+                    "error": str(error),
+                    "message_title": message.title,
+                    "message_module": message.action_module,
+                },
             )
 
     async def send_notification_to_topic(
@@ -295,7 +321,13 @@ class NotificationManager:
             )
         except Exception as error:
             hyperion_error_logger.warning(
-                f"Notification: Unable to send firebase notification for topic {topic_id}: {error}",
+                "Notification: Unable to send firebase notification for topic",
+                extra={
+                    "topic_id": topic_id,
+                    "error": str(error),
+                    "message_title": message.title,
+                    "message_module": message.action_module,
+                },
             )
 
     async def subscribe_user_to_topic(

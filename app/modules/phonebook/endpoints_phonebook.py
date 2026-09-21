@@ -1,4 +1,3 @@
-import logging
 import uuid
 
 from fastapi import Depends, HTTPException
@@ -41,8 +40,6 @@ module = Module(
     factory=PhonebookFactory(),
     permissions=PhonebookPermissions,
 )
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 async def has_association_groupement_manager_rights(

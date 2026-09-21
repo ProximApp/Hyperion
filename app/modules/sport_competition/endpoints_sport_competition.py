@@ -4188,7 +4188,12 @@ async def get_payment_url(
         payer_user=user_schema,
         db=db,
     )
-    hyperion_error_logger.info(f"Competition: Logging Checkout id {checkout.id}")
+    hyperion_error_logger.info(
+        "Competition: Logging Checkout",
+        extra={
+            "checkout_id": checkout.id,
+        },
+    )
     cruds_sport_competition.add_checkout(
         db=db,
         checkout=schemas_sport_competition.Checkout(

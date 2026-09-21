@@ -214,7 +214,9 @@ class LogConfig:
                     "s3_bucket_name": settings.S3_BUCKET_NAME,
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
-                    "folder": "mypayment",
+                    "folder": "mypayment"
+                    if not settings.S3_DIRECTORY
+                    else settings.S3_DIRECTORY + "/mypayment",
                 },
                 "s3": {
                     "formatter": "mypayment",
@@ -223,7 +225,9 @@ class LogConfig:
                     "s3_bucket_name": settings.S3_BUCKET_NAME,
                     "s3_access_key_id": settings.S3_ACCESS_KEY_ID,
                     "s3_secret_access_key": settings.S3_SECRET_ACCESS_KEY,
-                    "folder": "",
+                    "folder": ""
+                    if not settings.S3_DIRECTORY
+                    else settings.S3_DIRECTORY,
                 },
                 # There is a handler per log file #
                 # They are based on RotatingFileHandler to logs in multiple 1024 bytes files
@@ -266,7 +270,7 @@ class LogConfig:
                     "level": "DEBUG",
                 },
                 "file_s3": {
-                    # file_mypayment is there to log all operations related to MyPayment that failed to be logged in the S3 bucket
+                    # file_s3 is there to log all operations related to s3 that failed to be logged in the S3 bucket
                     "formatter": "default",
                     "class": "logging.handlers.RotatingFileHandler",
                     "filename": "logs/s3.log",

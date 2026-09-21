@@ -28,8 +28,6 @@ from app.modules.sport_competition.utils.schemas_converters import (
     volunteer_shift_model_to_schema,
 )
 
-hyperion_error_logger = logging.getLogger("hyperion.error")
-
 # region: Competition Editions
 
 

@@ -19,6 +19,7 @@ icalendar==7.2.2
 jellyfish==1.2.1                    # String Matching
 Jinja2==3.1.6                       # template engine for html files
 phonenumbers==9.0.35                # Used for phone number validation
+prometheus-fastapi-instrumentator==8.1.0
 psutil==7.2.2                       # psutil is used to determine the number of Hyperion workers
 psycopg[binary]==3.3.4              # PostgreSQL adapter for *synchronous* operations at startup (database initializations & migrations)
 pydantic-extra-types==2.11.1

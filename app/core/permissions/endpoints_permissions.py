@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import cruds_permissions, schemas_permissions
 from app.core.permissions.factory_permissions import CorePermissionsFactory
+from app.core.users import models_users
 from app.dependencies import (
     get_db,
     is_user,
@@ -106,7 +107,7 @@ async def create_permission(
     permission: schemas_permissions.CoreGroupPermission
     | schemas_permissions.CoreAccountTypePermission,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_super_admin),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     """
     Create a new permission in database
@@ -127,6 +128,17 @@ async def create_permission(
     else:
         await cruds_permissions.create_account_type_permission(permission, db)
 
+    hyperion_security_logger.info(
+        "Create_permission: Super Admin user created a new permission",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "permission_name": permission.permission_name,
+            "group_id": getattr(permission, "group_id", None),
+            "account_type": getattr(permission, "account_type", None),
+        },
+    )
+
     return await cruds_permissions.get_permissions_by_permission_name(
         db,
         permission.permission_name,
@@ -141,7 +153,7 @@ async def delete_permission(
     permission: schemas_permissions.CoreGroupPermission
     | schemas_permissions.CoreAccountTypePermission,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_super_admin),
+    user: models_users.CoreUser = Depends(is_user_super_admin),
 ):
     """
     Delete a permission from database by name
@@ -185,4 +197,16 @@ async def delete_permission(
                 detail="Permission not found",
             )
         await cruds_permissions.delete_account_type_permission(db, permission)
+
+    hyperion_security_logger.info(
+        "Delete_permission: Super Admin user deleted a permission",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "permission_name": permission.permission_name,
+            "group_id": getattr(permission, "group_id", None),
+            "account_type": getattr(permission, "account_type", None),
+        },
+    )
+
     return {"message": "Permission deleted successfully"}

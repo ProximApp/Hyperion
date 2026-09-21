@@ -200,7 +200,11 @@ async def create_user_by_user(
     db_user = await cruds_users.get_user_by_email(db=db, email=user_create.email)
     if db_user is not None:
         hyperion_security_logger.warning(
-            f"Create_user: an user with email {user_create.email} already exists ({request_id})",
+            "Create_user: an user with this email already exists",
+            extra={
+                "email": user_create.email,
+                "request_id": request_id,
+            },
         )
         # We will send to the email a message explaining they already have an account and can reset their password if they want.
         if settings.SMTP_ACTIVE:
@@ -229,7 +233,11 @@ async def create_user_by_user(
         if db_invitation is None:
             # If the user was not invited, we can not create a new account
             hyperion_security_logger.warning(
-                f"Create_user: {user_create.email} was not invited ({request_id})",
+                "Create_user: an user tried to create an account without being invited",
+                extra={
+                    "email": user_create.email,
+                    "request_id": request_id,
+                },
             )
             if settings.SMTP_ACTIVE:
                 mail = mail_templates.get_mail_account_invitation_required()
@@ -361,7 +369,11 @@ async def batch_invite_users(
         except Exception as error:
             # Maybe we should not log exception due to malformed email address
             hyperion_error_logger.exception(
-                f"Could not send email invitation to {user_invite.email}",
+                "Batch_invite_users: could not send email invitation",
+                extra={
+                    "email": user_invite.email,
+                    "request_id": str(uuid.uuid4()),
+                },
             )
             failed[user_invite.email] = str(error)
 
@@ -433,11 +445,21 @@ async def create_user(
             settings=settings,
         )
         hyperion_security_logger.info(
-            f"Create_user: Creating an unconfirmed account for {email} ({request_id})",
+            "Create_user: Creating an unconfirmed account",
+            extra={
+                "email": email,
+                "request_id": request_id,
+            },
+            # f"Create_user: Creating an unconfirmed account for {email} ({request_id})",
         )
     else:
         hyperion_security_logger.info(
-            f"Create_user: Creating an unconfirmed account for {email}: {calypsso_activate_url} ({request_id})",
+            "Create_user: Creating an unconfirmed account",
+            extra={
+                "email": email,
+                "calypsso_activate_url": calypsso_activate_url,
+                "request_id": request_id,
+            },
         )
 
 
@@ -543,7 +565,12 @@ async def activate_user(
         )
 
     hyperion_security_logger.info(
-        f"Activate_user: Activated user {confirmed_user.id} (email: {confirmed_user.email}) ({request_id})",
+        "Activate_user: Activated user",
+        extra={
+            "user_id": confirmed_user.id,
+            "user_email": confirmed_user.email,
+            "request_id": request_id,
+        },
     )
     # We need to create a file for the user in S3
     # It will only contain the user email address as it is all we need to identify the person
@@ -649,7 +676,10 @@ async def recover_user(
             )
         else:
             hyperion_security_logger.info(
-                f"Reset password failed for {email}, user does not exist",
+                "Reset password failed: user does not exist",
+                extra={
+                    "email": email,
+                },
             )
 
     else:
@@ -767,7 +797,11 @@ async def migrate_mail(
     )
     if existing_user is not None:
         hyperion_security_logger.info(
-            f"Email migration: There is already an account with the email {mail_migration.new_email}",
+            "Email migration: There is already an account with this email",
+            extra={
+                "new_email": mail_migration.new_email,
+                "user_id": user.id,
+            },
         )
         if settings.SMTP_ACTIVE:
             mail = mail_templates.get_mail_mail_migration_already_exist()
@@ -834,7 +868,11 @@ async def migrate_mail_confirm(
     )
     if existing_user is not None:
         hyperion_security_logger.info(
-            f"Email migration: There is already an account with the email {migration_object.new_email}",
+            "Email migration: There is already an account with this email",
+            extra={
+                "new_email": migration_object.new_email,
+                "user_id": migration_object.user_id,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -977,7 +1015,11 @@ async def delete_user(
     This manual verification is needed to prevent data from being deleting for other users
     """
     hyperion_security_logger.info(
-        f"User {user.email} - {user.id} has requested to delete their account.",
+        "User has requested to delete their account.",
+        extra={
+            "user_id": user.id,
+            "user_email": user.email,
+        },
     )
 
 
@@ -1015,7 +1057,13 @@ async def merge_users(
     Fusion two users into one. The first user will be deleted and its data will be transferred to the second user.
     """
     hyperion_security_logger.info(
-        f"User {user.email} - {user.id} has requested to merge {user_fusion.user_deleted_email} into {user_fusion.user_kept_email}",
+        "Admin has requested to merge two accounts",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "user_kept_email": user_fusion.user_kept_email,
+            "user_deleted_email": user_fusion.user_deleted_email,
+        },
     )
     user_kept = await cruds_users.get_user_by_email(
         db=db,
@@ -1051,7 +1099,13 @@ async def merge_users(
             settings=settings,
         )
     hyperion_security_logger.info(
-        f"User {user_kept.email} - {user_kept.id} has been merged with {user_deleted.email} - {user_deleted.id}",
+        "Admin has merged two accounts",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "user_kept_email": user_kept.email,
+            "user_deleted_email": user_deleted.email,
+        },
     )
 
 

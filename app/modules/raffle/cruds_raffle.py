@@ -1,6 +1,5 @@
 """File defining the functions called by the endpoints, making queries to the table using the models"""
 
-import logging
 import random
 from collections.abc import Sequence
 
@@ -11,8 +10,6 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from app.modules.raffle import models_raffle, schemas_raffle
 from app.modules.raffle.types_raffle import RaffleStatusType
-
-hyperion_error_logger = logging.getLogger("hyperion_error")
 
 
 async def get_raffles(db: AsyncSession) -> Sequence[models_raffle.Raffle]:

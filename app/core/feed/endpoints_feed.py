@@ -29,8 +29,6 @@ core_module = CoreModule(
     permissions=FeedPermissions,
 )
 
-hyperion_error_logger = logging.getLogger("hyperion.error")
-
 
 @router.get(
     "/feed/news",

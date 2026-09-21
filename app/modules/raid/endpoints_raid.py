@@ -978,7 +978,10 @@ async def get_payment_url(
         payer_user=schemas_users.CoreUser(**user_dict),
         db=db,
     )
-    hyperion_error_logger.info(f"RAID: Logging Checkout id {checkout.id}")
+    hyperion_error_logger.info(
+        "RAID: Logging Checkout",
+        extra={"checkout_id": checkout.id},
+    )
     await cruds_raid.create_participant_checkout(
         models_raid.RaidParticipantCheckout(
             id=str(uuid.uuid4()),

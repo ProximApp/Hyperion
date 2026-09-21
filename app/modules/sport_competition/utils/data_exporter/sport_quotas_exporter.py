@@ -32,8 +32,10 @@ def build_data_rows(
         school = school_dict.get(quota.school_id)
         if not school:
             hyperion_error_logger.error(
-                f"Missing school data for school ID {quota.school_id} "
-                "while exporting school sports quotas.",
+                "Competition: Missing school data for school quota",
+                extra={
+                    "school_id": quota.school_id,
+                },
             )
             raise MissingDataError("Required school data is missing.")  # noqa: TRY003
 

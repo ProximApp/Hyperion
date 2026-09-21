@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import UTC, datetime, time, timedelta
 from typing import TYPE_CHECKING
@@ -43,9 +42,6 @@ module = Module(
     factory=LoanFactory(),
     permissions=LoanPermissions,
 )
-
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

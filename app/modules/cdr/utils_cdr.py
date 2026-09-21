@@ -46,7 +46,10 @@ async def validate_payment(
     )
     if not checkout:
         hyperion_error_logger.error(
-            f"CDR payment callback: user checkout {checkout_id} not found.",
+            "CDR payment callback: user checkout not found.",
+            extra={
+                "checkout_id": checkout_id,
+            },
         )
         raise ValueError(f"User checkout {checkout_id} not found.")  # noqa: TRY003
 

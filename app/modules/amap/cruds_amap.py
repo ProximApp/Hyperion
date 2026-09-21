@@ -1,6 +1,5 @@
 """File defining the functions called by the endpoints, making queries to the table using the models"""
 
-import logging
 from collections.abc import Sequence
 from datetime import datetime
 
@@ -10,8 +9,6 @@ from sqlalchemy.orm import noload, selectinload
 
 from app.modules.amap import models_amap, schemas_amap
 from app.modules.amap.types_amap import DeliveryStatusType
-
-hyperion_error_logger = logging.getLogger("hyperion_error")
 
 
 async def get_products(db: AsyncSession) -> Sequence[models_amap.Product]:

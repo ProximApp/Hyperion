@@ -162,7 +162,7 @@ async def update_group(
 async def create_membership(
     membership: schemas_groups.CoreMembership,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
 ):
     """
@@ -181,7 +181,16 @@ async def create_membership(
         raise HTTPException(status_code=400, detail="Invalid user_id")
 
     hyperion_security_logger.warning(
-        f"Create_membership: Admin user {user.id} ({user.name}) added user {user_db.id} ({user_db.email}) to group {group_db.id} ({group_db.name}) ({request_id})",
+        "Create_membership: Admin user added user to group",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "user_id": user_db.id,
+            "user_email": user_db.email,
+            "group_id": group_db.id,
+            "group_name": group_db.name,
+            "request_id": request_id,
+        },
     )
 
     membership_db = models_groups.CoreMembership(
@@ -199,7 +208,7 @@ async def create_membership(
 async def create_batch_membership(
     batch_membership: schemas_groups.CoreBatchMembership,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
 ):
     """
@@ -217,7 +226,15 @@ async def create_batch_membership(
         raise HTTPException(status_code=400, detail="Invalid group_id")
 
     hyperion_security_logger.warning(
-        f"Create_batch_membership: Admin user {user.id} ({user.name}) added users to group {group_db.id} ({group_db.name}) in batch ({request_id})",
+        "Create_batch_membership: Admin user added users to group in batch",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "group_id": group_db.id,
+            "group_name": group_db.name,
+            "user_emails": batch_membership.user_emails,
+            "request_id": request_id,
+        },
     )
 
     for email in batch_membership.user_emails:
@@ -245,7 +262,7 @@ async def create_batch_membership(
 async def delete_membership(
     membership: schemas_groups.CoreMembershipDelete,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
     notification_manager: NotificationManager = Depends(get_notification_manager),
 ):
@@ -256,7 +273,14 @@ async def delete_membership(
     """
 
     hyperion_security_logger.warning(
-        f"Create_membership: Admin user {user.id} ({user.name}) removed user {membership.user_id} from group {membership.group_id} ({request_id})",
+        "Delete_membership: Admin user removed user from group",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "user_id": membership.user_id,
+            "group_id": membership.group_id,
+            "request_id": request_id,
+        },
     )
 
     # To remove a user from a group, we should unsubscribe this user from all
@@ -286,7 +310,7 @@ async def delete_membership(
 async def delete_batch_membership(
     batch_membership: schemas_groups.CoreBatchDeleteMembership,
     db: AsyncSession = Depends(get_db),
-    user=Depends(is_user_in(GroupType.admin)),
+    user: models_users.CoreUser = Depends(is_user_in(GroupType.admin)),
     request_id: str = Depends(get_request_id),
     notification_manager: NotificationManager = Depends(get_notification_manager),
 ):
@@ -318,7 +342,14 @@ async def delete_batch_membership(
             )
 
     hyperion_security_logger.warning(
-        f"Create_batch_membership: Admin user {user.id} ({user.name}) removed all users from group {group_db.id} ({group_db.name}) in batch ({request_id})",
+        "Delete_batch_membership: Admin user removed all users from group in batch",
+        extra={
+            "admin_id": user.id,
+            "admin_email": user.email,
+            "group_id": group_db.id,
+            "group_name": group_db.name,
+            "request_id": request_id,
+        },
     )
 
     await cruds_groups.delete_membership_by_group_id(

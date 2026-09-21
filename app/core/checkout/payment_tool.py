@@ -210,13 +210,22 @@ class CheckoutTool:
                     # so we can safely retry without the payer infos
                     if not payer_user:
                         hyperion_error_logger.exception(
-                            f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name} (no payer info provided).",
+                            "Payment: failed to init a checkout with HA (no payer info provided).",
+                            extra={
+                                "payment_module": module,
+                                "checkout_name": checkout_name,
+                            },
                         )
                         raise
 
                     payer_user_name = f"{payer_user.firstname} {payer_user.name}"
                     hyperion_error_logger.warning(
-                        f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}. Retrying without payer infos for {payer_user_name}",
+                        "Payment: failed to init a checkout with HA with payer info. Retrying without payer info.",
+                        extra={
+                            "payment_module": module,
+                            "checkout_name": checkout_name,
+                            "payer_user": payer_user_name,
+                        },
                     )
 
                     init_checkout_body.payer = None
@@ -228,7 +237,12 @@ class CheckoutTool:
                     except UnauthorizedException:
                         # HelloAsso returned a 401 unauthorized again
                         hyperion_error_logger.exception(
-                            f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}, with and without payer {payer_user_name} infos",
+                            "Payment: failed to init a checkout with HA without payer info.",
+                            extra={
+                                "payment_module": module,
+                                "checkout_name": checkout_name,
+                                "payer_user": payer_user_name,
+                            },
                         )
                         raise
 
@@ -249,7 +263,11 @@ class CheckoutTool:
                     payment_url=response.redirect_url or "",
                 )
             hyperion_error_logger.error(
-                f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name}. No checkout id or redirect URL returned",
+                "Payment: failed to init a checkout with HA. No checkout id or redirect URL returned",
+                extra={
+                    "payment_module": module,
+                    "checkout_name": checkout_name,
+                },
             )
             raise MissingHelloAssoCheckoutIdError()  # noqa: TRY301
 
@@ -259,7 +277,12 @@ class CheckoutTool:
             if payer_user:
                 payer_user_name = f"{payer_user.firstname} {payer_user.name}"
             hyperion_error_logger.exception(
-                f"Payment: failed to init a checkout with HA for module {module} and name {checkout_name} with payer {payer_user_name} infos",
+                "Payment: failed to init a checkout with HA",
+                extra={
+                    "payment_module": module,
+                    "checkout_name": checkout_name,
+                    "payer_user": payer_user_name,
+                },
             )
             raise
 
@@ -303,6 +326,10 @@ class CheckoutTool:
                 )
             except Exception:
                 hyperion_error_logger.exception(
-                    f"Payment: failed to refund payment {hello_asso_payment_id} for checkout {checkout_id}",
+                    "Payment: failed to refund payment",
+                    extra={
+                        "hello_asso_payment_id": hello_asso_payment_id,
+                        "hyperion_checkout_id": checkout_id,
+                    },
                 )
                 raise

@@ -290,7 +290,10 @@ def get_checkout_tool(
         checkout_tools = GLOBAL_STATE["checkout_tools"]
         if name not in checkout_tools:
             hyperion_error_logger.warning(
-                f"HelloAsso API credentials are not set for {name.value}, payment won't be available",
+                "HelloAsso API credentials are not set, payment won't be available",
+                extra={
+                    "config_name": name,
+                },
             )
             raise PaymentToolCredentialsNotSetException
 

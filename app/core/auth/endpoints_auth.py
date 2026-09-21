@@ -709,7 +709,8 @@ async def refresh_token_grant(
             user_id=db_refresh_token.user_id,
         )
         hyperion_security_logger.warning(
-            f"Tentative to use a revoked refresh token ({request_id})",
+            "Tentative to use a revoked refresh token",
+            extra={"request_id": request_id},
         )
         raise AuthHTTPException(
             status_code=400,
@@ -834,7 +835,12 @@ async def create_response_body(
     refused_scopes = requested_scopes_set - granted_scopes_set
     if refused_scopes:
         hyperion_security_logger.warning(
-            f"Token authorization_code_grant: Refused scopes {refused_scopes} for client {client_id} ({request_id})",
+            "Token authorization_code_grant: Refused scopes",
+            extra={
+                "refused_scopes": refused_scopes,
+                "client_id": client_id,
+                "request_id": request_id,
+            },
         )
 
     granted_scopes = " ".join(granted_scopes_set)
@@ -894,7 +900,8 @@ async def create_response_body(
             user = await cruds_users.get_user_by_id(db=db, user_id=db_row.user_id)
             if user is None:
                 hyperion_security_logger.error(
-                    f"Create oidc response body: Could not find user {db_row.user_id} when trying the get userinfo but it should exist ({request_id})",
+                    "Create oidc response body: Could not find user when trying the get userinfo but it should exist",
+                    extra={"user_id": db_row.user_id, "request_id": request_id},
                 )
                 raise HTTPException(
                     status_code=500,

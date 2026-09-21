@@ -1733,8 +1733,14 @@ async def activate_user_device(
 
     user = wallet.user
     if user is not None:
-        hyperion_error_logger.info(
-            f"Wallet device {wallet_device.id} ({wallet_device.name}) activated by user {user.id}",
+        hyperion_security_logger.info(
+            "Wallet device activated by user",
+            extra={
+                "wallet_device_id": wallet_device.id,
+                "wallet_device_name": wallet_device.name,
+                "user_id": user.id,
+            },
+            # f"Wallet device {wallet_device.id} ({wallet_device.name}) activated by user {user.id}",
         )
 
         message = Message(
@@ -1807,8 +1813,13 @@ async def revoke_user_devices(
         db=db,
     )
 
-    hyperion_error_logger.info(
-        f"Wallet device {wallet_device.id} ({wallet_device.name}) revoked by user {user_payment.user_id}",
+    hyperion_security_logger.info(
+        "Wallet device revoked by user",
+        extra={
+            "wallet_device_id": wallet_device.id,
+            "wallet_device_name": wallet_device.name,
+            "user_id": user_payment.user_id,
+        },
     )
 
     message = Message(
@@ -1987,7 +1998,11 @@ async def init_ha_transfer(
 
     if transfer_info.redirect_url not in settings.TRUSTED_PAYMENT_REDIRECT_URLS:
         hyperion_error_logger.warning(
-            f"User {user.id} tried to redirect to an untrusted URL: {transfer_info.redirect_url}",
+            "Tried to redirect to an untrusted URL",
+            extra={
+                "user_id": user.id,
+                "redirect_url": transfer_info.redirect_url,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -2101,7 +2116,10 @@ async def redirect_from_ha_transfer(
     """
     if url not in settings.TRUSTED_PAYMENT_REDIRECT_URLS:
         hyperion_error_logger.warning(
-            f"Tried to redirect to an untrusted URL: {url}",
+            "Tried to redirect to an untrusted URL",
+            extra={
+                "redirect_url": url,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -2183,7 +2201,11 @@ async def validate_can_scan_qrcode(
     )
     if debited_wallet is None:
         hyperion_error_logger.error(
-            f"MyPayment: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
+            "MyPayment: Could not find wallet associated with the debited wallet device, this should never happen",
+            extra={
+                "wallet_device_id": debited_wallet_device.id,
+                "wallet_id": debited_wallet_device.wallet_id,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -2191,7 +2213,10 @@ async def validate_can_scan_qrcode(
         )
     if debited_wallet.user is None:
         hyperion_error_logger.error(
-            f"MyPayment: Debited wallet device {debited_wallet_device.id} does not contains a user, this should never happen",
+            "MyPayment: Debited wallet does not contains a user, this should never happen",
+            extra={
+                "wallet_id": debited_wallet_device.wallet_id,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -2355,7 +2380,11 @@ async def store_scan_qrcode(
         )
         if debited_wallet is None:
             hyperion_error_logger.error(
-                f"MyPayment: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
+                "MyPayment: Could not find wallet associated with the debited wallet device, this should never happen",
+                extra={
+                    "wallet_device_id": debited_wallet_device.id,
+                    "wallet_id": debited_wallet_device.wallet_id,
+                },
             )
             raise HTTPException(
                 status_code=400,
@@ -2881,7 +2910,11 @@ async def accept_request(
     )
     if debited_wallet is None:
         hyperion_error_logger.error(
-            f"MyPayment: Could not find wallet associated with the debited wallet device {debited_wallet_device.id}, this should never happen",
+            "MyPayment: Could not find wallet associated with the debited wallet device, this should never happen",
+            extra={
+                "wallet_device_id": debited_wallet_device.id,
+                "wallet_id": debited_wallet_device.wallet_id,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -3195,6 +3228,10 @@ async def create_structure_invoice(
         if store_wallet_db is None:
             hyperion_error_logger.error(
                 "MyPayment: Could not find wallet associated with a store, this should never happen",
+                extra={
+                    "store_id": store.id,
+                    "wallet_id": store.wallet_id,
+                },
             )
             raise ObjectExpectedInDbNotFoundError(
                 object_name="Wallet",
@@ -3307,9 +3344,6 @@ async def update_invoice_paid_status(
 
     **The user must be the bank account holder**
     """
-    hyperion_error_logger.debug(
-        f"User {user.id} requested to update the paid status of invoice {invoice_id} to {paid}",
-    )
     invoice = await cruds_mypayment.get_invoice_by_id(
         invoice_id=invoice_id,
         db=db,
@@ -3482,7 +3516,10 @@ async def get_data_for_integrity_check(
 
     if headers.x_data_verifier_token != settings.MYPAYMENT_DATA_VERIFIER_ACCESS_TOKEN:
         hyperion_security_logger.warning(
-            f"A request to /mypayment/integrity-check has been made with an invalid token, request_content: {headers}",
+            "A request to /mypayment/integrity-check has been made with an invalid token",
+            extra={
+                "headers": headers,
+            },
         )
         raise HTTPException(
             status_code=403,

@@ -53,7 +53,11 @@ def send_email(
             server.send_message(msg, settings.SMTP_EMAIL, recipient)
         except smtplib.SMTPRecipientsRefused:
             hyperion_error_logger.warning(
-                f'Bad email adress: "{", ".join(recipient)}" for mail with subject "{subject}".',
+                "SMTP: Bad email address for mail",
+                extra={
+                    "recipient": recipient,
+                    "subject": subject,
+                },
             )
 
 
@@ -79,7 +83,11 @@ async def send_emails_from_queue(db: "AsyncSession", settings: "Settings") -> No
             )
         except Exception:
             hyperion_error_logger.exception(
-                f"Error while sending queued email to {email.email} with subject {email.subject}",
+                "SMTP: Unable to send queued email",
+                extra={
+                    "recipient": email.email,
+                    "subject": email.subject,
+                },
             )
             send_emails_ids.remove(email.id)
 

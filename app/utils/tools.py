@@ -264,7 +264,10 @@ async def save_file_as_data(
 
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
-            f"save_file_as_data: security issue, the filename is not a valid UUID: {filename}.",
+            "save_file_as_data: security issue, the filename is not a valid UUID",
+            extra={
+                "save_filename": filename,
+            },
         )
         raise FileNameIsNotAnUUIDError()
 
@@ -294,7 +297,11 @@ async def save_file_as_data(
 
     except Exception:
         hyperion_error_logger.exception(
-            f"save_file_to_the_disk: could not save file to {filename}",
+            "save_file_to_the_disk: could not save file",
+            extra={
+                "save_filename": filename,
+                "save_directory": directory,
+            },
         )
 
 
@@ -321,7 +328,10 @@ async def save_bytes_as_data(
 
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
-            f"save_file_as_data: security issue, the filename is not a valid UUID: {filename}.",
+            "save_file_as_data: security issue, the filename is not a valid UUID",
+            extra={
+                "save_filename": filename,
+            },
         )
         raise FileNameIsNotAnUUIDError()
 
@@ -341,7 +351,11 @@ async def save_bytes_as_data(
 
     except Exception:
         hyperion_error_logger.exception(
-            f"save_file_to_the_disk: could not save file to {filename}",
+            "save_file_to_the_disk: could not save file",
+            extra={
+                "save_filename": filename,
+                "save_directory": directory,
+            },
         )
         raise
 
@@ -368,7 +382,10 @@ async def get_file_path_from_data(
 
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
-            f"get_file_from_data: security issue, the filename is not a valid UUID: {filename}. This mean that the user input was not properly checked.",
+            "get_file_from_data: security issue, the filename is not a valid UUID",
+            extra={
+                "get_filename": filename,
+            },
         )
         raise FileNameIsNotAnUUIDError()
 
@@ -426,7 +443,10 @@ async def delete_file_from_data(
 
     if not uuid_regex.match(filename):
         hyperion_error_logger.error(
-            f"get_file_from_data: security issue, the filename is not a valid UUID: {filename}. This mean that the user input was not properly checked.",
+            "get_file_from_data: security issue, the filename is not a valid UUID",
+            extra={
+                "delete_filename": filename,
+            },
         )
         raise FileNameIsNotAnUUIDError()
 
