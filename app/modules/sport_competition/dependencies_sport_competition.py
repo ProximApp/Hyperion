@@ -25,8 +25,6 @@ from app.modules.sport_competition.types_sport_competition import (
 from app.types.scopes_type import ScopeType
 from app.utils.tools import has_user_permission
 
-hyperion_access_logger = logging.getLogger("hyperion.access")
-
 
 def get_competition_user_from_token_with_scopes(
     scopes: list[list[ScopeType]],
