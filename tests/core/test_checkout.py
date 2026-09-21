@@ -384,7 +384,7 @@ async def test_webhook_payment_callback_fail(
         "Payment: call to module payment callback failed",
         extra={
             "callback_module": TEST_MODULE_ROOT,
-            "hyperion_checkout_id": str(checkout.id),
+            "hyperion_checkout_id": checkout.id,
             "hello_asso_checkout_id": checkout.hello_asso_checkout_id,
         },
     )
