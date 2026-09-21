@@ -181,7 +181,7 @@ async def webhook(
                     "Payment: call to module payment callback failed",
                     extra={
                         "callback_module": checkout.module,
-                        "hyperion_checkout_id": checkout_metadata.hyperion_checkout_id,
-                        "hello_asso_checkout_id": checkout.id,
+                        "hyperion_checkout_id": checkout.id,
+                        "hello_asso_checkout_id": checkout.hello_asso_checkout_id,
                     },
                 )
