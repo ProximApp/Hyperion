@@ -45,3 +45,5 @@ services:
       - ./data:/hyperion/data
       - ./config.yaml:/hyperion/config.yaml
       - ./firebase.json:/hyperion/firebase.json
+    tmpfs:
+      - /tmp/prometheus_multiproc

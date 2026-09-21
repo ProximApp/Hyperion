@@ -97,7 +97,7 @@ class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
             return formatter.format(record)
         except ValidationError:
             # If the extra fields do not correspond to the RequestData model, we format them as key=value pairs for better readability in the console.
-            record.msg = f"{record.msg} - {', '.join(f'{key}={value}' for key, value in extra_fields.items())}"
+            record.msg = f"{record.msg} - {', '.join(f'{key}={value!s}' for key, value in extra_fields.items())}"
             record.args = None
             return formatter.format(record)
         finally:
