@@ -806,7 +806,10 @@ async def refresh_token_grant(
         )
         hyperion_security_logger.warning(
             "Tentative to use a revoked refresh token",
-            extra={"request_id": request_id},
+            extra={
+                "request_id": request_id,
+                "previous_revoked_reason": db_refresh_token.revoked_reason,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
