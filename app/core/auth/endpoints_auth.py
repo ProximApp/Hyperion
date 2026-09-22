@@ -802,6 +802,7 @@ async def refresh_token_grant(
             db=db,
             client_id=db_refresh_token.client_id,
             user_id=db_refresh_token.user_id,
+            reason="a revoked refresh token was used",
         )
         hyperion_security_logger.warning(
             "Tentative to use a revoked refresh token",
@@ -813,18 +814,23 @@ async def refresh_token_grant(
             error_description="The provided refresh token has been revoked",
         )
 
-    await cruds_auth.revoke_refresh_token_by_token(db=db, token=tokenreq.refresh_token)
-
     if db_refresh_token.expire_on < datetime.now(UTC):
         await cruds_auth.revoke_refresh_token_by_token(
             db=db,
             token=db_refresh_token.token,
+            reason="token expired",
         )
         raise AuthHTTPException(
             status_code=400,
             error="invalid_request",
             error_description="The provided refresh token has expired",
         )
+
+    await cruds_auth.revoke_refresh_token_by_token(
+        db=db,
+        token=tokenreq.refresh_token,
+        reason="token used",
+    )
 
     if tokenreq.client_id is None:
         hyperion_access_logger.warning(

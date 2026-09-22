@@ -771,6 +771,7 @@ async def reset_password(
     await cruds_auth.revoke_refresh_token_by_user_id(
         db=db,
         user_id=recover_request.user_id,
+        reason="Password reset",
     )
 
     return standard_responses.Result()
@@ -959,6 +960,7 @@ async def change_password(
     await cruds_auth.revoke_refresh_token_by_user_id(
         db=db,
         user_id=user.id,
+        reason="Password changed",
     )
 
     return standard_responses.Result()
