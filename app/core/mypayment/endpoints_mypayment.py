@@ -1740,7 +1740,6 @@ async def activate_user_device(
                 "wallet_device_name": wallet_device.name,
                 "user_id": user.id,
             },
-            # f"Wallet device {wallet_device.id} ({wallet_device.name}) activated by user {user.id}",
         )
 
         message = Message(

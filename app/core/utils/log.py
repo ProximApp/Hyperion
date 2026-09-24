@@ -25,8 +25,8 @@ class RequestData(BaseModel):
     request_id: UUID
 
 
-# Attributs standards d'un LogRecord : on les exclut pour ne pas les dupliquer
-# quand on ajoute les champs passés via extra={...} au JSON.
+# Set of reserved attributes in a LogRecord.
+# These attributes are part of the standard LogRecord attributes and should not be considered as extra fields.
 _RESERVED_RECORD_ATTRS = frozenset(
     logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys(),
 ) | {"message", "asctime"}

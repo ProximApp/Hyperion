@@ -47,4 +47,4 @@ EXPOSE 8000
 
 # Use fastapi cli as the entrypoint
 # Use sh -c to allow environment variable expansion
-ENTRYPOINT ENTRYPOINT ["sh", "-c", "rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && fastapi run --workers $WORKERS --host 0.0.0.0 --port 8000"]
+ENTRYPOINT ["sh", "-c", "rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && fastapi run --workers $WORKERS --host 0.0.0.0 --port 8000"]

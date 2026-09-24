@@ -827,6 +827,7 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         request: Request,
         exc: RequestValidationError,
     ):
+        # We use a Debug logger to log the error as personal data may be present in the request
         hyperion_error_logger.debug(
             "Validation error",
             extra={
