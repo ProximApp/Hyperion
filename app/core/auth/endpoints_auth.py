@@ -798,12 +798,15 @@ async def refresh_token_grant(
         )
     if db_refresh_token.revoked_on is not None:
         # If the client tries to use a revoked refresh_token, we want to revoke all other refresh tokens from this client and user
-        await cruds_auth.revoke_refresh_token_by_client_and_user_id(
-            db=db,
-            client_id=db_refresh_token.client_id,
-            user_id=db_refresh_token.user_id,
-            reason="a revoked refresh token was used",
-        )
+        if db_refresh_token.revoked_reason != "a revoked refresh token was used":
+            # If the refresh token we revoked because an already revoked refresh token was used, we don't want to revoke all other refresh tokens again
+            # to prevent a potential infinite loop of revoking refresh tokens of this specific users
+            await cruds_auth.revoke_refresh_token_by_client_and_user_id(
+                db=db,
+                client_id=db_refresh_token.client_id,
+                user_id=db_refresh_token.user_id,
+                reason="a revoked refresh token was used",
+            )
         hyperion_security_logger.warning(
             "Tentative to use a revoked refresh token",
             extra={
