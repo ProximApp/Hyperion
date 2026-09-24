@@ -719,7 +719,8 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         lifespan=lifespan,
         generate_unique_id_function=use_route_path_as_operation_id,
     )
-    Instrumentator().instrument(app).expose(app)
+    if settings.ENABLE_PROMETHEUS_METRICS:
+        Instrumentator().instrument(app).expose(app)
     app.include_router(api.api_router)
 
     app.add_middleware(
