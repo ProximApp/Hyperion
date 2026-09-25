@@ -129,7 +129,11 @@ class WebsocketConnectionManager:
         self.listening_tasks.pop(room_id, None)
         self.connections.pop(room_id, None)
         hyperion_error_logger.info(
-            f"Websocket: unsubscribed broadcaster from channel {room_id} for worker {os.getpid()}",
+            "Websocket: unsubscribed broadcaster from channel for worker",
+            extra={
+                "room_id": room_id,
+                "worker_pid": os.getpid(),
+            },
         )
 
     async def _consume_events_from_broadcaster(
@@ -176,7 +180,11 @@ class WebsocketConnectionManager:
         """
         async with self.broadcaster.subscribe(channel=room_id) as subscriber:
             hyperion_error_logger.info(
-                f"Websocket: subscribed broadcaster to channel {room_id} for worker {os.getpid()}",
+                "Websocket: subscribed broadcaster to channel for worker",
+                extra={
+                    "room_id": room_id,
+                    "worker_pid": os.getpid(),
+                },
             )
 
             async for event in subscriber:  # type: ignore[union-attr] # Should be fixed by https://github.com/encode/broadcaster/issues/136  # ty:ignore[not-iterable]
@@ -186,7 +194,11 @@ class WebsocketConnectionManager:
                 )
 
         hyperion_error_logger.info(
-            f"Websocket: Finished listening to channel {room_id} for worker {os.getpid()}",
+            "Websocket: unsubscribed broadcaster from channel for worker",
+            extra={
+                "room_id": room_id,
+                "worker_pid": os.getpid(),
+            },
         )
 
     def _unsubscribe_channel(self, room_id: HyperionWebsocketsRoom):
@@ -284,7 +296,12 @@ class WebsocketConnectionManager:
             await db.close()
 
         hyperion_error_logger.debug(
-            f"{room}: New websocket connection from {user.id} on worker {os.getpid()}",
+            "Websocket: New websocket connection from user on worker",
+            extra={
+                "room": room,
+                "user_id": user.id,
+                "worker_pid": os.getpid(),
+            },
         )
 
         await websocket.send_text(

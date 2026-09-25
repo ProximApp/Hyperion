@@ -362,7 +362,8 @@ def test_recover_with_non_existing_account(
     assert response.status_code == 201
 
     mocked_hyperion_security_logger.assert_called_once_with(
-        "Reset password failed for non-existing@myecl.fr, user does not exist",
+        "Reset password failed: user does not exist",
+        extra={"email": "non-existing@myecl.fr"},
     )
 
 

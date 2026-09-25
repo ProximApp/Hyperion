@@ -1,4 +1,3 @@
-import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -28,8 +27,6 @@ core_module = CoreModule(
     factory=None,
     permissions=FeedPermissions,
 )
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @router.get(

@@ -1,4 +1,3 @@
-import logging
 from io import BytesIO
 
 import xlsxwriter
@@ -12,9 +11,6 @@ from app.modules.sport_competition.utils.data_exporter.commons import (
     write_data_rows,
 )
 from app.types.exceptions import MissingDataError
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
-
 
 FIXED_COLUMNS = ["Nom", "Prénom", "Email", "École", "Type", "Statut"]
 PARTICIPANTS_COLUMNS = ["Sport", "Licence", "Licence valide", "Équipe"]
@@ -382,7 +378,6 @@ def construct_users_excel_with_parameters(
             len(prod_struct["variants_info"]) * 2
             for prod_struct in product_structure[0]
         )
-        hyperion_error_logger.debug(f"Product structure: {product_structure}")
 
     if ExcelExportParams.participants in parameters:
         col_idx += len(PARTICIPANTS_COLUMNS)

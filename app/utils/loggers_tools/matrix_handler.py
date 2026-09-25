@@ -47,5 +47,9 @@ class MatrixHandler(StreamHandler[TextIO]):
             except Exception as err:
                 # We use warning level so that the message is not sent to matrix again
                 hyperion_error_logger.warning(
-                    f"MatrixHandler: Unable to send message to Matrix server: {err}",
+                    "MatrixHandler: Unable to send message to Matrix server",
+                    extra={
+                        "room_id": self.room_id,
+                        "error": str(err),
+                    },
                 )

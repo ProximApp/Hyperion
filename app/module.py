@@ -18,13 +18,14 @@ for endpoints_file in Path().glob("app/modules/*/endpoints_*.py"):
     endpoint_module = importlib.import_module(
         ".".join(endpoints_file.with_suffix("").parts),
     )
-    if hasattr(endpoint_module, "module"):
-        module: Module = endpoint_module.module
+    module = getattr(endpoint_module, "module", None)
+    if module is not None and isinstance(module, Module):
         module_list.append(module)
         all_modules.append(module)
     else:
         hyperion_error_logger.error(
-            f"Module {endpoints_file} does not declare a module. It won't be enabled.",
+            "Module does not declare a module. It won't be enabled.",
+            extra={"module_file": str(endpoints_file)},
         )
 
 
@@ -32,13 +33,14 @@ for endpoints_file in Path().glob("app/core/*/endpoints_*.py"):
     endpoint_module = importlib.import_module(
         ".".join(endpoints_file.with_suffix("").parts),
     )
-    if hasattr(endpoint_module, "core_module"):
-        core_module: CoreModule = endpoint_module.core_module
+    core_module = getattr(endpoint_module, "core_module", None)
+    if core_module is not None and isinstance(core_module, CoreModule):
         core_module_list.append(core_module)
         all_modules.append(core_module)
     else:
         hyperion_error_logger.error(
-            f"Core module {endpoints_file} does not declare a core module. It won't be enabled.",
+            "Core module does not declare a core module. It won't be enabled.",
+            extra={"module_file": str(endpoints_file)},
         )
 
 
@@ -76,7 +78,7 @@ if len(set(permissions_list)) != len(permissions_list):
         for duplicate in duplicates
     ]
     hyperion_error_logger.error(
-        "Duplicate permissions found in modules: %s",
-        full_name_duplicates,
+        "Duplicate permissions found in modules",
+        extra={"duplicates": full_name_duplicates},
     )
     raise DuplicatePermissionsError(full_name_duplicates)

@@ -1,10 +1,6 @@
-import logging
-
 import xlsxwriter
 
 from app.modules.sport_competition import schemas_sport_competition
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 def generate_format(workbook: xlsxwriter.Workbook):

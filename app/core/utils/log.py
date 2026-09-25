@@ -1,14 +1,35 @@
+import json
 import logging
 import logging.config
 import queue
+from datetime import UTC, datetime
 from enum import StrEnum
 from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import uvicorn.logging
+from pydantic import BaseModel, ValidationError
 
 from app.core.utils.config import Settings
+
+
+class RequestData(BaseModel):
+    ip: str
+    port: int
+    method: str
+    path: str
+    status_code: int
+    duration_ms: float
+    request_id: UUID
+
+
+# Set of reserved attributes in a LogRecord.
+# These attributes are part of the standard LogRecord attributes and should not be considered as extra fields.
+_RESERVED_RECORD_ATTRS = frozenset(
+    logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys(),
+) | {"message", "asctime"}
 
 
 class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
@@ -53,7 +74,54 @@ class ColoredConsoleFormatter(uvicorn.logging.DefaultFormatter):
             record.levelno,
             self.formatters[logging.ERROR],
         )
-        return formatter.format(record)
+
+        # We check if the record has extra fields, which are passed via extra={...} at the call site (logger.info(...)). If so, we add them to the message.
+        extra_fields = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _RESERVED_RECORD_ATTRS
+        }
+        if not extra_fields:
+            return formatter.format(record)
+
+        # We temporarily modify the record to include the extra fields in the message, then we restore the original message and args after formatting.
+        # The restoration is necessary because the record is reused by other handlers, and we don't want to modify it permanently.
+        original_msg = record.msg
+        original_args = record.args
+        try:
+            # If the extra fields correspond to the RequestData model, we format them as request string for better readability in the console.
+            # Request format : "IP:PORT - METHOD /path" status_code (request_id)"
+            request_data = RequestData.model_validate(extra_fields)
+            record.msg = f'{request_data.ip}:{request_data.port} - "{request_data.method} {request_data.path}" {request_data.status_code} ({request_data.request_id})'
+            record.args = None
+            return formatter.format(record)
+        except ValidationError:
+            # If the extra fields do not correspond to the RequestData model, we format them as key=value pairs for better readability in the console.
+            record.msg = f"{record.msg} - {', '.join(f'{key}={value!s}' for key, value in extra_fields.items())}"
+            record.args = None
+            return formatter.format(record)
+        finally:
+            record.msg = original_msg
+            record.args = original_args
+
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+            "logger": record.name,
+            "level": record.levelname,
+            "message": record.getMessage(),
+        }
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        for key, value in record.__dict__.items():
+            if key not in _RESERVED_RECORD_ATTRS and key not in payload:
+                payload[key] = value
+
+        return json.dumps(payload, default=str, ensure_ascii=False)
 
 
 class LogConfig:
@@ -72,7 +140,6 @@ class LogConfig:
         BOLD = "\033[1m"
         END = "\033[0m"
 
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     MATRIX_LOG_FORMAT: str = "%(asctime)s - %(name)s - <code>%(levelname)s</code> - <font color ='green'>%(message)s</font>"
     MYPAYMENT_LOG_FORMAT: str = "%(message)s"  # Do not change at any cost
 
@@ -94,8 +161,7 @@ class LogConfig:
             "disable_existing_loggers": not settings.LOG_DEBUG_MESSAGES,
             "formatters": {
                 "default": {
-                    "format": self.LOG_FORMAT,
-                    "datefmt": "%d-%b-%y %H:%M:%S",
+                    "()": "app.core.utils.log.JSONFormatter",
                 },
                 "console_formatter": {
                     "()": "app.core.utils.log.ColoredConsoleFormatter",

@@ -39,7 +39,11 @@ def build_data_rows(
             sport = sport_dict[captain.sport_id]
         except KeyError as e:
             hyperion_error_logger.exception(
-                f"Missing data for captain {captain.user.user.id}: sport {captain.sport_id} not found",
+                "Competition: Missing related data for captain",
+                extra={
+                    "captain_user_id": captain.user.user.id,
+                    "sport_id": captain.sport_id,
+                },
             )
             raise MissingDataError(  # noqa: TRY003
                 f"Missing related data for captain {captain.user.user.id}",

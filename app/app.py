@@ -1,6 +1,7 @@
 """File defining the Metadata. And the basic functions creating the database tables and calling the router"""
 
 import logging
+import time
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +33,7 @@ from app.core.notification.cruds_notification import get_notification_topic
 from app.core.schools import models_schools
 from app.core.schools.schools_type import SchoolType
 from app.core.utils.config import Settings
-from app.core.utils.log import LogConfig
+from app.core.utils.log import LogConfig, RequestData
 from app.dependencies import (
     disconnect_state,
     get_db,
@@ -162,14 +164,21 @@ def update_db_tables(
                 stamp_alembic_head(conn)
             else:
                 hyperion_error_logger.info(
-                    f"Startup: Database tables already created (current revision: {alembic_current_revision}), running migrations",
+                    "Startup: Database tables already created, running migrations",
+                    extra={
+                        "alembic_current_revision": alembic_current_revision,
+                    },
                 )
                 run_alembic_upgrade(conn)
 
             hyperion_error_logger.info("Startup: Database tables updated")
     except Exception as error:
-        hyperion_error_logger.fatal(
-            f"Startup: Could not create tables in the database: {error}",
+        hyperion_error_logger.critical(
+            "Startup: Could not create tables in the database",
+            extra={
+                "error": str(error),
+            },
+            exc_info=True,
         )
         raise
 
@@ -195,8 +204,14 @@ def initialize_groups(
                 try:
                     initialization.create_group_sync(group=group, db=db)
                 except IntegrityError as error:
-                    hyperion_error_logger.fatal(
-                        f"Startup: Could not add group {group.name}<{group.id}> in the database: {error}",
+                    hyperion_error_logger.critical(
+                        "Startup: Could not add group in the database",
+                        extra={
+                            "group_name": group.name,
+                            "group_id": group.id,
+                            "error": str(error),
+                        },
+                        exc_info=True,
                     )
 
 
@@ -221,8 +236,14 @@ def initialize_schools(
                 try:
                     initialization.create_school_sync(school=db_school, db=db)
                 except IntegrityError as error:
-                    hyperion_error_logger.fatal(
-                        f"Startup: Could not add school {db_school.name}<{db_school.id}> in the database: {error}",
+                    hyperion_error_logger.critical(
+                        "Startup: Could not add school in the database",
+                        extra={
+                            "school_name": db_school.name,
+                            "school_id": db_school.id,
+                            "error": str(error),
+                        },
+                        exc_info=True,
                     )
 
 
@@ -242,11 +263,19 @@ async def run_factories(
         if module.factory:
             factories_list.append(module.factory)
             hyperion_error_logger.info(
-                f"Module {module.root} declares a factory {module.factory.__class__.__name__} with dependencies {module.factory.depends_on}",
+                "Startup: Module declares a factory",
+                extra={
+                    "module_root": module.root,
+                    "factory_class": module.factory.__class__.__name__,
+                    "factory_dependencies": module.factory.depends_on,
+                },
             )
         else:
             hyperion_error_logger.warning(
-                f"Module {module.root} does not declare a factory. It won't provide any base data.",
+                "Startup: Module does not declare a factory",
+                extra={
+                    "module_root": module.root,
+                },
             )
 
     # We have to run the factories in a specific order to make sure the dependencies are met
@@ -262,18 +291,29 @@ async def run_factories(
                 # Check if the factory should be run
                 if await factory.should_run(db):
                     hyperion_error_logger.info(
-                        f"Startup: Running factory {factory.__class__.__name__}",
+                        "Startup: Running factory",
+                        extra={
+                            "factory_class": factory.__class__.__name__,
+                        },
                     )
                     try:
                         await factory.run(db, settings)
                     except Exception as error:
-                        hyperion_error_logger.fatal(
-                            f"Startup: Could not run factories: {error}",
+                        hyperion_error_logger.critical(
+                            "Startup: Could not run factory",
+                            extra={
+                                "factory_class": factory.__class__.__name__,
+                                "error": str(error),
+                            },
+                            exc_info=True,
                         )
                         raise
                 else:
                     hyperion_error_logger.info(
-                        f"Startup: Factory {factory.__class__.__name__} is not necessary, skipping it",
+                        "Startup: Factory is not necessary, skipping it",
+                        extra={
+                            "factory_class": factory.__class__.__name__,
+                        },
                     )
                 ran_factories.append(factory.__class__)
                 factories_list.remove(factory)
@@ -311,7 +351,11 @@ def initialize_module_visibility(
         # Is run to create default module visibilities or when the table is empty
         if new_modules or new_auth:
             hyperion_error_logger.info(
-                f"Startup: Some modules visibility or auth settings are empty, initializing them : ({[module.root for module in new_modules] + new_auth})",
+                "Startup: Some modules visibility or auth settings are empty, initializing them",
+                extra={
+                    "new_modules": [module.root for module in new_modules],
+                    "new_auth": [auth.value for auth in new_auth],
+                },
             )
             for module in new_modules:
                 module_permissions = (
@@ -331,8 +375,15 @@ def initialize_module_visibility(
                                     db=db,
                                 )
                             except ValueError as error:
-                                hyperion_error_logger.fatal(
-                                    f"Startup: Could not add module visibility {module.root} in the database: {error}",
+                                hyperion_error_logger.critical(
+                                    "Startup: Could not add module visibility in the database",
+                                    extra={
+                                        "module_root": module.root,
+                                        "permission_name": access_permission,
+                                        "group_id": group_id,
+                                        "error": str(error),
+                                    },
+                                    exc_info=True,
                                 )
                     if module.default_allowed_account_types is not None:
                         for account_type in module.default_allowed_account_types:
@@ -343,8 +394,15 @@ def initialize_module_visibility(
                                     db=db,
                                 )
                             except ValueError as error:
-                                hyperion_error_logger.fatal(
-                                    f"Startup: Could not add module visibility {module.root} in the database: {error}",
+                                hyperion_error_logger.critical(
+                                    "Startup: Could not add module visibility in the database",
+                                    extra={
+                                        "module_root": module.root,
+                                        "permission_name": access_permission,
+                                        "account_type": account_type,
+                                        "error": str(error),
+                                    },
+                                    exc_info=True,
                                 )
             for auth in new_auth:
                 for account_type in list(AccountType):
@@ -355,8 +413,14 @@ def initialize_module_visibility(
                             db=db,
                         )
                     except ValueError as error:
-                        hyperion_error_logger.fatal(
-                            f"Startup: Could not add auth visibility {auth} in the database: {error}",
+                        hyperion_error_logger.critical(
+                            "Startup: Could not add auth visibility in the database",
+                            extra={
+                                "auth": auth.value,
+                                "account_type": account_type,
+                                "error": str(error),
+                            },
+                            exc_info=True,
                         )
             initialization.set_core_data_sync(
                 coredata_core.ModuleVisibilityAwareness(
@@ -366,7 +430,11 @@ def initialize_module_visibility(
                 db,
             )
             hyperion_error_logger.info(
-                f"Startup: Modules visibility settings initialized for {[module.root for module in new_modules] + new_auth}",
+                "Startup: Modules visibility settings initialized",
+                extra={
+                    "new_modules": [module.root for module in new_modules],
+                    "new_auth": [auth.value for auth in new_auth],
+                },
             )
         else:
             hyperion_error_logger.info(
@@ -387,7 +455,11 @@ async def initialize_notification_topics(
                 if registred_topic.id not in existing_topics_id:
                     # We want to register this new topic
                     hyperion_error_logger.info(
-                        f"Registering topic {registred_topic.name} ({registred_topic.id})",
+                        "Startup: Registering new notification topic",
+                        extra={
+                            "topic_name": registred_topic.name,
+                            "topic_id": registred_topic.id,
+                        },
                     )
                     await notification_manager.register_new_topic(
                         topic_id=registred_topic.id,
@@ -647,6 +719,8 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         lifespan=lifespan,
         generate_unique_id_function=use_route_path_as_operation_id,
     )
+    if settings.ENABLE_PROMETHEUS_METRICS:
+        Instrumentator().instrument(app).expose(app)
     app.include_router(api.api_router)
 
     app.add_middleware(
@@ -681,13 +755,13 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         # This identifier will allow combining logs associated with the same request
         # https://www.starlette.io/requests/#other-state
         request_id = str(uuid.uuid4())
-
         request.state.request_id = request_id
 
         # This should never happen, but we log it just in case
         if request.client is None:
             hyperion_security_logger.warning(
-                f"Client information not available for {request.url.path}",
+                "Client information not available",
+                extra={"path": request.url.path},
             )
             raise HTTPException(status_code=400, detail="No client information")
 
@@ -695,7 +769,6 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             request.client.host,
         )  # host can be an Object of type IPv4Address or IPv6Address and would be refused by redis
         port = request.client.port
-        client_address = f"{ip_address}:{port}"
 
         redis_client: Redis | None = get_redis_client_dependency()
 
@@ -710,16 +783,44 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
             )
             if log:
                 hyperion_security_logger.warning(
-                    f"Rate limit reached for {ip_address} (limit: {settings.REDIS_LIMIT}, window: {settings.REDIS_WINDOW})",
+                    "Rate limit reached",
+                    extra={
+                        "ip": ip_address,
+                        "limit": settings.REDIS_LIMIT,
+                        "window": settings.REDIS_WINDOW,
+                    },
                 )
         if process:
+            start_time = time.perf_counter()
             response = await call_next(request)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
             hyperion_access_logger.info(
-                f'{client_address} - "{request.method} {request.url.path}" {response.status_code} ({request_id})',
+                "request",
+                extra=RequestData(
+                    ip=ip_address,
+                    port=port,
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                    request_id=request_id,
+                ).model_dump(mode="json"),
             )
         else:
             response = Response(status_code=429, content="Too Many Requests")
+            hyperion_access_logger.info(
+                "request",
+                extra=RequestData(
+                    ip=ip_address,
+                    port=port,
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                    duration_ms=0,
+                    request_id=request_id,
+                ).model_dump(mode="json"),
+            )
         return response
 
     @app.exception_handler(RequestValidationError)
@@ -729,7 +830,11 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
     ):
         # We use a Debug logger to log the error as personal data may be present in the request
         hyperion_error_logger.debug(
-            f"Validation error: {exc.errors()} ({request.state.request_id})",
+            "Validation error",
+            extra={
+                "errors": exc.errors(),
+                "request_id": request.state.request_id,
+            },
         )
 
         return JSONResponse(

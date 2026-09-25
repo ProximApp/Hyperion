@@ -48,7 +48,6 @@ module = Module(
 )
 
 hyperion_raffle_logger = logging.getLogger("hyperion.raffle")
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

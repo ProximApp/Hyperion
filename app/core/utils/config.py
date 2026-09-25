@@ -211,6 +211,10 @@ class Settings(BaseSettings):
     # By default, only production's records are logged
     LOG_DEBUG_MESSAGES: bool = False
 
+    # Enable Prometheus metrics endpoint at /metrics, to be used by Prometheus to scrape metrics
+    # Enabling this should come with a reverse proxy that will protect the endpoint and only allow Prometheus to access it
+    ENABLE_PROMETHEUS_METRICS: bool = False
+
     # Origins for the CORS middleware. `["http://localhost"]` can be used for development.
     # See https://fastapi.tiangolo.com/tutorial/cors/
     # It should begin with 'http://' or 'https:// and should never end with a '/'

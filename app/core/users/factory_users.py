@@ -66,11 +66,6 @@ class CoreUsersFactory(Factory):
             for _ in range(NB_USERS)
         ]
         for i in range(NB_USERS):
-            hyperion_error_logger.debug(
-                "Creating user %s/%s",
-                i + 1,
-                NB_USERS,
-            )
             if i < NB_USERS // 2:
                 email = (firstname[i] + "." + name[i] + "@etu.ec-lyon.fr").lower()
                 school_id = SchoolType.base_school.value
@@ -131,9 +126,11 @@ class CoreUsersFactory(Factory):
                 # We skip those memberships instead of failing the whole factory.
                 if await cruds_groups.get_group_by_id(db=db, group_id=group) is None:
                     hyperion_error_logger.warning(
-                        "Skipping membership for demo user %s: group %s does not exist",
-                        user.email,
-                        group,
+                        "User_demo_factory: skipping membership for demo user as group does not exist",
+                        extra={
+                            "user_email": user.email,
+                            "group_id": group,
+                        },
                     )
                     continue
                 await cruds_groups.create_membership(

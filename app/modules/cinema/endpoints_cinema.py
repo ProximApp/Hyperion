@@ -100,7 +100,11 @@ async def get_movie(
                 return schemas_cinema.TheMovieDB(**response.json())
             case 401:
                 hyperion_error_logger.error(
-                    f"INVALID API KEY - Code 401 for TMDB request. JSON  response: {response.json()}",
+                    "Cinema: INVALID API KEY - Code 401 for TMDB request.",
+                    extra={
+                        "themoviedb_id": themoviedb_id,
+                        "response_json": response.json(),
+                    },
                 )
                 raise HTTPException(
                     status_code=501,
@@ -113,7 +117,12 @@ async def get_movie(
                 )
             case _:
                 hyperion_error_logger.error(
-                    f"Code {response.status_code} for TMDB request with movie ID {themoviedb_id}. JSON response: {response.json()}",
+                    "Cinema: Unknown error for TMDB request.",
+                    extra={
+                        "themoviedb_id": themoviedb_id,
+                        "response_code": response.status_code,
+                        "response_json": response.json(),
+                    },
                 )
                 raise HTTPException(
                     status_code=500,

@@ -538,4 +538,8 @@ For production we encourage to use multiple Uvicorn workers. You can use our [do
 
 You should use our [init file](./init.py) to ensure that database initialization and migrations are only run once.
 
+### Restricting access to the metrics endpoint
+
+Hyperion exposes a metrics endpoint at `/metrics` for Prometheus monitoring. By default, this endpoint is accessible to everyone. To restrict access to this endpoint, you can use a reverse proxy (like Nginx, Caddy or Traefik) to block access to this specific endpoint for external HTTP requests while accessing it through an other docker network.
+
 </details>

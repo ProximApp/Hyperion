@@ -241,7 +241,11 @@ async def authorize_validation(
     # Note: we may want to add a window to let the user choose which scopes they grant access to.
 
     hyperion_access_logger.info(
-        f"Authorize-validation: Starting for client {authorizereq.client_id} ({request_id})",
+        "Authorize-validation: Starting for client",
+        extra={
+            "client_id": authorizereq.client_id,
+            "request_id": request_id,
+        },
     )
 
     # Check if the client is registered in the server. auth_client will be None if the client_id is not known.
@@ -251,7 +255,11 @@ async def authorize_validation(
     if auth_client is None:
         # The client does not exist
         hyperion_access_logger.warning(
-            f"Authorize-validation: Invalid client_id {authorizereq.client_id}. Is `AUTH_CLIENTS` variable correctly configured in the dotenv? ({request_id})",
+            "Authorize-validation: Invalid client_id",
+            extra={
+                "client_id": authorizereq.client_id,
+                "request_id": request_id,
+            },
         )
         return RedirectResponse(
             settings.CLIENT_URL
@@ -265,7 +273,12 @@ async def authorize_validation(
     # This behaviour is not part of OAuth or Openid connect specifications
     if auth_client.override_redirect_uri is not None:
         hyperion_access_logger.info(
-            f"Authorize-validation: Overriding redirect_uri with {auth_client.override_redirect_uri}, as configured in the auth client ({request_id})",
+            "Authorize-validation: Overriding redirect_uri , as configured in the auth client",
+            extra={
+                "client_id": authorizereq.client_id,
+                "override_redirect_uri": auth_client.override_redirect_uri,
+                "request_id": request_id,
+            },
         )
         redirect_uri = auth_client.override_redirect_uri
     # If at least one redirect_uri is hardcoded in the auth_client we will use this one. If one was provided in the request, we want to make sure they match.
@@ -275,7 +288,13 @@ async def authorize_validation(
     # If a redirect_uri is provided, it should match one specified in the auth client
     elif authorizereq.redirect_uri not in auth_client.redirect_uri:
         hyperion_access_logger.warning(
-            f"Authorize-validation: Mismatching redirect_uri, received {authorizereq.redirect_uri} but expected one of {auth_client.redirect_uri} ({request_id})",
+            "Authorize-validation: Mismatching redirect_uri",
+            extra={
+                "client_id": authorizereq.client_id,
+                "received_redirect_uri": authorizereq.redirect_uri,
+                "expected_redirect_uri": auth_client.redirect_uri,
+                "request_id": request_id,
+            },
         )
         return RedirectResponse(
             settings.CLIENT_URL
@@ -293,7 +312,12 @@ async def authorize_validation(
     # Currently, `code` is the only flow supported
     if authorizereq.response_type != "code":
         hyperion_access_logger.warning(
-            f"Authorize-validation: Unsupported response_type, received {authorizereq.response_type} ({request_id})",
+            "Authorize-validation: Unsupported response_type",
+            extra={
+                "client_id": authorizereq.client_id,
+                "received_response_type": authorizereq.response_type,
+                "request_id": request_id,
+            },
         )
         url = redirect_uri + "?error=" + "unsupported_response_type"
         if authorizereq.state:
@@ -304,7 +328,12 @@ async def authorize_validation(
     user = await authenticate_user(db, authorizereq.email, authorizereq.password)
     if not user:
         hyperion_access_logger.warning(
-            f"Authorize-validation: Invalid user email or password for email {authorizereq.email} ({request_id})",
+            "Authorize-validation: Invalid user email or password",
+            extra={
+                "client_id": authorizereq.client_id,
+                "email": authorizereq.email,
+                "request_id": request_id,
+            },
         )
         return RedirectResponse(
             settings.CLIENT_URL
@@ -325,7 +354,12 @@ async def authorize_validation(
             )
         ):
             hyperion_access_logger.warning(
-                f"Authorize-validation: user is not member of an allowed group {authorizereq.email} ({request_id})",
+                "Authorize-validation: user is not member of an allowed group",
+                extra={
+                    "client_id": authorizereq.client_id,
+                    "email": authorizereq.email,
+                    "request_id": request_id,
+                },
             )
             return RedirectResponse(
                 settings.CLIENT_URL
@@ -424,7 +458,12 @@ async def token(
         )
 
     hyperion_access_logger.info(
-        f"Token: Starting {tokenreq.grant_type} grant for client {tokenreq.client_id} ({request_id})",
+        "Token: Starting grant for client",
+        extra={
+            "grant_type": tokenreq.grant_type,
+            "client_id": tokenreq.client_id,
+            "request_id": request_id,
+        },
     )
 
     if tokenreq.grant_type == "authorization_code":
@@ -446,7 +485,12 @@ async def token(
         )
 
     hyperion_access_logger.warning(
-        f"Token: Unsupported grant_type, received {tokenreq.grant_type} ({request_id})",
+        "Token: Unsupported grant_type",
+        extra={
+            "grant_type": tokenreq.grant_type,
+            "client_id": tokenreq.client_id,
+            "request_id": request_id,
+        },
     )
     raise AuthHTTPException(
         status_code=400,
@@ -464,7 +508,11 @@ async def authorization_code_grant(
 ):
     if tokenreq.code is None:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Unprovided authorization code ({request_id})",
+            "Token authorization_code_grant: Unprovided authorization code",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -479,7 +527,11 @@ async def authorization_code_grant(
     )
     if db_authorization_code is None:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Invalid authorization code ({request_id})",
+            "Token authorization_code_grant: Invalid authorization code",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -494,7 +546,10 @@ async def authorization_code_grant(
 
     if tokenreq.client_id is None:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Unprovided client_id ({request_id})",
+            "Token authorization_code_grant: Unprovided client_id",
+            extra={
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -508,7 +563,11 @@ async def authorization_code_grant(
 
     if auth_client is None:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Invalid client_id {tokenreq.client_id}. Is `AUTH_CLIENTS` variable correctly configured in the dotenv? ({request_id})",
+            "Token authorization_code_grant: Invalid client_id",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -543,7 +602,11 @@ async def authorization_code_grant(
         pass
     else:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Client must provide a client_secret or a code_verifier ({request_id})",
+            "Token authorization_code_grant: Client must provide a client_secret or a code_verifier",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -558,7 +621,11 @@ async def authorization_code_grant(
         # We need to check the correct client_secret was provided
         if auth_client.secret != tokenreq.client_secret:
             hyperion_access_logger.warning(
-                f"Token authorization_code_grant: Invalid secret for client {tokenreq.client_id} ({request_id})",
+                "Token authorization_code_grant: Invalid client secret",
+                extra={
+                    "client_id": tokenreq.client_id,
+                    "request_id": request_id,
+                },
             )
             raise AuthHTTPException(
                 status_code=400,
@@ -586,7 +653,11 @@ async def authorization_code_grant(
             # TODO: Make sure that `.hexdigest()` is applied by the client to code_challenge
         ):
             hyperion_access_logger.warning(
-                f"Token authorization_code_grant: Invalid code_verifier ({request_id})",
+                "Token authorization_code_grant: Invalid code_verifier",
+                extra={
+                    "client_id": tokenreq.client_id,
+                    "request_id": request_id,
+                },
             )
             raise AuthHTTPException(
                 status_code=400,
@@ -597,7 +668,11 @@ async def authorization_code_grant(
     # We can check the authorization code
     if db_authorization_code.expire_on < datetime.now(UTC):
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Expired authorization code ({request_id})",
+            "Token authorization_code_grant: Expired authorization code",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -617,7 +692,13 @@ async def authorization_code_grant(
         # If a redirect_uri is provided, it should match one specified in the auth client
         if tokenreq.redirect_uri not in auth_client.redirect_uri:
             hyperion_access_logger.warning(
-                f"Token authorization_code_grant: redirect_uri {tokenreq.redirect_uri} do not match hardcoded redirect_uri ({request_id})",
+                "Token authorization_code_grant: Mismatching redirect_uri",
+                extra={
+                    "client_id": tokenreq.client_id,
+                    "received_redirect_uri": tokenreq.redirect_uri,
+                    "expected_redirect_uri": auth_client.redirect_uri,
+                    "request_id": request_id,
+                },
             )
             raise AuthHTTPException(
                 status_code=400,
@@ -631,7 +712,13 @@ async def authorization_code_grant(
     # If a redirect_uri is provided, it should match the one in the auth client
     if tokenreq.redirect_uri != db_authorization_code.redirect_uri:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: redirect_uri {tokenreq.redirect_uri} do not match the redirect_uri provided previously {db_authorization_code.redirect_uri} ({request_id})",
+            "Token authorization_code_grant: Mismatching redirect_uri",
+            extra={
+                "client_id": tokenreq.client_id,
+                "received_redirect_uri": tokenreq.redirect_uri,
+                "expected_redirect_uri": db_authorization_code.redirect_uri,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -679,7 +766,11 @@ async def refresh_token_grant(
     # Answer in the link above: PKCE has been implemented because the authorization code could be intercepted, but since the refresh token is exchanged through a secure channel there is no issue here
     if tokenreq.refresh_token is None:
         hyperion_access_logger.warning(
-            f"Token refresh_token_grant: refresh_token was not provided ({request_id})",
+            "Token refresh_token_grant: Unprovided refresh token",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -694,7 +785,11 @@ async def refresh_token_grant(
 
     if db_refresh_token is None:
         hyperion_access_logger.warning(
-            f"Token refresh_token_grant: invalid refresh token ({request_id})",
+            "Token refresh_token_grant: Invalid refresh token",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -709,7 +804,8 @@ async def refresh_token_grant(
             user_id=db_refresh_token.user_id,
         )
         hyperion_security_logger.warning(
-            f"Tentative to use a revoked refresh token ({request_id})",
+            "Tentative to use a revoked refresh token",
+            extra={"request_id": request_id},
         )
         raise AuthHTTPException(
             status_code=400,
@@ -732,7 +828,10 @@ async def refresh_token_grant(
 
     if tokenreq.client_id is None:
         hyperion_access_logger.warning(
-            f"Token refresh_token_grant: Unprovided client_id ({request_id})",
+            "Token refresh_token_grant: Unprovided client_id",
+            extra={
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -746,7 +845,11 @@ async def refresh_token_grant(
 
     if auth_client is None:
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: Invalid client_id {tokenreq.client_id} ({request_id})",
+            "Token authorization_code_grant: Invalid client_id",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -759,7 +862,11 @@ async def refresh_token_grant(
         # We need to check the correct client_secret was provided
         if auth_client.secret != tokenreq.client_secret:
             hyperion_access_logger.warning(
-                f"Token authorization_code_grant: Invalid secret for client {tokenreq.client_id} ({request_id})",
+                "Token authorization_code_grant: Invalid client secret",
+                extra={
+                    "client_id": tokenreq.client_id,
+                    "request_id": request_id,
+                },
             )
             raise AuthHTTPException(
                 status_code=400,
@@ -769,7 +876,11 @@ async def refresh_token_grant(
     elif tokenreq.client_secret is not None:
         # We use PKCE, a client secret should not have been provided
         hyperion_access_logger.warning(
-            f"Token authorization_code_grant: With PKCE, a client secret should not have been provided ({request_id})",
+            "Token authorization_code_grant: With PKCE, a client secret should not have been provided",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise AuthHTTPException(
             status_code=400,
@@ -834,13 +945,23 @@ async def create_response_body(
     refused_scopes = requested_scopes_set - granted_scopes_set
     if refused_scopes:
         hyperion_security_logger.warning(
-            f"Token authorization_code_grant: Refused scopes {refused_scopes} for client {client_id} ({request_id})",
+            "Token authorization_code_grant: Refused scopes",
+            extra={
+                "refused_scopes": refused_scopes,
+                "client_id": client_id,
+                "request_id": request_id,
+            },
         )
 
     granted_scopes = " ".join(granted_scopes_set)
 
     hyperion_access_logger.warning(
-        f"Token create_response_body: Granting scopes {granted_scopes} ({request_id})",
+        "Token create_response_body: Granting scopes",
+        extra={
+            "granted_scopes": granted_scopes,
+            "client_id": client_id,
+            "request_id": request_id,
+        },
     )
 
     # The audience field should be the name of the service the access token gives access to
@@ -894,7 +1015,8 @@ async def create_response_body(
             user = await cruds_users.get_user_by_id(db=db, user_id=db_row.user_id)
             if user is None:
                 hyperion_security_logger.error(
-                    f"Create oidc response body: Could not find user {db_row.user_id} when trying the get userinfo but it should exist ({request_id})",
+                    "Create oidc response body: Could not find user when trying the get userinfo but it should exist",
+                    extra={"user_id": db_row.user_id, "request_id": request_id},
                 )
                 raise HTTPException(
                     status_code=500,
@@ -965,7 +1087,10 @@ async def introspect(
 
     if tokenreq.client_id is None:
         hyperion_access_logger.warning(
-            f"Token introspection: Unprovided client_id ({request_id})",
+            "Token introspection: Unprovided client_id",
+            extra={
+                "request_id": request_id,
+            },
         )
         raise HTTPException(
             status_code=401,
@@ -982,7 +1107,11 @@ async def introspect(
         or tokenreq.client_secret != auth_client.secret
     ):
         hyperion_access_logger.warning(
-            f"Token introspection: Invalid client_id {tokenreq.client_id} or secret. Token introspection is not supported without a client secret. Is `AUTH_CLIENTS` variable correctly configured in the dotenv? ({request_id})",
+            "Token introspection: Invalid client_id or secret. Token introspection is not supported without a client secret",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise HTTPException(
             status_code=401,
@@ -991,7 +1120,11 @@ async def introspect(
 
     if not auth_client.allow_token_introspection:
         hyperion_access_logger.warning(
-            f"Token introspection: Token introspection is not supported for client {tokenreq.client_id} ({request_id})",
+            "Token introspection: Token introspection is not supported for this client",
+            extra={
+                "client_id": tokenreq.client_id,
+                "request_id": request_id,
+            },
         )
         raise HTTPException(
             status_code=401,
@@ -1078,7 +1211,10 @@ async def auth_get_userinfo(
 
     if client_id is None:
         hyperion_access_logger.warning(
-            f"User info: Unprovided client_id ({request_id})",
+            "User info: Unprovided client_id",
+            extra={
+                "request_id": request_id,
+            },
         )
         raise HTTPException(
             status_code=401,
@@ -1089,7 +1225,11 @@ async def auth_get_userinfo(
 
     if auth_client is None:
         hyperion_access_logger.warning(
-            f"User info: Invalid client_id {client_id}. Is `AUTH_CLIENTS` variable correctly configured in the dotenv? ({request_id})",
+            "User info: Invalid client_id",
+            extra={
+                "client_id": client_id,
+                "request_id": request_id,
+            },
         )
         raise HTTPException(
             status_code=401,

@@ -1,7 +1,10 @@
-FROM ghcr.io/astral-sh/uv:0.9.27-python3.14-trixie-slim
+FROM ghcr.io/astral-sh/uv:0.12.18-python3.14-trixie-slim
 
 # Default number of workers; can be overridden at runtime
 ENV WORKERS=1
+
+# Configure Prometheus to use a temporary directory for multiprocess metrics
+ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
 
 # Update package list and install weasyprint dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,4 +47,4 @@ EXPOSE 8000
 
 # Use fastapi cli as the entrypoint
 # Use sh -c to allow environment variable expansion
-ENTRYPOINT ["sh", "-c", "fastapi run --workers $WORKERS --host 0.0.0.0 --port 8000"]
+ENTRYPOINT ["sh", "-c", "rm -rf $PROMETHEUS_MULTIPROC_DIR && mkdir -p $PROMETHEUS_MULTIPROC_DIR && fastapi run --workers $WORKERS --host 0.0.0.0 --port 8000"]

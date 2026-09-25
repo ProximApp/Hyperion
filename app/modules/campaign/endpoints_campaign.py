@@ -1,5 +1,4 @@
 import json
-import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -48,8 +47,6 @@ module = Module(
     factory=CampaignFactory(),
     permissions=CampaignPermissions,
 )
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

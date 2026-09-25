@@ -43,8 +43,11 @@ def build_data_rows(
         )
         if not school:
             hyperion_error_logger.error(
-                f"Missing school data for user ID {participant.user.user.id} "
-                "while exporting sport participants.",
+                "Competition: Missing school data for participant",
+                extra={
+                    "participant_user_id": participant.user.user.id,
+                    "school_id": participant.user.user.school_id,
+                },
             )
             raise MissingDataError("Required school data is missing.")  # noqa: TRY003
         row: list[str | int] = [

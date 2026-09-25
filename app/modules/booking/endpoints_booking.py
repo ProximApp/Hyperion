@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
@@ -41,8 +40,6 @@ module = Module(
     factory=BookingFactory(),
     permissions=BookingPermissions,
 )
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
 @module.router.get(

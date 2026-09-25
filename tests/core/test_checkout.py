@@ -142,7 +142,10 @@ def test_webhook_payment_for_already_received_payment(
 
     assert response.status_code == 204
     mocked_hyperion_security_logger.assert_called_once_with(
-        f"Payment: ignoring webhook call for helloasso checkout payment id {existing_checkout_payment.hello_asso_payment_id} as it already exists in the database",
+        "Payment: ignoring webhook call for helloasso checkout as it already exists in the database",
+        extra={
+            "hello_asso_payment_id": existing_checkout_payment.hello_asso_payment_id,
+        },
     )
 
 
@@ -378,7 +381,12 @@ async def test_webhook_payment_callback_fail(
     assert response.status_code == 204, response.text
     mocked_callback.assert_called_once()
     mocked_hyperion_security_logger.assert_called_with(
-        f"Payment: call to module {TEST_MODULE_ROOT} payment callback for checkout (hyperion_checkout_id: {checkout.id}, HelloAsso checkout_id: {checkout.id}) failed",
+        "Payment: call to module payment callback failed",
+        extra={
+            "callback_module": TEST_MODULE_ROOT,
+            "hyperion_checkout_id": checkout.id,
+            "hello_asso_checkout_id": checkout.hello_asso_checkout_id,
+        },
     )
 
 

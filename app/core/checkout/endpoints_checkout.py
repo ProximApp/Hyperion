@@ -57,7 +57,10 @@ async def webhook(
             checkout_metadata = None
     except ValidationError:
         hyperion_error_logger.exception(
-            f"Payment: could not validate the webhook body: {await request.json()}, failed",
+            "Payment: could not validate the webhook body",
+            extra={
+                "request_body": await request.body(),
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -81,7 +84,10 @@ async def webhook(
             )
             if existing_checkout_payment_model is not None:
                 hyperion_error_logger.debug(
-                    f"Payment: ignoring webhook call for helloasso checkout payment id {content.data.id} as it already exists in the database",
+                    "Payment: ignoring webhook call for helloasso checkout as it already exists in the database",
+                    extra={
+                        "hello_asso_payment_id": content.data.id,
+                    },
                 )
                 return
 
@@ -100,7 +106,11 @@ async def webhook(
             # we should raise an error
             if not checkout:
                 hyperion_error_logger.error(
-                    f"Payment: could not find checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}) in database for payment HelloAsso payment_id: {content.data.id}",
+                    "Payment: could not find checkout in database for payment HelloAsso",
+                    extra={
+                        "hyperion_checkout_id": checkout_metadata.hyperion_checkout_id,
+                        "hello_asso_payment_id": content.data.id,
+                    },
                 )
                 raise HTTPException(
                     status_code=400,
@@ -109,7 +119,11 @@ async def webhook(
 
             if checkout.secret != checkout_metadata.secret:
                 hyperion_error_logger.error(
-                    f"Payment: secret mismatch for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id})",
+                    "Payment: secret mismatch for checkout",
+                    extra={
+                        "hyperion_checkout_id": checkout_metadata.hyperion_checkout_id,
+                        "hello_asso_checkout_id": checkout.id,
+                    },
                 )
                 raise HTTPException(
                     status_code=400,
@@ -129,7 +143,11 @@ async def webhook(
             )
 
             hyperion_error_logger.info(
-                f"Payment: checkout payment added to db for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id})",
+                "Payment: checkout payment added to db for checkout",
+                extra={
+                    "hyperion_checkout_id": checkout_metadata.hyperion_checkout_id,
+                    "hello_asso_checkout_id": checkout.id,
+                },
             )
 
             # If a callback is defined for the module, we want to call it
@@ -138,7 +156,10 @@ async def webhook(
                     if module.root == checkout.module:
                         if module.checkout_callback is not None:
                             hyperion_error_logger.info(
-                                f"Payment: calling module {checkout.module} payment callback",
+                                "Payment: calling module payment callback",
+                                extra={
+                                    "callback_module": checkout.module,
+                                },
                             )
                             checkout_payment_schema = (
                                 schemas_checkout.CheckoutPayment.model_validate(
@@ -147,10 +168,20 @@ async def webhook(
                             )
                             await module.checkout_callback(checkout_payment_schema, db)
                             hyperion_error_logger.info(
-                                f"Payment: call to module {checkout.module} payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) succeeded",
+                                "Payment: module payment callback succeeded",
+                                extra={
+                                    "callback_module": checkout.module,
+                                    "hyperion_checkout_id": checkout_metadata.hyperion_checkout_id,
+                                    "hello_asso_checkout_id": checkout.id,
+                                },
                             )
                             return
             except Exception:
                 hyperion_error_logger.exception(
-                    f"Payment: call to module {checkout.module} payment callback for checkout (hyperion_checkout_id: {checkout_metadata.hyperion_checkout_id}, HelloAsso checkout_id: {checkout.id}) failed",
+                    "Payment: call to module payment callback failed",
+                    extra={
+                        "callback_module": checkout.module,
+                        "hyperion_checkout_id": checkout.id,
+                        "hello_asso_checkout_id": checkout.hello_asso_checkout_id,
+                    },
                 )

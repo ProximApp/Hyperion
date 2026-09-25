@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import UTC, date, datetime
 
@@ -23,8 +22,6 @@ from app.types.module import CoreModule
 from app.utils.tools import is_user_member_of_any_group
 
 router = APIRouter(tags=["Memberships"])
-
-hyperion_error_logger = logging.getLogger("hyperion.error")
 
 core_module = CoreModule(
     root="memberships",

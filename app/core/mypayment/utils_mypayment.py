@@ -72,12 +72,21 @@ def verify_signature(
         )
     except InvalidSignature:
         hyperion_security_logger.info(
-            f"MyPayment: Invalid signature for QR Code with WalletDevice {wallet_device_id} ({request_id})",
+            "MyPayment: Invalid signature for QR Code with WalletDevice",
+            extra={
+                "wallet_device_id": wallet_device_id,
+                "request_id": request_id,
+            },
         )
         return False
     except Exception as error:
         hyperion_security_logger.info(
-            f"MyPayment: Failed to verify signature for QR Code with WalletDevice {wallet_device_id}: {error} ({request_id})",
+            "MyPayment: Failed to verify signature for QR Code with WalletDevice",
+            extra={
+                "wallet_device_id": wallet_device_id,
+                "error": str(error),
+                "request_id": request_id,
+            },
         )
         return False
     return True
@@ -106,7 +115,10 @@ async def validate_transfer_callback(
     )
     if not transfer:
         hyperion_error_logger.error(
-            f"MyPayment payment callback: user transfer with transfer identifier {checkout_id} not found.",
+            "MyPayment payment callback: user transfer with transfer identifier not found",
+            extra={
+                "hyperion_checkout_id": checkout_id,
+            },
         )
         raise TransferNotFoundByCallbackError(checkout_id)
 
@@ -114,19 +126,31 @@ async def validate_transfer_callback(
 
     if not wallet:
         hyperion_error_logger.error(
-            f"MyPayment payment callback: wallet with id {transfer.wallet_id} not found for transfer {transfer.id}.",
+            "MyPayment payment callback: wallet not found for transfer",
+            extra={
+                "transfer_id": transfer.id,
+                "wallet_id": transfer.wallet_id,
+            },
         )
         raise WalletNotFoundOnUpdateError(transfer.wallet_id)
 
     if transfer.total != paid_amount:
         hyperion_error_logger.error(
-            f"MyPayment payment callback: user transfer {transfer.id} amount does not match the paid amount.",
+            "MyPayment payment callback: user transfer amount does not match the paid amount",
+            extra={
+                "transfer_id": transfer.id,
+                "paid_amount": paid_amount,
+                "transfer_total": transfer.total,
+            },
         )
         raise TransferTotalDontMatchInCallbackError(checkout_id)
 
     if transfer.confirmed:
         hyperion_error_logger.error(
-            f"MyPayment payment callback: user transfer {transfer.id} is already confirmed.",
+            "MyPayment payment callback: user transfer is already confirmed",
+            extra={
+                "transfer_id": transfer.id,
+            },
         )
         raise TransferAlreadyConfirmedInCallbackError(checkout_id)
 
@@ -221,7 +245,11 @@ async def request_transfer(
     """
     if transfer_info.redirect_url not in settings.TRUSTED_PAYMENT_REDIRECT_URLS:
         hyperion_error_logger.warning(
-            f"User {user.id} tried to redirect to an untrusted URL: {transfer_info.redirect_url}",
+            "MyPayment transfer request: User tried to redirect to an untrusted URL",
+            extra={
+                "user_id": user.id,
+                "redirect_url": transfer_info.redirect_url,
+            },
         )
         raise HTTPException(
             status_code=400,
@@ -396,24 +424,49 @@ async def call_mypayment_callback(
             if module.root == module_root:
                 if module.mypayment_callback is None:
                     hyperion_error_logger.info(
-                        f"MyPayment: module {module_root} does not define a request callback ({id_name}: {call_id})",
+                        "MyPayment callback: module does not define a request callback",
+                        extra={
+                            "module_root": module_root,
+                            "id_name": id_name,
+                            "call_id": call_id,
+                        },
                     )
                     return
                 hyperion_error_logger.info(
-                    f"MyPayment: calling module {module_root} request callback",
+                    "MyPayment callback: calling module request callback",
+                    extra={
+                        "module_root": module_root,
+                        "id_name": id_name,
+                        "call_id": call_id,
+                    },
                 )
                 await module.mypayment_callback(object_id, db)
                 hyperion_error_logger.info(
-                    f"MyPayment: call to module {module_root} request callback ({id_name}: {call_id}) succeeded",
+                    "MyPayment callback: module request callback succeeded",
+                    extra={
+                        "module_root": module_root,
+                        "id_name": id_name,
+                        "call_id": call_id,
+                    },
                 )
                 return
 
         hyperion_error_logger.info(
-            f"MyPayment: request callback for module {module_root} not found ({id_name}: {call_id})",
+            "MyPayment callback: module not found for request callback",
+            extra={
+                "module_root": module_root,
+                "id_name": id_name,
+                "call_id": call_id,
+            },
         )
     except Exception:
         hyperion_error_logger.exception(
-            f"MyPayment: call to module {module_root} request callback ({id_name}: {call_id}) failed",
+            "MyPayment callback: call to module request callback failed",
+            extra={
+                "module_root": module_root,
+                "id_name": id_name,
+                "call_id": call_id,
+            },
         )
 
 

@@ -78,7 +78,12 @@ async def validate_payment(
 ) -> None:
     paid_amount = checkout_payment.paid_amount
     checkout_id = checkout_payment.checkout_id
-    hyperion_error_logger.info(f"RAID: Callback Checkout id {checkout_id}")
+    hyperion_error_logger.info(
+        "RAID: Callback Checkout ",
+        extra={
+            "checkout_id": checkout_id,
+        },
+    )
 
     participant_checkout = await cruds_raid.get_participant_checkout_by_checkout_id(
         str(checkout_id),
@@ -212,7 +217,10 @@ async def get_all_security_files_zip(
 ) -> str:
     teams = await cruds_raid.get_all_teams(db)
     hyperion_error_logger.info(
-        f"RAID: Generating ZIP for {len(teams)} security files",
+        "RAID: Generating ZIP for security files",
+        extra={
+            "number_of_teams": len(teams),
+        },
     )
 
     if len(teams) == 0:
@@ -252,7 +260,10 @@ async def get_all_team_files_zip(
 ) -> str:
     teams = await cruds_raid.get_all_teams(db)
     hyperion_error_logger.info(
-        f"RAID: Generating ZIP for {len(teams)} security files",
+        "RAID: Generating ZIP for security files",
+        extra={
+            "number_of_teams": len(teams),
+        },
     )
 
     if len(teams) == 0:

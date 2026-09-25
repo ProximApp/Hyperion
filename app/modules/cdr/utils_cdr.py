@@ -12,9 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.checkout import schemas_checkout
 from app.core.permissions.type_permissions import ModulePermissions
 from app.core.users import models_users
-from app.dependencies import (
-    hyperion_access_logger,
-)
 from app.modules.cdr import coredata_cdr, cruds_cdr, models_cdr
 from app.modules.cdr.types_cdr import (
     CdrLogActionType,
@@ -46,7 +43,10 @@ async def validate_payment(
     )
     if not checkout:
         hyperion_error_logger.error(
-            f"CDR payment callback: user checkout {checkout_id} not found.",
+            "CDR payment callback: user checkout not found.",
+            extra={
+                "checkout_id": checkout_id,
+            },
         )
         raise ValueError(f"User checkout {checkout_id} not found.")  # noqa: TRY003
 
@@ -98,10 +98,6 @@ async def is_user_in_a_seller_group(
         db,
     ):
         return user
-
-    hyperion_access_logger.warning(
-        "Is_user_a_member_of: Unauthorized, user is not a seller",
-    )
 
     raise HTTPException(
         status_code=403,
