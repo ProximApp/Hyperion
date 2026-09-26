@@ -798,9 +798,11 @@ async def refresh_token_grant(
         )
     if db_refresh_token.revoked_on is not None:
         # If the client tries to use a revoked refresh_token, we want to revoke all other refresh tokens from this client and user
-        if db_refresh_token.revoked_reason != "a revoked refresh token was used":
-            # If the refresh token we revoked because an already revoked refresh token was used, we don't want to revoke all other refresh tokens again
-            # to prevent a potential infinite loop of revoking refresh tokens of this specific users
+        if db_refresh_token.revoked_reason in {"token used", "token expired"}:
+            # If the token was already revoked because it was used or expired, this is a case of token reuse.
+            # This may be a case of an attack, so we want to revoke all other refresh tokens from this client and user
+            # We don't want to revoke all token for the following reasons: a password change, a password recover or a revokation of all tokens after a reuse tentative.
+            # The clients may not know that their refresh token was revoked, so they will try to use it. This would lead to an infinite loop of revoking all refresh tokens of this specific user.
             await cruds_auth.revoke_refresh_token_by_client_and_user_id(
                 db=db,
                 client_id=db_refresh_token.client_id,
