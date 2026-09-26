@@ -35,3 +35,4 @@ class RefreshToken(Base):
 
     nonce: Mapped[str | None] = mapped_column(default=None)
     revoked_on: Mapped[datetime | None] = mapped_column(default=None)
+    revoked_reason: Mapped[str | None] = mapped_column(default=None)
