@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
     BaseModel,
+    Field,
     field_validator,
 )
 
@@ -224,7 +225,24 @@ class AnswerBoolean(AnswerValue):
 
 class AnswerCreate(BaseModel):
     question_id: UUID
-    answer: AnswerText | AnswerNumber | AnswerBoolean
+    answer: Annotated[
+        AnswerText | AnswerNumber | AnswerBoolean,
+        Field(discriminator="answer_type"),
+    ]
+
+    @field_validator("answer", mode="before")
+    @classmethod
+    def _wrap_scalar_answer(cls, value: Any) -> Any:
+        if isinstance(value, (dict, BaseModel)):
+            return value
+        # bool must be checked before int because bool is a subclass of int
+        if isinstance(value, bool):
+            return {"answer_type": AnswerType.BOOLEAN, "answer": value}
+        if isinstance(value, int):
+            return {"answer_type": AnswerType.NUMBER, "answer": value}
+        if isinstance(value, str):
+            return {"answer_type": AnswerType.TEXT, "answer": value}
+        return value
 
 
 class Answer(AnswerCreate):
