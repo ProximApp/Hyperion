@@ -233,18 +233,16 @@ class AnswerCreate(BaseModel):
     @field_validator("answer", mode="before")
     @classmethod
     def _wrap_scalar_answer(cls, value: Any) -> Any:
-        # déjà sous la bonne forme (dict ou instance) -> on ne touche à rien
         if isinstance(value, (dict, BaseModel)):
             return value
-        # attention : bool est une sous-classe de int en Python,
-        # il faut le tester AVANT int
+        # bool must be checked before int because bool is a subclass of int
         if isinstance(value, bool):
             return {"answer_type": AnswerType.BOOLEAN, "answer": value}
         if isinstance(value, int):
             return {"answer_type": AnswerType.NUMBER, "answer": value}
         if isinstance(value, str):
             return {"answer_type": AnswerType.TEXT, "answer": value}
-        return value  # laisse pydantic lever l'erreur normale
+        return value
 
 
 class Answer(AnswerCreate):
