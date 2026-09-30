@@ -347,3 +347,11 @@ class CheckoutPayload(BaseModel):
     session_id: UUID
     price: int
     answers: list[CheckoutPayloadAnswer]
+
+
+class ReservationResult(BaseModel):
+    status: str
+    dimension: (
+        str | None
+    )  # "EVENT" | "CATEGORY" | "SESSION" when the status is about a stock
+    expires_at: int  # hold expiration (epoch seconds)

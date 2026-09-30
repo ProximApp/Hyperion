@@ -242,3 +242,10 @@ class ObjectExpectedInDbNotFoundError(Exception):
 class NoneResultWhenCountingDbError(Exception):
     def __init__(self):
         super().__init__("Counting rows in db should never return None")
+
+
+class RedisScriptShaMismatchError(Exception):
+    def __init__(self, name: str, received_sha: str, expected_sha: str):
+        super().__init__(
+            f"Redis script {name} has sha {received_sha} but expected sha is {expected_sha}",
+        )
