@@ -28,7 +28,7 @@ FIXED_COLUMNS: list[str] = [
 def build_data_rows(
     captains: list[schemas_sport_competition.ParticipantComplete],
     sports: list[schemas_sport_competition.Sport],
-) -> tuple[list[list], list[int]]:  # ty:ignore[missing-type-argument]
+) -> tuple[list[list], list[int]]:
     data_rows = []
     thick_columns = [len(FIXED_COLUMNS) - 1]
 
@@ -66,7 +66,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     for col, title in enumerate(FIXED_COLUMNS):
         worksheet.merge_range(0, col, 1, col, title, formats["header"]["base"])
@@ -74,9 +74,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    data_rows: list,
     thick_columns: list[int],
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS]

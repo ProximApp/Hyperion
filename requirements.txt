@@ -25,7 +25,7 @@ psycopg[binary]==3.3.4              # PostgreSQL adapter for *synchronous* opera
 pydantic-extra-types==2.11.1
 pydantic-settings==2.14.2
 pydantic==2.13.4
-pyjwt[crypto]==2.13.0               # generate and verify the JWT tokens, imported as `jwt`
+pyjwt[crypto]==2.15.1               # generate and verify the JWT tokens, imported as `jwt`
 PyMuPDF==1.28.0                     # PDF processing, imported as `fitz`
 pypdf==6.14.2
 python-multipart==0.0.32            # a form data parser, as oauth flow requires form-data parameters
