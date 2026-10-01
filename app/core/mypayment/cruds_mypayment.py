@@ -815,7 +815,7 @@ async def get_transfers_and_sellers_by_wallet_id(
     db: AsyncSession,
     start_datetime: datetime | None = None,
     end_datetime: datetime | None = None,
-) -> Sequence[tuple[models_mypayment.Transfer, str | None]]:
+) -> list[tuple[models_mypayment.Transfer, str | None]]:
     result = await db.execute(
         select(
             models_mypayment.Transfer,

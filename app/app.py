@@ -283,7 +283,7 @@ async def run_factories(
     # And we loop until there are no more factories to run and we use a boolean to avoid infinite loops with circular dependencies
     no_factory_run_during_last_loop = False
     ran_factories: list[type[Factory]] = []
-    while len(factories_list) > 0 and not no_factory_run_during_last_loop:
+    while len(factories_list) > 0 and not no_factory_run_during_last_loop:  # ty: ignore[redundant-condition-strict]
         no_factory_run_during_last_loop = True
         for factory in factories_list:
             if all(depend in ran_factories for depend in factory.depends_on):

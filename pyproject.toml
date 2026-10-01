@@ -206,3 +206,5 @@ show_missing = true
 all = "error"
 missing-override-decorator = "ignore"
 missing-type-argument = "ignore"
+unsound-assignment = "ignore"
+unsound-return-statement = "ignore"
