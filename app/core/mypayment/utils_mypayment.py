@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from fastapi import HTTPException
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout import schemas_checkout
@@ -415,6 +416,7 @@ async def call_mypayment_callback(
     object_id: UUID,
     call_id: UUID,
     db: AsyncSession,
+    redis_client: Redis | None = None,
 ):
     id_name = (
         "transfer_id" if call_type == RequestType.TRANSFER_REQUEST else "request_id"
@@ -440,7 +442,7 @@ async def call_mypayment_callback(
                         "call_id": call_id,
                     },
                 )
-                await module.mypayment_callback(object_id, db)
+                await module.mypayment_callback(object_id, db, redis_client)
                 hyperion_error_logger.info(
                     "MyPayment callback: module request callback succeeded",
                     extra={

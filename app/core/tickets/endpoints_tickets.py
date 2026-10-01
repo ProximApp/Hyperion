@@ -17,13 +17,18 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import schemas_feed, utils_feed
-from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, schemas_mypayment, utils_mypayment
 from app.core.mypayment.mypayment_tool import MyPaymentTool
 from app.core.notification.schemas_notification import Message
 from app.core.permissions.type_permissions import ModulePermissions
-from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
+from app.core.tickets import (
+    cruds_tickets,
+    schemas_tickets,
+    utils_tickets,
+)
 from app.core.tickets.factory_tickets import TicketsFactory
+from app.core.tickets.redis_event_tool import RedisEventTool, get_redis_event_tool
+from app.core.tickets.types_tickets import LuaResult
 from app.core.users import schemas_users
 from app.core.users.cruds_users import get_user_by_email
 from app.core.users.models_users import CoreUser
@@ -188,142 +193,195 @@ async def create_checkout(
             [TicketsPermissions.access_tickets],
         ),
     ),
+    # `db` is no longer touched on the fast path: it is only handed to the cold-cache fallbacks
+    # (event snapshot reload, first membership lookup of a user). No write, no commit.
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(
+        get_redis_event_tool,
+    ),
     mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
 ):
     """
     Create a checkout for an open event
+
+    FAST PATH (RAM only, no session.commit()):
+      1. event / category / session / questions come from the Redis snapshot of the event,
+      2. one atomic Lua script (EVALSHA) checks the three stocks, decrements them and stores the hold,
+      3. the payment request is created (its deadline is already covered by the hold's TTL,
+         by the operational safety-margin invariant documented on CHECKOUT_HOLD_TTL_SECONDS),
+      4. an `ACTION: HOLD` event is appended to a Redis Stream and the response is returned.
+    PostgreSQL is updated later by the write-behind worker (worker_tickets.py), in batches.
     """
-    category = await cruds_tickets.get_category_by_id(
-        category_id=checkout.category_id,
+    now = datetime.now(UTC)
+
+    # 1. Configuration served from RAM. It replaces get_category_by_id, get_session_by_id,
+    #    get_questions_by_event_id and the SELECT ... FOR UPDATE lock on the event row.
+    event = await redis_event_tool.get_event_snapshot(
+        event_id=event_id,
         db=db,
+    )
+    if event is None:
+        raise HTTPException(404, "Event not found")
+    if event.disabled:
+        raise HTTPException(400, "Event is disabled")
+    if event.open_datetime > now:
+        raise HTTPException(400, "Event is not open yet")
+    if event.close_datetime is not None and event.close_datetime <= now:
+        raise HTTPException(400, "Event is closed")
+
+    # A category or a session that does not belong to this event is reported as not found.
+    category = next(
+        (c for c in event.categories if c.id == checkout.category_id),
+        None,
     )
     if category is None:
         raise HTTPException(404, "Category not found")
     if category.disabled:
         raise HTTPException(400, "Category is disabled")
-    session = await cruds_tickets.get_session_by_id(
-        session_id=checkout.session_id,
-        db=db,
+    session = next(
+        (s for s in event.sessions if s.id == checkout.session_id),
+        None,
     )
     if session is None:
         raise HTTPException(404, "Session not found")
     if session.disabled:
         raise HTTPException(400, "Session is disabled")
 
-    if category.event_id != event_id:
-        raise HTTPException(400, "Category does not belong to the event")
-    if session.event_id != event_id:
-        raise HTTPException(400, "Session does not belong to the event")
-
     if category.required_membership is not None:
-        membership = await utils_memberships.get_user_active_membership_to_association_membership(
+        has_membership = await utils_tickets.user_has_required_membership(
+            redis_event_tool=redis_event_tool,
             association_membership_id=category.required_membership,
             user_id=user.id,
             db=db,
         )
-        if membership is None:
+        if not has_membership:
             raise HTTPException(
                 400,
                 "User does not have required membership to choose this category",
             )
 
-    price = await utils_tickets.check_answer_validity_and_calculate_price(
-        event_id=event_id,
+    price = utils_tickets.check_answer_validity_and_calculate_price(
+        questions=event.questions,
         checkout=checkout,
-        db=db,
     )
-
-    # By putting this lock:
-    # - we unsure that if an other endpoint execution acquired the lock before, this one will wait.
-    # - we guarantee that any other endpoint execution that tries to acquire the lock will need to wait until the end of this transaction.
-    # Two endpoints require this lock: create a checkout and convert a checkout to ticket (in a payment callback)
-    event = await cruds_tickets.acquire_event_lock_for_update(
-        event_id=event_id,
-        db=db,
-    )
-
-    if event is None:
-        raise ObjectExpectedInDbNotFoundError(
-            object_name="Event",
-            object_id=event_id,
-        )
-
-    if event.disabled:
-        raise HTTPException(400, "Event is disabled")
-
-    if event.open_datetime > datetime.now(UTC):
-        raise HTTPException(400, "Event is not open yet")
-    if event.close_datetime is not None and event.close_datetime <= datetime.now(UTC):
-        raise HTTPException(400, "Event is closed")
-
     price += category.price
-
-    if await utils_tickets.is_event_sold_out(
-        event_id=event_id,
-        quota=event.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Event is sold out")
-    if await utils_tickets.is_category_sold_out(
-        category_id=category.id,
-        quota=category.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Category is sold out")
-    if await utils_tickets.is_session_sold_out(
-        session_id=session.id,
-        quota=session.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Session is sold out")
 
     checkout_id = uuid.uuid4()
 
-    if price == 0:
-        await cruds_tickets.mark_checkout_as_paid(
-            checkout_id=checkout_id,
+    # Everything the write-behind worker needs to persist this checkout later.
+    # Answer ids are generated here so that replaying an event never inserts a duplicate.
+    payload_json = schemas_tickets.CheckoutPayload(
+        event_id=event_id,
+        category_id=category.id,
+        session_id=session.id,
+        price=price,
+        answers=[
+            schemas_tickets.CheckoutPayloadAnswer(
+                id=uuid.uuid4(),
+                question_id=answer.question_id,
+                answer=answer.answer.answer_value,
+            )
+            for answer in checkout.answers
+        ],
+    ).model_dump_json()
+
+    # 2. Atomic reservation in Redis. This single call replaces:
+    #    - the row lock on the event (acquire_event_lock_for_update),
+    #    - is_event_sold_out / is_category_sold_out / is_session_sold_out (3 COUNT queries),
+    #    - cruds_tickets.create_checkout + the commit done at the end of the request.
+    # No lock is held between the check and the decrement: Redis runs the script atomically.
+    reservation = await redis_event_tool.reserve(
+        event=event,
+        category=category,
+        session=session,
+        user_id=user.id,
+        checkout_id=checkout_id,
+        payload_json=payload_json,
+    )
+    if reservation.status == LuaResult.STOCK_NOT_INITIALIZED:
+        # Cold start (counters never initialised, or lost by Redis): initialise them from
+        # PostgreSQL once (single-flight) and retry. Pre-warming at startup makes this path rare.
+        await redis_event_tool.warm_up_event(
+            event_id=event_id,
             db=db,
         )
-        payment_request_info = None
-        expiration = datetime.now(UTC)
-        paid = True
-    else:
-        payment_request_info = await mypayment_tool.request_payment(
-            request_type=checkout.mypayment_request_method,
-            payment_info=schemas_mypayment.PaymentInfo(
-                store_id=event.store_id,
-                total=price,
-                request_name=f"Event {event.name}",
-                store_note=f"Ticket for {event.name} of {user.full_name}",
-                module=core_module.root,
-                object_id=checkout_id,
-                redirect_url=checkout.mypayment_transfer_redirect_url,
-            ),
-            user=schemas_users.CoreUser(
-                id=user.id,
-                name=user.name,
-                firstname=user.firstname,
-                account_type=user.account_type,
-                school_id=user.school_id,
-                email=user.email,
-            ),
+        reservation = await redis_event_tool.reserve(
+            event=event,
+            category=category,
+            session=session,
+            user_id=user.id,
+            checkout_id=checkout_id,
+            payload_json=payload_json,
         )
-        expiration = payment_request_info.end_date
-        paid = False
+    utils_tickets.raise_if_reservation_failed(reservation)
 
-    await cruds_tickets.create_checkout(
-        checkout_id=checkout_id,
-        event_id=event_id,
-        user_id=user.id,
-        category_id=checkout.category_id,
-        session_id=checkout.session_id,
-        expiration=expiration,
-        price=price,
-        answers=checkout.answers,
-        paid=paid,
-        db=db,
-    )
+    # From here the stock is held. Any failure must give it back immediately instead of leaving
+    # it blocked until the hold expires.
+    try:
+        if price == 0:
+            # Free ticket: confirm the hold right away. The CONFIRM event is published atomically
+            # by the Lua script and carries the whole checkout, so the worker persists it as paid.
+            payment_request_info = None
+            expiration = now
+            await redis_event_tool.confirm_hold(
+                checkout_id=checkout_id,
+                raise_on_fail=True,
+            )
+        else:
+            payment_request_info = await mypayment_tool.request_payment(
+                request_type=checkout.mypayment_request_method,
+                payment_info=schemas_mypayment.PaymentInfo(
+                    store_id=event.store_id,
+                    total=price,
+                    request_name=f"Event {event.name}",
+                    store_note=f"Ticket for {event.name} of {user.full_name}",
+                    module=core_module.root,
+                    object_id=checkout_id,
+                    redirect_url=checkout.mypayment_transfer_redirect_url,
+                ),
+                user=schemas_users.CoreUser(
+                    id=user.id,
+                    name=user.name,
+                    firstname=user.firstname,
+                    account_type=user.account_type,
+                    school_id=user.school_id,
+                    email=user.email,
+                ),
+            )
+            expiration = payment_request_info.end_date
+            # NOTE: no hold-extension step here. Per the confirmed invariant, `expiration`
+            # (MyPayment's own deadline) is always <= `reservation.expires_at` (the Redis hold's
+            # TTL, set once by the Lua reserve script above), so there is nothing to align: the
+            # hold already outlives the payment window by construction. An `extend_hold` EVALSHA
+            # call used to sit here defensively; it was removed as dead code once this was
+            # confirmed (see the comment on CHECKOUT_HOLD_TTL_SECONDS in utils_redis_tickets.py) -
+            # every call would have been a no-op, at the cost of one Redis round trip per checkout
+            # and one extra failure mode to compensate for on the critical path.
+    except Exception:
+        # Compensation: atomically restore the stock, delete the hold and publish RELEASE.
+        try:
+            await redis_event_tool.release_hold(
+                checkout_id=checkout_id,
+            )
+        except Exception:
+            # Redis is unreachable: the reaper will release the hold once it expires.
+            hyperion_error_logger.exception(
+                "Could not release the hold of checkout %s",
+                checkout_id,
+            )
+        raise
+
+    # 3. Event sourcing. The write-behind worker consumes it and inserts the checkout and its
+    #    answers into PostgreSQL in a batch. Nothing waits for that write.
+    #    (Free tickets are persisted through the CONFIRM event published by the Lua script.)
+    if payment_request_info is not None:
+        await redis_event_tool.publish_hold_event(
+            checkout_id=checkout_id,
+            user_id=user.id,
+            qty=1,
+            expires_at=reservation.expires_at,
+            payload_json=payload_json,
+        )
 
     return schemas_tickets.CheckoutResponse(
         price=price,
