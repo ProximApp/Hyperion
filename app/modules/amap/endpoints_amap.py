@@ -682,9 +682,7 @@ async def edit_order_from_delivery(
             collection_slot=order.collection_slot
             if order.collection_slot is not None
             else previous_order.collection_slot,
-            products_quantity=order.products_quantity
-            if order.products_quantity is not None
-            else previous_order.products_quantity,
+            products_quantity=order.products_quantity,
         )
 
         previous_amount = previous_order.amount
@@ -1098,7 +1096,8 @@ async def get_orders_of_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     if not (
-        user_id == user.id or has_user_permission(user, AmapPermissions.manage_amap, db)
+        user_id == user.id
+        or await has_user_permission(user, AmapPermissions.manage_amap, db)
     ):
         raise HTTPException(
             status_code=403,

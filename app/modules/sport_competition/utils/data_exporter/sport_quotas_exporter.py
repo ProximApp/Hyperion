@@ -23,7 +23,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 def build_data_rows(
     school_sports_quotas: list[schemas_sport_competition.SchoolSportQuota],
     schools: list[schemas_sport_competition.SchoolExtension],
-) -> tuple[list, list[int]]:  # ty:ignore[missing-type-argument]
+) -> tuple[list, list[int]]:
     data_rows = []
 
     school_dict = {school.school_id: school.school for school in schools}
@@ -52,7 +52,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     for col_idx, column in enumerate(FIXED_COLUMNS):
         worksheet.write(0, col_idx, column, formats["header"]["base"])
@@ -60,9 +60,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    data_rows: list,
     thick_columns: list[int],
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     worksheet = workbook.add_worksheet("Quotas")
     write_fixed_headers(worksheet, formats)

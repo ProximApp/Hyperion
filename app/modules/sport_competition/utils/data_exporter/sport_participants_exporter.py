@@ -74,7 +74,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     for col, title in enumerate(FIXED_COLUMNS):
         worksheet.write(1, col, title, formats["header"]["base"])
@@ -82,9 +82,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    data_rows: list,
     thick_columns: list[int],
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS]

@@ -1419,7 +1419,9 @@ async def get_user_tos(
         accepted_tos_version=existing_user_payment.accepted_tos_version,
         latest_tos_version=LATEST_TOS,
         tos_content=await patch_payment_identity_in_text(
-            await Path("assets/mypayment-terms-of-service.txt").read_text(),
+            await Path("assets/mypayment-terms-of-service.txt").read_text(
+                encoding="utf-8",
+            ),
             settings,
             db,
         ),
@@ -2583,9 +2585,7 @@ async def refund_transaction(
         id=uuid.uuid4(),
         transaction_id=transaction_id,
         total=refund_amount,
-        seller_user_id=user.id
-        if wallet_previously_credited.type == WalletType.STORE
-        else None,
+        seller_user_id=user.id,
         credited_wallet_id=wallet_previously_debited.id,
         debited_wallet_id=wallet_previously_credited.id,
         creation=creation_date,

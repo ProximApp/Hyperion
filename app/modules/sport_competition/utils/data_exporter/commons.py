@@ -140,9 +140,9 @@ def generate_format(workbook: xlsxwriter.Workbook):
 
 def write_data_rows(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    data_rows: list,
     thick_columns: list[int],
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
     columns_max_length: list[int],
     start_row: int = 5,
 ):
