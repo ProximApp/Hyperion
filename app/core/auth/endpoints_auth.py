@@ -685,7 +685,7 @@ async def authorization_code_grant(
     if auth_client.override_redirect_uri is not None:
         tokenreq.redirect_uri = auth_client.override_redirect_uri
     # A redirect_uri may be hardcoded in the client
-    elif auth_client.redirect_uri is not None:
+    elif auth_client.redirect_uri:
         if tokenreq.redirect_uri is None:
             # We use the hardcoded value
             tokenreq.redirect_uri = auth_client.redirect_uri[0]

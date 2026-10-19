@@ -1,9 +1,31 @@
 import xlsxwriter
+from pydantic import BaseModel
+from xlsxwriter.format import Format
 
 from app.modules.sport_competition import schemas_sport_competition
 
 
-def generate_format(workbook: xlsxwriter.Workbook):
+class VariantInfo(BaseModel):
+    variant: schemas_sport_competition.ProductVariantStats
+    qty_col: int
+    valid_col: int
+
+
+class ProductDetail(BaseModel):
+    product: schemas_sport_competition.ProductComplete
+    variants_info: list[VariantInfo]
+
+
+ProductStructure = list[ProductDetail]
+
+FormatStructure = dict[str, dict[str, Format]]
+
+SheetData = list[list[str | int]]
+
+
+def generate_format(
+    workbook: xlsxwriter.Workbook,
+) -> FormatStructure:
     def make_format(
         workbook: xlsxwriter.Workbook,
         *,
@@ -140,9 +162,9 @@ def generate_format(workbook: xlsxwriter.Workbook):
 
 def write_data_rows(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    data_rows: list[list[str | int]],
     thick_columns: list[int],
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict[str, dict[str, Format]],
     columns_max_length: list[int],
     start_row: int = 5,
 ):
