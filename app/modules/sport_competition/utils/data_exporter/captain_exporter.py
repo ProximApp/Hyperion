@@ -5,6 +5,8 @@ import xlsxwriter
 
 from app.modules.sport_competition import schemas_sport_competition
 from app.modules.sport_competition.utils.data_exporter.commons import (
+    FormatStructure,
+    SheetData,
     autosize_columns,
     generate_format,
     write_data_rows,
@@ -28,7 +30,7 @@ FIXED_COLUMNS: list[str] = [
 def build_data_rows(
     captains: list[schemas_sport_competition.ParticipantComplete],
     sports: list[schemas_sport_competition.Sport],
-) -> tuple[list[list], list[int]]:
+) -> tuple[SheetData, list[int]]:
     data_rows = []
     thick_columns = [len(FIXED_COLUMNS) - 1]
 
@@ -49,7 +51,7 @@ def build_data_rows(
                 f"Missing related data for captain {captain.user.user.id}",
             ) from e
 
-        row = [
+        row: list[str | int] = [
             captain.user.user.name,
             captain.user.user.firstname,
             captain.user.user.email,
@@ -66,7 +68,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,
+    formats: FormatStructure,
 ):
     for col, title in enumerate(FIXED_COLUMNS):
         worksheet.merge_range(0, col, 1, col, title, formats["header"]["base"])
@@ -74,9 +76,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,
+    data_rows: SheetData,
     thick_columns: list[int],
-    formats: dict,
+    formats: FormatStructure,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS]

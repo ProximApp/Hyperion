@@ -5,6 +5,7 @@ import xlsxwriter
 
 from app.modules.sport_competition import schemas_sport_competition
 from app.modules.sport_competition.utils.data_exporter.commons import (
+    FormatStructure,
     autosize_columns,
     generate_format,
     get_user_types,
@@ -74,7 +75,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,
+    formats: FormatStructure,
 ):
     for col, title in enumerate(FIXED_COLUMNS):
         worksheet.write(1, col, title, formats["header"]["base"])
@@ -82,9 +83,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,
+    data_rows: list[list[str | int]],
     thick_columns: list[int],
-    formats: dict,
+    formats: FormatStructure,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS]

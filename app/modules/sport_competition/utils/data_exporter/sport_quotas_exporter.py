@@ -5,6 +5,7 @@ import xlsxwriter
 
 from app.modules.sport_competition import schemas_sport_competition
 from app.modules.sport_competition.utils.data_exporter.commons import (
+    FormatStructure,
     autosize_columns,
     generate_format,
     write_data_rows,
@@ -23,7 +24,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 def build_data_rows(
     school_sports_quotas: list[schemas_sport_competition.SchoolSportQuota],
     schools: list[schemas_sport_competition.SchoolExtension],
-) -> tuple[list, list[int]]:
+) -> tuple[list[list[str | int]], list[int]]:
     data_rows = []
 
     school_dict = {school.school_id: school.school for school in schools}
@@ -41,8 +42,8 @@ def build_data_rows(
 
         row = [
             school.name,
-            quota.participant_quota,
-            quota.team_quota,
+            quota.participant_quota or "",
+            quota.team_quota or "",
         ]
         data_rows.append(row)
 
@@ -52,7 +53,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,
+    formats: FormatStructure,
 ):
     for col_idx, column in enumerate(FIXED_COLUMNS):
         worksheet.write(0, col_idx, column, formats["header"]["base"])
@@ -60,9 +61,9 @@ def write_fixed_headers(
 
 def write_to_excel(
     workbook: xlsxwriter.Workbook,
-    data_rows: list,
+    data_rows: list[list[str | int]],
     thick_columns: list[int],
-    formats: dict,
+    formats: FormatStructure,
 ):
     worksheet = workbook.add_worksheet("Quotas")
     write_fixed_headers(worksheet, formats)
