@@ -163,7 +163,7 @@ def get_app_state(request: Request) -> RuntimeLifespanState:
     # We force Mypy to consider it as a RuntimeLifespanState instead of Any
 
     if isinstance(request.state, dict):
-        return cast("RuntimeLifespanState", request.state)
+        return cast("RuntimeLifespanState", request.state)  # ty: ignore[disjoint-cast]
     if isinstance(request.state, starlette.datastructures.State):
         return cast("RuntimeLifespanState", request.state.__dict__["_state"])
     raise InvalidAppStateTypeError

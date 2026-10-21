@@ -9,7 +9,7 @@ pytest-cov==7.1.0
 pytest-mock==3.15.1
 pytest==9.1.1
 ruff==0.16.0
-ty==0.0.63
+ty==0.0.84
 types-Authlib==1.7.2.20260724
 types-fpdf2==2.8.4.20260724
 types-psutil==7.2.2.20260518

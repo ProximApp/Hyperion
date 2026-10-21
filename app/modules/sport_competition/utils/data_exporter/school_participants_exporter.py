@@ -68,7 +68,7 @@ def build_data_rows(
     users_participant: dict[str, schemas_sport_competition.ParticipantComplete] | None,
     users_purchases: dict[str, list[schemas_sport_competition.PurchaseComplete]],
     users_payments: dict[str, list[schemas_sport_competition.PaymentComplete]] | None,
-    product_structure: tuple[list, int] | None,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[list, int] | None,
     col_idx: int,
 ) -> tuple[list[list[str | int]], list[int]]:
     data_rows: list[list[str | int]] = []
@@ -155,7 +155,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     worksheet.merge_range(
         0,
@@ -171,7 +171,7 @@ def write_fixed_headers(
 
 def write_participant_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
     columns_max_length: list[int],
 ):
     worksheet.merge_range(
@@ -189,7 +189,7 @@ def write_participant_headers(
 
 def write_payment_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
     start_index: int,
     columns_max_length: list[int],
 ):
@@ -208,8 +208,8 @@ def write_payment_headers(
 
 def write_product_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    product_structure: tuple[list, int],  # ty:ignore[missing-type-argument]
-    formats: dict,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[list, int],
+    formats: dict,
     start_index: int,
     columns_max_length: list[int],
 ) -> tuple[list[int], list[int]]:
@@ -295,11 +295,11 @@ def write_product_headers(
 def write_to_excel(
     parameters: list[ExcelExportParams],
     workbook: xlsxwriter.Workbook,
-    product_structure: tuple[list, int] | None,  # ty:ignore[missing-type-argument]
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[list, int] | None,
+    data_rows: list,
     thick_columns: list[int],
     col_idx: int,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: dict,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS] + [0] * (
@@ -373,7 +373,7 @@ def construct_school_users_excel_with_parameters(
             u.user.firstname.lower(),
         ),
     )
-    product_structure: tuple[list, int] | None = None  # ty:ignore[missing-type-argument]
+    product_structure: tuple[list, int] | None = None
     col_idx = len(FIXED_COLUMNS)
     if ExcelExportParams.purchases in parameters and products is not None:
         products.sort(
