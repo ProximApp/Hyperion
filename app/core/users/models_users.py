@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index, String, literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.groups.groups_type import AccountType
@@ -39,6 +39,22 @@ class CoreUser(Base):
     created_on: Mapped[datetime | None]
     is_super_admin: Mapped[bool] = mapped_column(default=False)
 
+    # Custom index on the unaccented "firstname name nickname"
+    # The nickname is optional, so we use the COALESCE function to handle NULL values
+    # Single source of truth for the indexed expression
+    _search_expr_str = (
+        "f_unaccent(firstname || ' ' || name || ' ' || COALESCE(nickname, ''))"
+    )
+    __table_args__ = (
+        Index(
+            "ix_user_full_name_trgm",
+            # literal_column exposes a `key`, so postgresql_ops can match it
+            # (a plain text() has no key and the operator class would be ignored)
+            literal_column(_search_expr_str),
+            postgresql_using="gin",
+            postgresql_ops={_search_expr_str: "gin_trgm_ops"},
+        ),
+    )
     # We use list["CoreGroup"] with quotes as CoreGroup is only defined after this class
     # Defining CoreUser after CoreGroup would cause a similar issue
     groups: Mapped[list["CoreGroup"]] = relationship(

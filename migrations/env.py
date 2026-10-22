@@ -40,6 +40,28 @@ for models_file in Path().glob("app/**/models_*.py"):
 # ... etc.
 
 
+# Functional indexes that Alembic cannot compare reliably:
+# PostgreSQL normalizes the indexed expression (extra casts and parentheses),
+# so the reflected version never matches the one declared in the model.
+# These indexes are still created by `create_all` and by the migrations,
+# they are only ignored by the autogenerate comparison.
+IGNORED_INDEXES = {"ix_user_full_name_trgm"}
+
+
+def include_object(
+    obj: object,
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: object | None,
+) -> bool:
+    """
+    Hook called by Alembic for each object it compares.
+    Returning False excludes the object from the autogenerate comparison.
+    """
+    return not (type_ == "index" and name in IGNORED_INDEXES)
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -58,6 +80,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        # Skip the functional indexes that cannot be compared reliably
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -72,6 +96,8 @@ def do_run_migrations(connection: Connection) -> None:
         # because we don't want to have to import it in the migration file.
         # See https://alembic.sqlalchemy.org/en/latest/autogenerate.html#controlling-the-module-prefix
         user_module_prefix="",
+        # Skip the functional indexes that cannot be compared reliably
+        include_object=include_object,
     )
 
     with context.begin_transaction():

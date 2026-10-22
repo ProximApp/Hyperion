@@ -67,19 +67,23 @@ class CoreUsersFactory(Factory):
         ]
         for i in range(NB_USERS):
             if i < NB_USERS // 2:
-                email = (firstname[i] + "." + name[i] + "@etu.ec-lyon.fr").lower()
+                email = (
+                    firstname[i] + "." + name[i] + str(i) + "@etu.ec-lyon.fr"
+                ).lower()
                 school_id = SchoolType.base_school.value
                 account_type = groups_type.AccountType.student
             elif i < 3 * NB_USERS // 4:
-                email = (firstname[i] + "." + name[i] + "@ec-lyon.fr").lower()
+                email = (firstname[i] + "." + name[i] + str(i) + "@ec-lyon.fr").lower()
                 school_id = SchoolType.base_school.value
                 account_type = groups_type.AccountType.staff
             elif i < 4 * NB_USERS // 5:
-                email = (firstname[i] + "." + name[i] + "@centraliens-lyon.net").lower()
+                email = (
+                    firstname[i] + "." + name[i] + str(i) + "@centraliens-lyon.net"
+                ).lower()
                 school_id = SchoolType.base_school.value
                 account_type = groups_type.AccountType.former_student
             else:
-                email = faker.email()
+                email = (firstname[i] + "." + name[i] + str(i) + "@gmail.com").lower()
                 school_id = SchoolType.no_school.value
                 account_type = groups_type.AccountType.external
 

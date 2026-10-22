@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -127,6 +128,29 @@ def run_alembic_upgrade(connection: Connection) -> None:
     alembic_command.upgrade(alembic_cfg, "head")
 
 
+def create_search_extensions(connection: Connection) -> None:
+    """
+    Create the PostgreSQL extensions and functions required by the model indexes.
+    Must run before `Base.metadata.create_all`, because a fresh database skips the migrations.
+    Every statement is idempotent, so it is safe to run on an existing database.
+    """
+    # Trigram-based text search
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+    # Accent-insensitive text search
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+    # Immutable wrapper around unaccent, required to use it in an index expression
+    # Keep this definition strictly identical to the one in the Alembic migration
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION f_unaccent(text) RETURNS text AS $$
+            SELECT public.unaccent('public.unaccent', $1);
+            $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
+            """,
+        ),
+    )
+
+
 def update_db_tables(
     sync_engine: Engine,
     hyperion_error_logger: logging.Logger,
@@ -156,7 +180,8 @@ def update_db_tables(
                 hyperion_error_logger.info(
                     "Startup: Database tables not created yet, creating them",
                 )
-
+                # We create the extensions and functions required by the model indexes
+                create_search_extensions(conn)
                 # Create all tables
                 Base.metadata.create_all(conn)
                 # We stamp the database with the latest revision so that
