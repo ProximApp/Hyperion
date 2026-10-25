@@ -34,8 +34,10 @@ from sqlalchemy.exc import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.tickets import cruds_tickets, schemas_tickets, utils_redis_tickets
-from app.core.tickets.utils_redis_tickets import StreamAction, to_str
+from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.tickets.redis_event_tool import RedisEventTool
+from app.core.tickets.types_tickets import EventRedisKeys, LuaResult, StreamAction
+from app.core.tickets.utils_redis_tickets import hold_key, to_str
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +192,8 @@ class TicketsWriteBehindWorker:
         try:
             # id="0": a group created after the API published its first events must still see them.
             await self.redis.xgroup_create(
-                name=utils_redis_tickets.STREAM_KEY,
-                groupname=utils_redis_tickets.STREAM_GROUP,
+                name=EventRedisKeys.STREAM_KEY,
+                groupname=EventRedisKeys.STREAM_GROUP,
                 id="0",
                 mkstream=True,
             )
@@ -215,9 +217,9 @@ class TicketsWriteBehindWorker:
         block_ms: int,
     ) -> list[tuple[str, dict[Any, Any]]]:
         response = await self.redis.xreadgroup(
-            groupname=utils_redis_tickets.STREAM_GROUP,
+            groupname=EventRedisKeys.STREAM_GROUP,
             consumername=self.consumer_name,
-            streams={utils_redis_tickets.STREAM_KEY: ">"},
+            streams={EventRedisKeys.STREAM_KEY: ">"},
             count=count,
             block=block_ms,
         )
@@ -237,8 +239,8 @@ class TicketsWriteBehindWorker:
         start_id = "0-0"
         while len(claimed) < self.batch_size:
             response = await self.redis.xautoclaim(
-                name=utils_redis_tickets.STREAM_KEY,
-                groupname=utils_redis_tickets.STREAM_GROUP,
+                name=EventRedisKeys.STREAM_KEY,
+                groupname=EventRedisKeys.STREAM_GROUP,
                 consumername=self.consumer_name,
                 min_idle_time=self.claim_idle_ms,
                 start_id=start_id,
@@ -246,9 +248,9 @@ class TicketsWriteBehindWorker:
             )
             next_id, messages = to_str(response[0]), response[1]
             for message_id, fields in messages:
-                message_id = to_str(message_id)
-                if fields and message_id not in exclude:
-                    claimed.append((message_id, fields))
+                str_message_id = to_str(message_id)
+                if fields and str_message_id not in exclude:
+                    claimed.append((str_message_id, fields))
             if next_id == "0-0":
                 break
             start_id = next_id
@@ -260,11 +262,11 @@ class TicketsWriteBehindWorker:
             return
         pipe = self.redis.pipeline(transaction=True)
         pipe.xack(
-            utils_redis_tickets.STREAM_KEY,
-            utils_redis_tickets.STREAM_GROUP,
+            EventRedisKeys.STREAM_KEY,
+            EventRedisKeys.STREAM_GROUP,
             *message_ids,
         )
-        pipe.xdel(utils_redis_tickets.STREAM_KEY, *message_ids)
+        pipe.xdel(EventRedisKeys.STREAM_KEY, *message_ids)
         await pipe.execute()
 
     async def _dead_letter(
@@ -278,7 +280,7 @@ class TicketsWriteBehindWorker:
         parked = {to_str(key): to_str(value) for key, value in fields.items()}
         parked["original_id"] = message_id
         parked["error"] = reason[:500]
-        await self.redis.xadd(utils_redis_tickets.DEAD_LETTER_STREAM_KEY, parked)
+        await self.redis.xadd(EventRedisKeys.DEAD_LETTER_STREAM_KEY, parked)
         await self._ack([message_id])
 
     # ---- PostgreSQL side ----------------------------------------------------------------
@@ -442,14 +444,14 @@ async def _release_expired_batch(
     pipe = redis_client.pipeline(transaction=False)
     for checkout_id in checkout_ids:
         pipe.evalsha(
-            utils_redis_tickets.RELEASE_SCRIPT.sha,
+            RedisEventTool.RELEASE_SCRIPT.sha,
             3,
-            utils_redis_tickets.hold_key(checkout_id),
-            utils_redis_tickets.EXPIRATIONS_ZSET_KEY,
-            utils_redis_tickets.STREAM_KEY,
+            hold_key(checkout_id),
+            EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+            EventRedisKeys.STREAM_KEY,
             checkout_id,
             now_ts,
-            utils_redis_tickets.REAPER_GRACE_SECONDS,
+            RedisEventTool.REAPER_GRACE_SECONDS,
         )
     results = await pipe.execute(raise_on_error=False)
 
@@ -461,7 +463,7 @@ async def _release_expired_batch(
         elif isinstance(result, Exception):
             # Not a missing-script error: the hold stays in the ZSET, retried at the next sweep.
             logger.error("Reaper could not release hold %s: %r", checkout_id, result)
-        elif to_str(result) == utils_redis_tickets.RELEASED:
+        elif to_str(result) == LuaResult.RELEASED:
             released += 1
 
     if to_retry:
@@ -473,7 +475,7 @@ async def _release_expired_batch(
                 len(to_retry),
             )
         else:
-            await utils_redis_tickets.load_scripts(redis_client)
+            await RedisEventTool(redis_client).load_scripts()
             released += await _release_expired_batch(
                 redis_client,
                 to_retry,
@@ -498,15 +500,15 @@ async def reap_expired_holds(
     instant is never released (CONFIRM removes the hold from the ZSET atomically as well).
     The sweep is idempotent: running it concurrently from several processes is safe.
     """
-    await utils_redis_tickets.ensure_scripts_loaded(redis_client)
+    await RedisEventTool(redis_client).ensure_scripts_loaded()
     now_ts = int(time.time()) if now is None else now
     released = 0
 
     for _ in range(REAPER_MAX_BATCHES_PER_SWEEP):
         expired = await redis_client.zrangebyscore(
-            utils_redis_tickets.EXPIRATIONS_ZSET_KEY,
+            EventRedisKeys.EXPIRATIONS_ZSET_KEY,
             "-inf",
-            now_ts - utils_redis_tickets.REAPER_GRACE_SECONDS,
+            now_ts - RedisEventTool.REAPER_GRACE_SECONDS,
             start=0,
             num=batch_size,
         )
@@ -620,12 +622,13 @@ async def _snapshot_refresh_loop(
                 stop_event.wait(),
                 timeout=SNAPSHOT_REFRESH_INTERVAL_SECONDS,
             )
-            return
         except TimeoutError:
             pass
+        else:
+            return
         try:
             async with session_factory() as db:
-                await utils_redis_tickets.warm_up_active_events(redis_client, db)
+                await RedisEventTool(redis_client).warm_up_active_events(db)
         except Exception:
             logger.exception("Tickets: snapshot refresh failed")
 
@@ -641,9 +644,9 @@ class TicketsBackgroundWorkers:
     stop_event: asyncio.Event
     tasks: list[asyncio.Task[None]] = field(default_factory=list)
 
-    async def stop(self, timeout: float = 15.0) -> None:
+    async def stop(self, wait_timeout: float = 15.0) -> None:
         self.stop_event.set()
-        _done, pending = await asyncio.wait(self.tasks, timeout=timeout)
+        _done, pending = await asyncio.wait(self.tasks, timeout=wait_timeout)
         for task in pending:
             task.cancel()
 
@@ -663,14 +666,11 @@ async def start_tickets_background_workers(
     4. keep the snapshots warm in the background (refresh-ahead)
     5. start the reaper (recurring Scheduler job, or a plain loop when no Scheduler is given)
     """
-    await utils_redis_tickets.init_tickets_redis(redis_client)
+    await RedisEventTool(redis_client).init_tickets_redis()
 
     try:
         async with session_factory() as db:
-            nb_events = await utils_redis_tickets.warm_up_active_events(
-                redis_client,
-                db,
-            )
+            nb_events = await RedisEventTool(redis_client).warm_up_active_events(db)
         logger.info("Tickets: %d events pre-warmed in Redis", nb_events)
     except Exception:
         # Not fatal: the endpoint falls back to a single-flight warm-up on first use.

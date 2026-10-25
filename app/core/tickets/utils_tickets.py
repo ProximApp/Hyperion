@@ -16,7 +16,9 @@ from app.core.tickets import (
     schemas_tickets,
     utils_redis_tickets,
 )
-from app.core.tickets.types_tickets import SOLD_OUT_MESSAGES
+from app.core.tickets.redis_event_tool import RedisEventTool
+from app.core.tickets.schemas_tickets import ReservationResult
+from app.core.tickets.types_tickets import SOLD_OUT_MESSAGES, LuaResult
 
 MEMBERSHIP_CACHE_TTL_SECONDS = 300
 MEMBERSHIP_NEGATIVE_CACHE_TTL_SECONDS = 30
@@ -28,6 +30,7 @@ hyperion_error_logger = logging.getLogger("hyperion.error")
 async def mypayment_callback_callback(
     checkout_id: UUID,
     db: AsyncSession,
+    redis_client: Redis | None = None,
 ) -> None:
     """
     Callback called by MyPayment when the payment status of a checkout changes.
@@ -41,7 +44,6 @@ async def mypayment_callback_callback(
     The signature is imposed by the MyPayment callback contract, so the Redis client can not be
     injected: it is the one registered by `utils_redis_tickets.init_tickets_redis` at startup.
     """
-    redis_client = utils_redis_tickets.get_registered_redis_client()
 
     if redis_client is None:
         # Redis is not configured (development / tests): historical synchronous behaviour.
@@ -51,11 +53,8 @@ async def mypayment_callback_callback(
         )
         return
 
-    status = await utils_redis_tickets.confirm_hold(
-        redis_client=redis_client,
-        checkout_id=checkout_id,
-    )
-    if status in (utils_redis_tickets.CONFIRMED, utils_redis_tickets.ALREADY_CONFIRMED):
+    status = await RedisEventTool(redis_client).confirm_hold(checkout_id=checkout_id)
+    if status in (LuaResult.CONFIRMED, LuaResult.ALREADY_CONFIRMED):
         # ALREADY_CONFIRMED: MyPayment called us twice, nothing to do.
         return
 
@@ -224,17 +223,17 @@ async def get_events_from_store(
 
 
 def raise_if_reservation_failed(
-    reservation: utils_redis_tickets.ReservationResult,
+    reservation: ReservationResult,
 ) -> None:
     """Translate the result code of the Lua reservation script into the historical HTTP errors."""
-    if reservation.status == utils_redis_tickets.RESERVED:
+    if reservation.status == LuaResult.RESERVED:
         return
-    if reservation.status == utils_redis_tickets.USER_ALREADY_HAS_RESERVATION:
+    if reservation.status == LuaResult.USER_ALREADY_HAS_RESERVATION:
         raise HTTPException(
             400,
             "User already has a pending reservation for this event",
         )
-    if reservation.status == utils_redis_tickets.SOLD_OUT_OR_INSUFFICIENT_STOCK:
+    if reservation.status == LuaResult.SOLD_OUT_OR_INSUFFICIENT_STOCK:
         raise HTTPException(
             400,
             SOLD_OUT_MESSAGES.get(reservation.dimension or "", "Event is sold out"),
@@ -305,7 +304,7 @@ def check_answer_validity_and_calculate_price(
 
 
 async def user_has_required_membership(
-    redis_client: Redis,
+    redis_event_tool: RedisEventTool,
     association_membership_id: UUID,
     user_id: str,
     db: AsyncSession,
@@ -318,7 +317,7 @@ async def user_has_required_membership(
     from RAM for MEMBERSHIP_CACHE_TTL_SECONDS). It is a plain SELECT: no write, no commit.
     """
     cache_key = f"tickets:membership:{association_membership_id}:{user_id}"
-    cached = await redis_client.get(cache_key)
+    cached = await redis_event_tool.redis_client.get(cache_key)
     if cached is not None:
         return utils_redis_tickets.to_str(cached) == "1"
 
@@ -330,7 +329,7 @@ async def user_has_required_membership(
         )
     )
     has_membership = membership is not None
-    await redis_client.set(
+    await redis_event_tool.redis_client.set(
         cache_key,
         "1" if has_membership else "0",
         ex=MEMBERSHIP_CACHE_TTL_SECONDS

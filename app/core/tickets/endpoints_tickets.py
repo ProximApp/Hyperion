@@ -14,7 +14,6 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import FileResponse, RedirectResponse
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import schemas_feed, utils_feed
@@ -25,10 +24,11 @@ from app.core.permissions.type_permissions import ModulePermissions
 from app.core.tickets import (
     cruds_tickets,
     schemas_tickets,
-    utils_redis_tickets,
     utils_tickets,
 )
 from app.core.tickets.factory_tickets import TicketsFactory
+from app.core.tickets.redis_event_tool import RedisEventTool, get_redis_event_tool
+from app.core.tickets.types_tickets import LuaResult
 from app.core.users import schemas_users
 from app.core.users.cruds_users import get_user_by_email
 from app.core.users.models_users import CoreUser
@@ -39,7 +39,6 @@ from app.dependencies import (
     get_mail_templates,
     get_mypayment_tool,
     get_notification_tool,
-    get_redis_client,
     get_settings,
     is_user,
     is_user_allowed_to,
@@ -197,7 +196,9 @@ async def create_checkout(
     # `db` is no longer touched on the fast path: it is only handed to the cold-cache fallbacks
     # (event snapshot reload, first membership lookup of a user). No write, no commit.
     db: AsyncSession = Depends(get_db),
-    redis_client: Redis | None = Depends(get_redis_client),
+    redis_event_tool: RedisEventTool = Depends(
+        get_redis_event_tool,
+    ),
     mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
 ):
     """
@@ -211,23 +212,22 @@ async def create_checkout(
       4. an `ACTION: HOLD` event is appended to a Redis Stream and the response is returned.
     PostgreSQL is updated later by the write-behind worker (worker_tickets.py), in batches.
     """
-    if not redis_client:
-        raise HTTPException(
-            503,
-            "Tickets checkout is unavailable: Redis is not configured",
-        )
-
     now = datetime.now(UTC)
 
     # 1. Configuration served from RAM. It replaces get_category_by_id, get_session_by_id,
     #    get_questions_by_event_id and the SELECT ... FOR UPDATE lock on the event row.
-    event = await utils_redis_tickets.get_event_snapshot(
-        redis_client=redis_client,
+    event = await redis_event_tool.get_event_snapshot(
         event_id=event_id,
         db=db,
     )
     if event is None:
         raise HTTPException(404, "Event not found")
+    if event.disabled:
+        raise HTTPException(400, "Event is disabled")
+    if event.open_datetime > now:
+        raise HTTPException(400, "Event is not open yet")
+    if event.close_datetime is not None and event.close_datetime <= now:
+        raise HTTPException(400, "Event is closed")
 
     # A category or a session that does not belong to this event is reported as not found.
     category = next(
@@ -247,16 +247,9 @@ async def create_checkout(
     if session.disabled:
         raise HTTPException(400, "Session is disabled")
 
-    if event.disabled:
-        raise HTTPException(400, "Event is disabled")
-    if event.open_datetime > now:
-        raise HTTPException(400, "Event is not open yet")
-    if event.close_datetime is not None and event.close_datetime <= now:
-        raise HTTPException(400, "Event is closed")
-
     if category.required_membership is not None:
         has_membership = await utils_tickets.user_has_required_membership(
-            redis_client=redis_client,
+            redis_event_tool=redis_event_tool,
             association_membership_id=category.required_membership,
             user_id=user.id,
             db=db,
@@ -297,8 +290,7 @@ async def create_checkout(
     #    - is_event_sold_out / is_category_sold_out / is_session_sold_out (3 COUNT queries),
     #    - cruds_tickets.create_checkout + the commit done at the end of the request.
     # No lock is held between the check and the decrement: Redis runs the script atomically.
-    reservation = await utils_redis_tickets.reserve(
-        redis_client=redis_client,
+    reservation = await redis_event_tool.reserve(
         event=event,
         category=category,
         session=session,
@@ -306,16 +298,14 @@ async def create_checkout(
         checkout_id=checkout_id,
         payload_json=payload_json,
     )
-    if reservation.status == utils_redis_tickets.STOCK_NOT_INITIALIZED:
+    if reservation.status == LuaResult.STOCK_NOT_INITIALIZED:
         # Cold start (counters never initialised, or lost by Redis): initialise them from
         # PostgreSQL once (single-flight) and retry. Pre-warming at startup makes this path rare.
-        await utils_redis_tickets.warm_up_event(
-            redis_client=redis_client,
+        await redis_event_tool.warm_up_event(
             event_id=event_id,
             db=db,
         )
-        reservation = await utils_redis_tickets.reserve(
-            redis_client=redis_client,
+        reservation = await redis_event_tool.reserve(
             event=event,
             category=category,
             session=session,
@@ -333,15 +323,10 @@ async def create_checkout(
             # by the Lua script and carries the whole checkout, so the worker persists it as paid.
             payment_request_info = None
             expiration = now
-            confirm_status = await utils_redis_tickets.confirm_hold(
-                redis_client=redis_client,
+            await redis_event_tool.confirm_hold(
                 checkout_id=checkout_id,
+                raise_on_fail=True,
             )
-            if confirm_status not in (
-                utils_redis_tickets.CONFIRMED,
-                utils_redis_tickets.ALREADY_CONFIRMED,
-            ):
-                raise HTTPException(503, "Reservation lost, please retry")
         else:
             payment_request_info = await mypayment_tool.request_payment(
                 request_type=checkout.mypayment_request_method,
@@ -375,8 +360,7 @@ async def create_checkout(
     except Exception:
         # Compensation: atomically restore the stock, delete the hold and publish RELEASE.
         try:
-            await utils_redis_tickets.release_hold(
-                redis_client=redis_client,
+            await redis_event_tool.release_hold(
                 checkout_id=checkout_id,
             )
         except Exception:
@@ -391,8 +375,7 @@ async def create_checkout(
     #    answers into PostgreSQL in a batch. Nothing waits for that write.
     #    (Free tickets are persisted through the CONFIRM event published by the Lua script.)
     if payment_request_info is not None:
-        await utils_redis_tickets.publish_hold_event(
-            redis_client=redis_client,
+        await redis_event_tool.publish_hold_event(
             checkout_id=checkout_id,
             user_id=user.id,
             qty=1,
