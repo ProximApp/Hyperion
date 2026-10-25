@@ -76,3 +76,10 @@ class InvalidCheckoutToolError(Exception):
         super().__init__(
             f"Checkout tool {name.name} is not supported",
         )
+
+
+class UnknownModuleError(Exception):
+    def __init__(self, module_name: str):
+        super().__init__(
+            f"No module registered for MyPayment callback root {module_name}",
+        )
