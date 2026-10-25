@@ -127,7 +127,7 @@ def run_migrations_online() -> None:
     connection: Connection | AsyncConnection | None = config.attributes.get(
         "connection",
         None,
-    )
+    )  # ty: ignore[unsound-assignment]
 
     if connection is None:
         asyncio.run(create_async_engine_and_run_async_migrations())

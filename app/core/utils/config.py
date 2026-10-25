@@ -419,14 +419,14 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
     def KNOWN_AUTH_CLIENTS(cls) -> dict[str, providers.BaseAuthClient]:
-        clients = {}
+        clients: dict[str, providers.BaseAuthClient] = {}
         auth_client_class: type[providers.BaseAuthClient]
         for client_id, configuration in cls.AUTH_CLIENTS.items():
             try:
                 auth_client_class = getattr(
                     providers,
                     configuration.auth_client,
-                )
+                )  # ty: ignore[unsound-assignment]
             except AttributeError as error:
                 raise DotenvInvalidAuthClientNameInError(
                     configuration.auth_client,
