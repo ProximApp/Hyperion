@@ -25,7 +25,7 @@ from uuid import UUID
 
 from pydantic import ValidationError
 from redis.asyncio import Redis
-from redis.exceptions import NoScriptError, ResponseError
+from redis.exceptions import ResponseError
 from sqlalchemy.exc import (
     DBAPIError,
     InterfaceError,
@@ -425,63 +425,45 @@ class SchedulerProtocol(Protocol):
 
 
 async def _release_expired_batch(
-    redis_client: Redis,
+    tool: RedisEventTool,
     checkout_ids: Sequence[str],
     now_ts: int,
-    *,
-    _retried: bool = False,
 ) -> int:
     """
-    Pipeline one EVALSHA RELEASE per checkout id (one Redis round trip for the whole batch) and
-    return how many were actually released.
+    Pipeline one RELEASE call per checkout id through `tool.RELEASE_SCRIPT` (one Redis round trip
+    for the whole batch) and return how many were actually released.
 
-    Self-heals a `SCRIPT FLUSH` landing in the narrow window between the sweep's own
-    `ensure_scripts_loaded` call and this pipeline: a NoScriptError among the pipelined results
-    triggers exactly one reload-and-retry of the affected ids, within this same call, instead of
-    silently leaving them in the ZSET for the next sweep (REAPER_INTERVAL_SECONDS later). The
-    `_retried` guard bounds this to a single extra round trip, even if Redis keeps flushing.
+    `tool.RELEASE_SCRIPT` is an AsyncScript (see RedisEventTool, built via register_script): calling
+    it with `client=pipe` queues the script invocation and registers the script on the pipeline. Before
+    executing the batch, redis-py ensures registered scripts are loaded; a `SCRIPT FLUSH` landing between
+    the sweep's own `ensure_scripts_loaded` call and this pipeline is therefore handled by redis-py itself,
+    so there is no manual missing-script retry to implement here.
+    `tool` must be the SAME instance (hence the same AsyncScript object) for the whole batch -
+    Pipeline.scripts is a set keyed by object identity, so a different AsyncScript wrapping the same
+    script text would be tracked separately and reloaded redundantly instead of being recognised as
+    already registered.
     """
-    pipe = redis_client.pipeline(transaction=False)
+    pipe = tool.redis_client.pipeline(transaction=False)
     for checkout_id in checkout_ids:
-        pipe.evalsha(
-            RedisEventTool.RELEASE_SCRIPT.sha,
-            3,
-            hold_key(checkout_id),
-            EventRedisKeys.EXPIRATIONS_ZSET_KEY,
-            EventRedisKeys.STREAM_KEY,
-            checkout_id,
-            now_ts,
-            RedisEventTool.REAPER_GRACE_SECONDS,
+        await tool.RELEASE_SCRIPT(
+            keys=[
+                hold_key(checkout_id),
+                EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+                EventRedisKeys.STREAM_KEY,
+            ],
+            args=[checkout_id, now_ts, tool.REAPER_GRACE_SECONDS],
+            client=pipe,
         )
     results = await pipe.execute(raise_on_error=False)
 
     released = 0
-    to_retry: list[str] = []
     for checkout_id, result in zip(checkout_ids, results, strict=True):
-        if isinstance(result, NoScriptError):
-            to_retry.append(checkout_id)
-        elif isinstance(result, Exception):
-            # Not a missing-script error: the hold stays in the ZSET, retried at the next sweep.
+        if isinstance(result, Exception):
+            # Genuinely unexpected (not a missing script): the hold stays in the ZSET and is
+            # retried at the next sweep.
             logger.error("Reaper could not release hold %s: %r", checkout_id, result)
         elif to_str(result) == LuaResult.RELEASED:
             released += 1
-
-    if to_retry:
-        if _retried:
-            # Reloading did not help (Redis itself unreachable, or flushed again mid-retry): give
-            # up for this sweep. The ids are still in the ZSET, so the next sweep retries them.
-            logger.error(
-                "Reaper: %d holds still NOSCRIPT after a reload, deferring to the next sweep",
-                len(to_retry),
-            )
-        else:
-            await RedisEventTool(redis_client).load_scripts()
-            released += await _release_expired_batch(
-                redis_client,
-                to_retry,
-                now_ts,
-                _retried=True,
-            )
     return released
 
 
@@ -500,7 +482,8 @@ async def reap_expired_holds(
     instant is never released (CONFIRM removes the hold from the ZSET atomically as well).
     The sweep is idempotent: running it concurrently from several processes is safe.
     """
-    await RedisEventTool(redis_client).ensure_scripts_loaded()
+    tool = RedisEventTool(redis_client)
+    await tool.ensure_scripts_loaded()
     now_ts = int(time.time()) if now is None else now
     released = 0
 
@@ -508,7 +491,7 @@ async def reap_expired_holds(
         expired = await redis_client.zrangebyscore(
             EventRedisKeys.EXPIRATIONS_ZSET_KEY,
             "-inf",
-            now_ts - RedisEventTool.REAPER_GRACE_SECONDS,
+            now_ts - tool.REAPER_GRACE_SECONDS,
             start=0,
             num=batch_size,
         )
@@ -516,7 +499,7 @@ async def reap_expired_holds(
             break
 
         released += await _release_expired_batch(
-            redis_client,
+            tool,
             [to_str(checkout_id) for checkout_id in expired],
             now_ts,
         )
@@ -660,7 +643,7 @@ async def start_tickets_background_workers(
     """
     Call it once in the application startup event, after the Redis client and the database exist.
 
-    1. SCRIPT LOAD of the Lua scripts (the endpoint then only uses EVALSHA)
+    1. Eagerly load the registered Lua scripts so their first request does not pay the self-healing load
     2. pre-warm the open / upcoming events (configuration snapshot + stock counters)
     3. start the write-behind worker as a background task
     4. keep the snapshots warm in the background (refresh-ahead)
