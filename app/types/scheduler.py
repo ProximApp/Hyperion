@@ -107,7 +107,7 @@ def get_send_emails_from_queue_task(
         dependencies.get_db,
     )
 
-    _get_settings: Callable[[], Settings] = _dependency_overrides.get(
+    _get_settings = _dependency_overrides.get(
         dependencies.get_settings,
         dependencies.get_settings,
     )

@@ -151,7 +151,7 @@ class NotificationManager:
                 ),
             )
 
-            result: messaging.BatchResponse = messaging.send_each_for_multicast(message)
+            result: messaging.BatchResponse = messaging.send_each_for_multicast(message)  # ty: ignore[unsound-assignment]
         except Exception:
             hyperion_error_logger.exception(
                 "Notification: Unable to send firebase notification to tokens",
