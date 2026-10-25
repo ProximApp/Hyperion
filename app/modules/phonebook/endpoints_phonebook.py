@@ -564,18 +564,17 @@ async def create_membership(
             detail=f"You are not allowed to create a new membership for association {membership.association_id}",
         )
 
-    if membership.role_tags is not None:
-        if RoleTags.president.value in membership.role_tags.split(
-            ";",
-        ) and not await has_association_groupement_manager_rights(
-            db=db,
-            user=user,
-            groupement_id=association.groupement_id,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail="You are not allowed to update a membership with the role of president",
-            )
+    if RoleTags.president.value in membership.role_tags.split(
+        ";",
+    ) and not await has_association_groupement_manager_rights(
+        db=db,
+        user=user,
+        groupement_id=association.groupement_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to update a membership with the role of president",
+        )
 
     if association.deactivated:
         raise HTTPException(

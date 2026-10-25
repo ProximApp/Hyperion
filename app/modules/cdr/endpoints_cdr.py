@@ -34,6 +34,7 @@ from app.dependencies import (
     is_user_allowed_to,
 )
 from app.modules.cdr import coredata_cdr, cruds_cdr, models_cdr, schemas_cdr
+from app.modules.cdr.data_exporter_cdr import construct_excel_from_users_purchases
 from app.modules.cdr.dependencies_cdr import get_current_cdr_year
 from app.modules.cdr.types_cdr import (
     CdrLogActionType,
@@ -42,7 +43,6 @@ from app.modules.cdr.types_cdr import (
 )
 from app.modules.cdr.utils_cdr import (
     check_request_consistency,
-    construct_dataframe_from_users_purchases,
     is_user_in_a_seller_group,
     validate_payment,
 )
@@ -498,7 +498,7 @@ async def generate_and_send_results(
 
     excel_io = BytesIO()
 
-    construct_dataframe_from_users_purchases(
+    construct_excel_from_users_purchases(
         users_purchases=purchases_by_users,
         users=list(users),
         products=list(products),

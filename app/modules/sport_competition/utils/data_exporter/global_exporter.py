@@ -5,6 +5,11 @@ import xlsxwriter
 from app.modules.sport_competition import schemas_sport_competition
 from app.modules.sport_competition.types_sport_competition import ExcelExportParams
 from app.modules.sport_competition.utils.data_exporter.commons import (
+    FormatStructure,
+    ProductDetail,
+    ProductStructure,
+    SheetData,
+    VariantInfo,
     autosize_columns,
     generate_format,
     get_user_types,
@@ -19,7 +24,10 @@ PAYMENTS_COLUMNS = ["Total à payer", "Total payé", "Tout payé"]
 
 def build_product_structure(
     products: list[schemas_sport_competition.ProductComplete],
-):
+) -> tuple[
+    ProductStructure,
+    int,
+]:
     col_idx = 0
 
     product_structure = []
@@ -33,20 +41,18 @@ def build_product_structure(
             valid_col = col_idx + 1
             col_idx += 2
             variants_info.append(
-                {
-                    "variant": variant,
-                    "qty_col": qty_col,
-                    "valid_col": valid_col,
-                },
+                VariantInfo(
+                    variant=variant,
+                    qty_col=qty_col,
+                    valid_col=valid_col,
+                ),
             )
-
         product_structure.append(
-            {
-                "product": product,
-                "variants_info": variants_info,
-            },
+            ProductDetail(
+                product=product,
+                variants_info=variants_info,
+            ),
         )
-
     return product_structure, col_idx
 
 
@@ -58,9 +64,9 @@ def build_data_rows(
     users_participant: dict[str, schemas_sport_competition.ParticipantComplete] | None,
     users_purchases: dict[str, list[schemas_sport_competition.PurchaseComplete]],
     users_payments: dict[str, list[schemas_sport_competition.PaymentComplete]] | None,
-    product_structure: tuple[list, int] | None,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[ProductStructure, int] | None,
     col_idx: int,
-) -> tuple[list[list[str | int]], list[int]]:
+) -> tuple[SheetData, list[int]]:
     data_rows: list[list[str | int]] = []
     thick_columns = [len(FIXED_COLUMNS) - 1]
     for user in users:
@@ -104,13 +110,11 @@ def build_data_rows(
         if ExcelExportParams.purchases in parameters and product_structure is not None:
             offset = 10 if ExcelExportParams.participants in parameters else 7
             for prod_struct in product_structure[0]:
-                for vinfo in prod_struct["variants_info"]:
-                    p = purchases_map.get(vinfo["variant"].id)
+                for vinfo in prod_struct.variants_info:
+                    p = purchases_map.get(vinfo.variant.id)
                     if p and p.quantity > 0:
-                        row[vinfo["qty_col"] + offset] = p.quantity
-                        row[vinfo["valid_col"] + offset] = (
-                            "OUI" if p.validated else "NON"
-                        )
+                        row[vinfo.qty_col + offset] = p.quantity
+                        row[vinfo.valid_col + offset] = "OUI" if p.validated else "NON"
             thick_columns.append(
                 offset + product_structure[1] - 1,
             )
@@ -125,7 +129,7 @@ def build_data_rows(
                 and product_structure is not None
             ):
                 offset += sum(
-                    len(prod_struct["variants_info"]) * 2
+                    len(prod_struct.variants_info) * 2
                     for prod_struct in product_structure[0]
                 )
             total = sum(p.quantity * p.product_variant.price for p in user_purchases)
@@ -142,7 +146,7 @@ def build_data_rows(
 
 def write_fixed_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: FormatStructure,
 ):
     worksheet.merge_range(
         0,
@@ -158,7 +162,7 @@ def write_fixed_headers(
 
 def write_participant_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: FormatStructure,
     columns_max_length: list[int],
 ):
     worksheet.merge_range(
@@ -176,7 +180,7 @@ def write_participant_headers(
 
 def write_payment_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: FormatStructure,
     start_index: int,
     columns_max_length: list[int],
 ):
@@ -195,8 +199,8 @@ def write_payment_headers(
 
 def write_product_headers(
     worksheet: xlsxwriter.Workbook.worksheet_class,
-    product_structure: tuple[list, int],  # ty:ignore[missing-type-argument]
-    formats: dict,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[ProductStructure, int],
+    formats: FormatStructure,
     start_index: int,
     columns_max_length: list[int],
 ) -> tuple[list[int], list[int]]:
@@ -204,10 +208,10 @@ def write_product_headers(
     variant_end_cols: list[int] = []
     for prod_struct in product_structure[0]:
         product = schemas_sport_competition.Product.model_validate(
-            prod_struct["product"],
+            prod_struct.product,
         )
-        variants_info = prod_struct["variants_info"]
-        start_col = variants_info[0]["qty_col"] + start_index
+        variants_info = prod_struct.variants_info
+        start_col = variants_info[0].qty_col + start_index
         end_col = start_col + len(variants_info) * 2 - 1
 
         if start_col < end_col:
@@ -227,41 +231,41 @@ def write_product_headers(
         for vinfo in variants_info:
             worksheet.merge_range(
                 2,
-                vinfo["qty_col"] + start_index,
+                vinfo.qty_col + start_index,
                 2,
-                vinfo["valid_col"] + start_index,
-                vinfo["variant"].name,
+                vinfo.valid_col + start_index,
+                vinfo.variant.name,
                 formats["header"]["base"],
             )
             worksheet.merge_range(
                 3,
-                vinfo["qty_col"] + start_index,
+                vinfo.qty_col + start_index,
                 3,
-                vinfo["valid_col"] + start_index,
-                str(vinfo["variant"].price / 100) + " €",
+                vinfo.valid_col + start_index,
+                str(vinfo.variant.price / 100) + " €",
                 formats["header"]["base"],
             )
             worksheet.write(
                 4,
-                vinfo["qty_col"] + start_index,
+                vinfo.qty_col + start_index,
                 "Quantité",
                 formats["header"]["base"],
             )
-            columns_max_length[vinfo["qty_col"]] = max(
-                columns_max_length[vinfo["qty_col"]],
+            columns_max_length[vinfo.qty_col] = max(
+                columns_max_length[vinfo.qty_col],
                 len("Quantité"),
             )
             worksheet.write(
                 4,
-                vinfo["valid_col"] + start_index,
+                vinfo.valid_col + start_index,
                 "Validé",
                 formats["header"]["base"],
             )
-            columns_max_length[vinfo["valid_col"]] = max(
-                columns_max_length[vinfo["valid_col"]],
+            columns_max_length[vinfo.valid_col] = max(
+                columns_max_length[vinfo.valid_col],
                 len("Validé"),
             )
-            variant_end_cols.append(vinfo["valid_col"])
+            variant_end_cols.append(vinfo.valid_col)
 
         for c in range(start_col, end_col + 1):
             columns_max_length[c] = max(columns_max_length[c], len(product.name))
@@ -282,11 +286,11 @@ def write_product_headers(
 def write_to_excel(
     parameters: list[ExcelExportParams],
     workbook: xlsxwriter.Workbook,
-    product_structure: tuple[list, int] | None,  # ty:ignore[missing-type-argument]
-    data_rows: list,  # ty:ignore[missing-type-argument]
+    product_structure: tuple[ProductStructure, int] | None,
+    data_rows: SheetData,
     thick_columns: list[int],
     col_idx: int,
-    formats: dict,  # ty:ignore[missing-type-argument]
+    formats: FormatStructure,
 ):
     worksheet = workbook.add_worksheet("Données")
     columns_max_length = [len(c) for c in FIXED_COLUMNS] + [0] * (
@@ -365,7 +369,7 @@ def construct_users_excel_with_parameters(
         ),
     )
 
-    product_structure: tuple[list, int] | None = None  # ty:ignore[missing-type-argument]
+    product_structure: tuple[ProductStructure, int] | None = None
     col_idx = len(FIXED_COLUMNS)
     if ExcelExportParams.purchases in parameters and products is not None:
         products.sort(
@@ -375,8 +379,7 @@ def construct_users_excel_with_parameters(
             products,
         )
         col_idx += sum(
-            len(prod_struct["variants_info"]) * 2
-            for prod_struct in product_structure[0]
+            len(prod_struct.variants_info) * 2 for prod_struct in product_structure[0]
         )
 
     if ExcelExportParams.participants in parameters:
