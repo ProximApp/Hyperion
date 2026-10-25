@@ -1,11 +1,9 @@
-import bisect
 import logging
 import os
 import re
 import secrets
 import shutil
-import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from inspect import iscoroutinefunction
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -17,7 +15,6 @@ from anyio import Path
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
-from jellyfish import jaro_winkler_similarity
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from PIL import Image
 from pydantic import ValidationError
@@ -64,44 +61,6 @@ def is_user_external(
     Users that are not members won't be able to use all features
     """
     return user.account_type == AccountType.external
-
-
-def sort_user(
-    query: str,
-    users: Sequence[models_users.CoreUser],
-    limit: int = 10,
-) -> list[models_users.CoreUser]:
-    """
-    Search for users using Fuzzy String Matching
-
-    `query` will be compared against `users` name, firstname and nickname.
-    Accents will be ignored.
-    The size of the answer can be limited using `limit` parameter.
-
-    Use Jaro-Winkler algorithm from Jellyfish library.
-    """
-
-    def unaccent(s: str) -> str:
-        return unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("utf8")
-
-    query = unaccent(query)
-    scored: list[tuple[CoreUser, float]] = []
-    for user in users:
-        firstname = unaccent(user.firstname)
-        name = unaccent(user.name)
-        nickname = unaccent(user.nickname) if user.nickname else None
-        score = max(
-            jaro_winkler_similarity(query, firstname),
-            jaro_winkler_similarity(query, name),
-            jaro_winkler_similarity(query, f"{firstname} {name}"),
-            jaro_winkler_similarity(query, f"{name} {firstname}"),
-            jaro_winkler_similarity(query, nickname) if nickname else 0,
-        )
-        bisect.insort(scored, (user, score), key=(lambda s: s[1]))
-        if len(scored) > limit:
-            scored.pop(0)
-
-    return [user for user, _ in reversed(scored)]
 
 
 def is_user_member_of_any_group(
