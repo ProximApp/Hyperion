@@ -1,6 +1,6 @@
 import xlsxwriter
 from pydantic import BaseModel
-from xlsxwriter.format import Format
+from xlsxwriter import format as xlsxwriter_format
 
 from app.modules.sport_competition import schemas_sport_competition
 
@@ -18,7 +18,7 @@ class ProductDetail(BaseModel):
 
 ProductStructure = list[ProductDetail]
 
-FormatStructure = dict[str, dict[str, Format]]
+FormatStructure = dict[str, dict[str, xlsxwriter_format.Format]]
 
 SheetData = list[list[str | int]]
 
@@ -164,7 +164,7 @@ def write_data_rows(
     worksheet: xlsxwriter.Workbook.worksheet_class,
     data_rows: list[list[str | int]],
     thick_columns: list[int],
-    formats: dict[str, dict[str, Format]],
+    formats: dict[str, dict[str, xlsxwriter_format.Format]],
     columns_max_length: list[int],
     start_row: int = 5,
 ):

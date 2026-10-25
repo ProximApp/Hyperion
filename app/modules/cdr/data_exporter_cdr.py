@@ -3,12 +3,12 @@ from uuid import UUID
 
 import xlsxwriter
 from pydantic import BaseModel
-from xlsxwriter.format import Format
+from xlsxwriter import format as xlsxwriter_format
 
 from app.core.users import models_users
 from app.modules.cdr import models_cdr
 
-FormatStructure = dict[str, dict[str, Format]]
+FormatStructure = dict[str, dict[str, xlsxwriter_format.Format]]
 
 SheetData = list[list[str | int]]
 
