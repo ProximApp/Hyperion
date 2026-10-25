@@ -22,6 +22,7 @@ from app.core.mypayment.exceptions_mypayment import (
     TransferAlreadyConfirmedInCallbackError,
     TransferNotFoundByCallbackError,
     TransferTotalDontMatchInCallbackError,
+    UnknownModuleError,
     WalletNotFoundOnUpdateError,
 )
 from app.core.mypayment.integrity_mypayment import (
@@ -421,55 +422,56 @@ async def call_mypayment_callback(
     id_name = (
         "transfer_id" if call_type == RequestType.TRANSFER_REQUEST else "request_id"
     )
-    try:
-        for module in all_modules:
-            if module.root == module_root:
-                if module.mypayment_callback is None:
-                    hyperion_error_logger.info(
-                        "MyPayment callback: module does not define a request callback",
-                        extra={
-                            "module_root": module_root,
-                            "id_name": id_name,
-                            "call_id": call_id,
-                        },
-                    )
-                    return
-                hyperion_error_logger.info(
-                    "MyPayment callback: calling module request callback",
-                    extra={
-                        "module_root": module_root,
-                        "id_name": id_name,
-                        "call_id": call_id,
-                    },
-                )
-                await module.mypayment_callback(object_id, db, redis_client)
-                hyperion_error_logger.info(
-                    "MyPayment callback: module request callback succeeded",
-                    extra={
-                        "module_root": module_root,
-                        "id_name": id_name,
-                        "call_id": call_id,
-                    },
-                )
-                return
-
+    for module in all_modules:
+        if module.root != module_root:
+            continue
+        if module.mypayment_callback is None:
+            hyperion_error_logger.info(
+                "MyPayment callback: module does not define a request callback",
+                extra={
+                    "module_root": module_root,
+                    "id_name": id_name,
+                    "call_id": call_id,
+                },
+            )
+            return
         hyperion_error_logger.info(
-            "MyPayment callback: module not found for request callback",
-            extra={
-                "module_root": module_root,
-                "id_name": id_name,
-                "call_id": call_id,
-            },
+            "MyPayment callback: calling module request callback",
+            extra={"module_root": module_root, "id_name": id_name, "call_id": call_id},
         )
-    except Exception:
-        hyperion_error_logger.exception(
-            "MyPayment callback: call to module request callback failed",
-            extra={
-                "module_root": module_root,
-                "id_name": id_name,
-                "call_id": call_id,
-            },
+        try:
+            # This callback is invoked from a non-FastAPI utility, so Depends cannot inject Redis.
+            # Resolve the process-global client here
+            callback = module.mypayment_callback
+            if redis_client is None:
+                # Local import avoids a module-import cycle during application initialization.
+                from app.dependencies import get_redis_client  # noqa: PLC0415
+
+                callback_redis = get_redis_client()
+            else:
+                callback_redis = redis_client
+            await callback(object_id, db, callback_redis)
+        except Exception:
+            hyperion_error_logger.exception(
+                "MyPayment callback: call to module request callback failed",
+                extra={
+                    "module_root": module_root,
+                    "id_name": id_name,
+                    "call_id": call_id,
+                },
+            )
+            raise
+        hyperion_error_logger.info(
+            "MyPayment callback: module request callback succeeded",
+            extra={"module_root": module_root, "id_name": id_name, "call_id": call_id},
         )
+        return
+
+    hyperion_error_logger.error(
+        "MyPayment callback: module not found for request callback",
+        extra={"module_root": module_root, "id_name": id_name, "call_id": call_id},
+    )
+    raise UnknownModuleError(module_root)
 
 
 async def can_user_manage_events(

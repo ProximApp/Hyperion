@@ -125,6 +125,7 @@ class TicketsWriteBehindWorker:
         self.flush_interval_seconds = flush_interval_seconds
         self.claim_idle_ms = claim_idle_ms
         self.claim_every_seconds = claim_every_seconds
+        self._claim_cursor = "0-0"
 
     async def run(self, stop_event: asyncio.Event | None = None) -> None:
         stop_event = stop_event or asyncio.Event()
@@ -236,24 +237,33 @@ class TicketsWriteBehindWorker:
     ) -> list[tuple[str, dict[Any, Any]]]:
         """XAUTOCLAIM: take over entries that another consumer read but never acknowledged."""
         claimed: list[tuple[str, dict[Any, Any]]] = []
-        start_id = "0-0"
-        while len(claimed) < self.batch_size:
+        # Scan a bounded number of pages per sweep. A large PEL containing no stale entries must not
+        # monopolise every worker's event loop by scanning the whole pending list repeatedly.
+        start_id = self._claim_cursor
+        max_pages = 3
+        for _ in range(max_pages):
             response = await self.redis.xautoclaim(
                 name=EventRedisKeys.STREAM_KEY,
                 groupname=EventRedisKeys.STREAM_GROUP,
                 consumername=self.consumer_name,
                 min_idle_time=self.claim_idle_ms,
                 start_id=start_id,
-                count=self.batch_size,
+                count=min(self.batch_size, max(1, self.batch_size - len(claimed))),
             )
             next_id, messages = to_str(response[0]), response[1]
             for message_id, fields in messages:
                 str_message_id = to_str(message_id)
                 if fields and str_message_id not in exclude:
                     claimed.append((str_message_id, fields))
+                    if len(claimed) >= self.batch_size:
+                        break
             if next_id == "0-0":
+                self._claim_cursor = "0-0"
                 break
             start_id = next_id
+            self._claim_cursor = start_id
+            if len(claimed) >= self.batch_size:
+                break
         return claimed
 
     async def _ack(self, message_ids: Sequence[str]) -> None:
@@ -360,31 +370,40 @@ class TicketsWriteBehindWorker:
         released: set[UUID] = set()
 
         for event in events:
-            if event.action in (StreamAction.HOLD, StreamAction.CONFIRM):
-                paid = event.action == StreamAction.CONFIRM
-                row = checkouts.get(event.checkout_id)
-                if row is None:
-                    checkouts[event.checkout_id] = schemas_tickets.CheckoutBulkRow(
-                        id=event.checkout_id,
-                        event_id=event.payload.event_id,
-                        category_id=event.payload.category_id,
-                        session_id=event.payload.session_id,
-                        user_id=event.user_id,
-                        price=event.payload.price,
-                        expiration=datetime.fromtimestamp(event.expires_at, tz=UTC),
-                        paid=paid,
-                    )
-                elif paid:
-                    # HOLD and CONFIRM of the same checkout in one batch: a single row, paid.
-                    # (ON CONFLICT DO UPDATE can not touch the same row twice in one statement.)
-                    row.paid = True
-                for answer in event.payload.answers:
-                    answers[answer.id] = schemas_tickets.AnswerBulkRow(
-                        id=answer.id,
-                        question_id=answer.question_id,
-                        checkout_id=event.checkout_id,
-                        answer=answer.answer,
-                    )
+            # RELEASE is also a full-state event. Persist a tombstone row if it arrives before HOLD;
+            # otherwise a later HOLD could resurrect a reservation that already released its stock.
+            row = checkouts.get(event.checkout_id)
+            if row is None:
+                if event.action == StreamAction.RELEASE:
+                    expiration = datetime.fromtimestamp(event.ts, tz=UTC)
+                    paid = False
+                else:
+                    expiration = datetime.fromtimestamp(event.expires_at, tz=UTC)
+                    paid = event.action == StreamAction.CONFIRM
+                row = schemas_tickets.CheckoutBulkRow(
+                    id=event.checkout_id,
+                    event_id=event.payload.event_id,
+                    category_id=event.payload.category_id,
+                    session_id=event.payload.session_id,
+                    user_id=event.user_id,
+                    price=event.payload.price,
+                    expiration=expiration,
+                    paid=paid,
+                )
+                checkouts[event.checkout_id] = row
+            elif event.action == StreamAction.CONFIRM:
+                # A confirmation is monotone and wins over HOLD/RELEASE, independent of event order.
+                row.paid = True
+
+            # Every action contains the full payload; fixed answer IDs make replay idempotent.
+            for answer in event.payload.answers:
+                answers[answer.id] = schemas_tickets.AnswerBulkRow(
+                    id=answer.id,
+                    question_id=answer.question_id,
+                    checkout_id=event.checkout_id,
+                    answer=answer.answer,
+                )
+
             if event.action == StreamAction.CONFIRM:
                 confirmed.add(event.checkout_id)
             elif event.action == StreamAction.RELEASE:
@@ -451,7 +470,12 @@ async def _release_expired_batch(
                 EventRedisKeys.EXPIRATIONS_ZSET_KEY,
                 EventRedisKeys.STREAM_KEY,
             ],
-            args=[checkout_id, now_ts, tool.REAPER_GRACE_SECONDS],
+            args=[
+                checkout_id,
+                now_ts,
+                tool.REAPER_GRACE_SECONDS,
+                tool.RELEASED_HOLD_RETENTION_SECONDS,
+            ],
             client=pipe,
         )
     results = await pipe.execute(raise_on_error=False)
@@ -464,6 +488,9 @@ async def _release_expired_batch(
             logger.error("Reaper could not release hold %s: %r", checkout_id, result)
         elif to_str(result) == LuaResult.RELEASED:
             released += 1
+        elif to_str(result) == "RELEASE_PUBLISH_FAILED":
+            # The hold remains pending in the expiration ZSET; a later sweep retries it.
+            logger.error("Reaper could not publish RELEASE for hold %s; it will be retried", checkout_id)
     return released
 
 
@@ -632,6 +659,8 @@ class TicketsBackgroundWorkers:
         _done, pending = await asyncio.wait(self.tasks, timeout=wait_timeout)
         for task in pending:
             task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def start_tickets_background_workers(
