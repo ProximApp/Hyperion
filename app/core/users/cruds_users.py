@@ -23,6 +23,7 @@ from app.core.groups import models_groups
 from app.core.groups.groups_type import AccountType
 from app.core.schools.schools_type import SchoolType
 from app.core.users import models_users, schemas_users
+from app.core.users.utils_users import user_simple_model_to_schema
 
 
 async def count_users(db: AsyncSession) -> int:
@@ -174,14 +175,13 @@ async def get_user_by_id(
 async def get_users_search(
     db: AsyncSession,
     query: str,
-    limit: int = 10,
-    # ... tes autres filtres (included_account_types, etc.)
+    limit: int | None = 10,
     included_account_types: list[AccountType] | None = None,
     excluded_account_types: list[AccountType] | None = None,
     included_groups: list[str] | None = None,
     excluded_groups: list[str] | None = None,
     schools_ids: list[UUID] | None = None,
-):
+) -> list[schemas_users.CoreUserSimple]:
     def unaccent(s: str) -> str:
         return unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("utf8")
 
@@ -222,7 +222,7 @@ async def get_users_search(
                 *excluded_account_type_condition,
                 *excluded_group_condition,
                 school_condition,
-                similarity_score > 0.3,
+                similarity_score > 0.1,
             ),
         )
         .order_by(similarity_score.desc())
@@ -230,7 +230,7 @@ async def get_users_search(
     )
 
     result = await db.execute(stmt)
-    return [row[0] for row in result.all()]
+    return [user_simple_model_to_schema(row[0]) for row in result.all()]
 
 
 async def get_user_by_email(
