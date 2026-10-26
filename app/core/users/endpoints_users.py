@@ -1,5 +1,4 @@
 import logging
-import string
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -50,7 +49,6 @@ from app.utils.tools import (
     compress_and_save_image_file,
     create_and_send_email_migration,
     get_file_from_data,
-    sort_user,
 )
 
 router = APIRouter(tags=["Users"])
@@ -114,6 +112,7 @@ async def count_users(
 )
 async def search_users(
     query: str,
+    limit: int | None = Query(default=None, ge=1),
     includedAccountTypes: list[AccountType] = Query(default=[]),
     excludedAccountTypes: list[AccountType] = Query(default=[]),
     includedGroups: list[str] = Query(default=[]),
@@ -129,15 +128,15 @@ async def search_users(
     **The user must be authenticated to use this endpoint**
     """
 
-    users = await cruds_users.get_users(
+    return await cruds_users.get_users_search(
         db,
+        query=query,
+        limit=limit,
         included_account_types=includedAccountTypes,
         excluded_account_types=excludedAccountTypes,
         included_groups=includedGroups,
         excluded_groups=excludedGroups,
     )
-
-    return sort_user(string.capwords(query), users)
 
 
 @router.get(
