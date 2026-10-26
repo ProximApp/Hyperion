@@ -43,8 +43,11 @@ async def get_published_news(
     ),
     start_after: datetime | None = Query(
         # TODO: temporary default to a 5 days before today restriction
-        default=datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        - timedelta(days=5),
+        # We use default_factory instead of default to avoid the default value being evaluated at import time
+        default_factory=lambda: (
+            datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            - timedelta(days=5)
+        ),
         description="Only return news starting at or after this datetime (inclusive window filters for paging before/after a date)",
     ),
     start_before: datetime | None = Query(
