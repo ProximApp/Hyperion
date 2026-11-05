@@ -137,55 +137,62 @@ class TicketsWriteBehindWorker:
         last_claim_at = float("-inf")
         backoff = 1.0
 
-        while not stop_event.is_set():
-            try:
-                # Recover entries left pending by a crashed consumer (or by a previous run of this one).
-                if time.monotonic() - last_claim_at >= self.claim_every_seconds:
-                    last_claim_at = time.monotonic()
-                    claimed = await self._claim_stale_entries(
-                        exclude={message_id for message_id, _ in buffer},
+        try:
+            while not stop_event.is_set():
+                try:
+                    # Recover entries left pending by a crashed consumer (or by a previous run of this one).
+                    if time.monotonic() - last_claim_at >= self.claim_every_seconds:
+                        last_claim_at = time.monotonic()
+                        claimed = await self._claim_stale_entries(
+                            exclude={message_id for message_id, _ in buffer},
+                        )
+                        if claimed and not buffer:
+                            first_buffered_at = time.monotonic()
+                        buffer.extend(claimed)
+
+                    # Accumulate: read at most what is missing to complete the batch, and never wait
+                    # longer than what remains of the flush interval.
+                    if len(buffer) < self.batch_size:
+                        entries = await self._read_new_entries(
+                            count=self.batch_size - len(buffer),
+                            block_ms=self._block_timeout_ms(buffer, first_buffered_at),
+                        )
+                        if entries and not buffer:
+                            first_buffered_at = time.monotonic()
+                        buffer.extend(entries)
+
+                    # Flush when the batch is full OR the oldest buffered entry is older than the interval.
+                    if buffer and (
+                        len(buffer) >= self.batch_size
+                        or time.monotonic() - first_buffered_at
+                        >= self.flush_interval_seconds
+                    ):
+                        if await self._flush(buffer):
+                            backoff = 1.0
+                            if buffer:
+                                first_buffered_at = time.monotonic()
+                        else:
+                            # PostgreSQL unavailable: nothing was acknowledged, keep the batch and retry
+                            # immediately on the next iteration without resetting first_buffered_at.
+                            await asyncio.sleep(backoff)
+                            backoff = min(backoff * 2, 30.0)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("Tickets write-behind loop error")
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 30.0)
+        finally:
+            if buffer:
+                # Graceful shutdown: shield the final flush so task cancellation does not drop the batch.
+                try:
+                    await asyncio.shield(self._flush(buffer))
+                except Exception:
+                    logger.exception(
+                        "Tickets write-behind worker %s could not flush remaining buffer on shutdown",
+                        self.consumer_name,
                     )
-                    if claimed and not buffer:
-                        first_buffered_at = time.monotonic()
-                    buffer.extend(claimed)
-
-                # Accumulate: read at most what is missing to complete the batch, and never wait
-                # longer than what remains of the flush interval.
-                if len(buffer) < self.batch_size:
-                    entries = await self._read_new_entries(
-                        count=self.batch_size - len(buffer),
-                        block_ms=self._block_timeout_ms(buffer, first_buffered_at),
-                    )
-                    if entries and not buffer:
-                        first_buffered_at = time.monotonic()
-                    buffer.extend(entries)
-
-                # Flush when the batch is full OR the oldest buffered entry is older than the interval.
-                if buffer and (
-                    len(buffer) >= self.batch_size
-                    or time.monotonic() - first_buffered_at
-                    >= self.flush_interval_seconds
-                ):
-                    if await self._flush(buffer):
-                        backoff = 1.0
-                    else:
-                        # PostgreSQL unavailable: nothing was acknowledged, keep the batch and retry.
-                        await asyncio.sleep(backoff)
-                        backoff = min(backoff * 2, 30.0)
-                    if buffer:
-                        first_buffered_at = time.monotonic()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logger.exception("Tickets write-behind loop error")
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 30.0)
-
-        if buffer:
-            await self._flush(
-                buffer,
-            )  # graceful shutdown: do not leave a batch unpersisted
-        logger.info("Tickets write-behind worker %s stopped", self.consumer_name)
+            logger.info("Tickets write-behind worker %s stopped", self.consumer_name)
 
     # ---- Redis side -------------------------------------------------------------------
 
@@ -237,6 +244,7 @@ class TicketsWriteBehindWorker:
     ) -> list[tuple[str, dict[Any, Any]]]:
         """XAUTOCLAIM: take over entries that another consumer read but never acknowledged."""
         claimed: list[tuple[str, dict[Any, Any]]] = []
+        ghost_ids: list[str] = []
         # Scan a bounded number of pages per sweep. A large PEL containing no stale entries must not
         # monopolise every worker's event loop by scanning the whole pending list repeatedly.
         start_id = self._claim_cursor
@@ -253,7 +261,10 @@ class TicketsWriteBehindWorker:
             next_id, messages = to_str(response[0]), response[1]
             for message_id, fields in messages:
                 str_message_id = to_str(message_id)
-                if fields and str_message_id not in exclude:
+                if not fields:
+                    # Entry was deleted from the stream (XDEL) but remained in the PEL; clean it up.
+                    ghost_ids.append(str_message_id)
+                elif str_message_id not in exclude:
                     claimed.append((str_message_id, fields))
                     if len(claimed) >= self.batch_size:
                         break
@@ -264,6 +275,8 @@ class TicketsWriteBehindWorker:
             self._claim_cursor = start_id
             if len(claimed) >= self.batch_size:
                 break
+        if ghost_ids:
+            await self._ack(ghost_ids)
         return claimed
 
     async def _ack(self, message_ids: Sequence[str]) -> None:
@@ -392,8 +405,12 @@ class TicketsWriteBehindWorker:
                 )
                 checkouts[event.checkout_id] = row
             elif event.action == StreamAction.CONFIRM:
-                # A confirmation is monotone and wins over HOLD/RELEASE, independent of event order.
+                # A confirmation is monotone and wins over HOLD/RELEASE (including CONFIRMED_LATE).
                 row.paid = True
+                row.expiration = datetime.fromtimestamp(event.expires_at, tz=UTC)
+            elif event.action == StreamAction.RELEASE and not row.paid:
+                # If HOLD and RELEASE are in the same batch, mark the row expired right away.
+                row.expiration = datetime.fromtimestamp(event.ts, tz=UTC)
 
             # Every action contains the full payload; fixed answer IDs make replay idempotent.
             for answer in event.payload.answers:
@@ -416,9 +433,16 @@ class TicketsWriteBehindWorker:
         async with self.session_factory() as db:
             # Order matters: answers reference checkouts. The release runs last so that a HOLD and
             # its RELEASE handled in the same batch end up released.
-            await cruds_tickets.bulk_upsert_checkouts(list(checkouts.values()), db)
-            await cruds_tickets.bulk_insert_answers(list(answers.values()), db)
-            await cruds_tickets.bulk_release_checkouts(released, datetime.now(UTC), db)
+            if checkouts:
+                await cruds_tickets.bulk_upsert_checkouts(list(checkouts.values()), db)
+            if answers:
+                await cruds_tickets.bulk_insert_answers(list(answers.values()), db)
+            if released:
+                await cruds_tickets.bulk_release_checkouts(
+                    released,
+                    datetime.now(UTC),
+                    db,
+                )
             await (
                 db.commit()
             )  # the only commit of the whole flow, and it is not on the request path
@@ -447,20 +471,16 @@ async def _release_expired_batch(
     tool: RedisEventTool,
     checkout_ids: Sequence[str],
     now_ts: int,
-) -> int:
+) -> tuple[int, int]:
     """
     Pipeline one RELEASE call per checkout id through `tool.RELEASE_SCRIPT` (one Redis round trip
-    for the whole batch) and return how many were actually released.
+    for the whole batch) and return `(released_count, still_in_zset_count)`.
 
     `tool.RELEASE_SCRIPT` is an AsyncScript (see RedisEventTool, built via register_script): calling
     it with `client=pipe` queues the script invocation and registers the script on the pipeline. Before
     executing the batch, redis-py ensures registered scripts are loaded; a `SCRIPT FLUSH` landing between
     the sweep's own `ensure_scripts_loaded` call and this pipeline is therefore handled by redis-py itself,
     so there is no manual missing-script retry to implement here.
-    `tool` must be the SAME instance (hence the same AsyncScript object) for the whole batch -
-    Pipeline.scripts is a set keyed by object identity, so a different AsyncScript wrapping the same
-    script text would be tracked separately and reloaded redundantly instead of being recognised as
-    already registered.
     """
     pipe = tool.redis_client.pipeline(transaction=False)
     for checkout_id in checkout_ids:
@@ -481,17 +501,28 @@ async def _release_expired_batch(
     results = await pipe.execute(raise_on_error=False)
 
     released = 0
+    still_in_zset = 0
     for checkout_id, result in zip(checkout_ids, results, strict=True):
         if isinstance(result, Exception):
             # Genuinely unexpected (not a missing script): the hold stays in the ZSET and is
             # retried at the next sweep.
+            still_in_zset += 1
             logger.error("Reaper could not release hold %s: %r", checkout_id, result)
-        elif to_str(result) == LuaResult.RELEASED:
+            continue
+
+        status = to_str(result)
+        if status == LuaResult.RELEASED:
             released += 1
-        elif to_str(result) == "RELEASE_PUBLISH_FAILED":
+        elif status == "RELEASE_PUBLISH_FAILED":
             # The hold remains pending in the expiration ZSET; a later sweep retries it.
-            logger.error("Reaper could not publish RELEASE for hold %s; it will be retried", checkout_id)
-    return released
+            still_in_zset += 1
+            logger.error(
+                "Reaper could not publish RELEASE for hold %s; it will be retried",
+                checkout_id,
+            )
+        elif status == LuaResult.NOT_EXPIRED:
+            still_in_zset += 1
+    return released, still_in_zset
 
 
 async def reap_expired_holds(
@@ -503,35 +534,38 @@ async def reap_expired_holds(
     """
     Sweep the expiration ZSET (ZRANGEBYSCORE) and release every hold that was not paid in time.
 
-    For each expired hold, ONE atomic Lua script does: INCRBY stock, DEL hold, ZREM, XADD RELEASE.
-    Doing it in a script (rather than 4 Python calls) guarantees that a crash can never restore the
-    stock twice or restore it without deleting the hold, and that a payment confirmed at the same
-    instant is never released (CONFIRM removes the hold from the ZSET atomically as well).
+    For each expired hold, ONE atomic Lua script does: XADD RELEASE, INCRBY stock, tombstone hold, ZREM.
+    Doing it in a script guarantees that a crash can never restore the stock twice, and that a payment
+    confirmed at the same instant is never released (CONFIRM removes the hold from the ZSET atomically).
     The sweep is idempotent: running it concurrently from several processes is safe.
     """
     tool = RedisEventTool(redis_client)
-    await tool.ensure_scripts_loaded()
     now_ts = int(time.time()) if now is None else now
     released = 0
+    offset = 0
 
     for _ in range(REAPER_MAX_BATCHES_PER_SWEEP):
         expired = await redis_client.zrangebyscore(
             EventRedisKeys.EXPIRATIONS_ZSET_KEY,
             "-inf",
             now_ts - tool.REAPER_GRACE_SECONDS,
-            start=0,
+            start=offset,
             num=batch_size,
         )
         if not expired:
             break
 
-        released += await _release_expired_batch(
+        batch_released, still_in_zset = await _release_expired_batch(
             tool,
             [to_str(checkout_id) for checkout_id in expired],
             now_ts,
         )
+        released += batch_released
+        # Skip entries that stayed in the ZSET (e.g. RELEASE_PUBLISH_FAILED) so the current sweep
+        # does not spin on the same failing holds at start=0 up to REAPER_MAX_BATCHES_PER_SWEEP times.
+        offset += still_in_zset
 
-        if len(expired) < batch_size:
+        if len(expired) < batch_size or still_in_zset == len(expired):
             break
 
     if released:
@@ -626,6 +660,7 @@ async def _snapshot_refresh_loop(
     visible after SNAPSHOT_REFRESH_INTERVAL_SECONDS without any change in the admin endpoints.
     Several instances can run this loop: the warm-up is single-flight per event.
     """
+    tool = RedisEventTool(redis_client)
     while True:
         try:
             await asyncio.wait_for(
@@ -638,7 +673,7 @@ async def _snapshot_refresh_loop(
             return
         try:
             async with session_factory() as db:
-                await RedisEventTool(redis_client).warm_up_active_events(db)
+                await tool.warm_up_active_events(db)
         except Exception:
             logger.exception("Tickets: snapshot refresh failed")
 
@@ -678,11 +713,12 @@ async def start_tickets_background_workers(
     4. keep the snapshots warm in the background (refresh-ahead)
     5. start the reaper (recurring Scheduler job, or a plain loop when no Scheduler is given)
     """
-    await RedisEventTool(redis_client).init_tickets_redis()
+    tool = RedisEventTool(redis_client)
+    await tool.init_tickets_redis()
 
     try:
         async with session_factory() as db:
-            nb_events = await RedisEventTool(redis_client).warm_up_active_events(db)
+            nb_events = await tool.warm_up_active_events(db)
         logger.info("Tickets: %d events pre-warmed in Redis", nb_events)
     except Exception:
         # Not fatal: the endpoint falls back to a single-flight warm-up on first use.
