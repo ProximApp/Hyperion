@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections.abc import Sequence
 from uuid import UUID
@@ -5,34 +6,123 @@ from uuid import UUID
 from fastapi import (
     HTTPException,
 )
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.memberships import utils_memberships
 from app.core.mypayment import utils_mypayment
-from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.tickets import (
+    cruds_tickets,
+    schemas_tickets,
+    utils_redis_tickets,
+)
+from app.core.tickets.exceptions_tickets import (
+    RedisUnavailableError,
+    TicketCheckoutNotFoundError,
+    UnexpectedRedisConfirmationResultError,
+)
+from app.core.tickets.redis_event_tool import RedisEventTool
+from app.core.tickets.schemas_tickets import ReservationResult
+from app.core.tickets.types_tickets import SOLD_OUT_MESSAGES, LuaResult
+from app.dependencies import get_redis_client
+
+MEMBERSHIP_CACHE_TTL_SECONDS = 300
+MEMBERSHIP_NEGATIVE_CACHE_TTL_SECONDS = 30
 
 
-async def mypayment_callback_callback(
+hyperion_error_logger = logging.getLogger("hyperion.error")
+
+
+async def ticket_mypayment_callback(
     checkout_id: UUID,
     db: AsyncSession,
+    redis_client: Redis | None = None,
 ) -> None:
-    """
-    Callback called by MyPayment when the payment status of a checkout changes.
+    """Confirm a ticket checkout after MyPayment has verified the payment.
 
-    It will update the checkout and the associated tickets status according to the payment status.
+    Redis is the normal source of truth for the hold. SQL is only a safety fallback when the
+    hold has disappeared but the write-behind projection already contains the checkout.
+    A missing SQL row is an operational failure, not a successful payment acknowledgement.
     """
-    await cruds_tickets.mark_checkout_as_paid(
-        checkout_id=checkout_id,
-        db=db,
-    )
+    redis_client = redis_client if redis_client is not None else get_redis_client()
+    if redis_client is None:
+        # Do not silently use the old direct-SQL path: it cannot restore/validate Redis stock.
+        # Raising a non-HTTP exception makes the MyPayment webhook transaction roll back.
+        raise RedisUnavailableError(checkout_id)
+
+    redis_tool = RedisEventTool(redis_client)
+    status = await redis_tool.confirm_hold(checkout_id=checkout_id)
+
+    if status in (
+        LuaResult.CONFIRMED,
+        LuaResult.ALREADY_CONFIRMED,
+    ):
+        return
+
+    if status == LuaResult.CONFIRMED_LATE:
+        # The payment is authoritative, but the hold was already released and its stock may have
+        # been sold again. No automatic refund is available: persist the paid ticket and alert ops.
+        hyperion_error_logger.critical(
+            "PAYMENT CONFIRMED AFTER TICKET HOLD RELEASED; possible overbooking; manual reconciliation required",
+            extra={"checkout_id": str(checkout_id)},
+        )
+        return
+
+    if status == LuaResult.HOLD_NOT_FOUND:
+        # This can happen after Redis data loss/expiry. Only accept the SQL fallback if the checkout
+        # row already exists. The worker's CONFIRM event cannot be reconstructed without the payload.
+        updated = await cruds_tickets.mark_checkout_as_paid(
+            checkout_id=checkout_id,
+            db=db,
+        )
+        if updated:
+            ticket = await cruds_tickets.get_ticket_by_id(
+                ticket_id=checkout_id,
+                db=db,
+            )
+            if ticket is not None:
+                # Invalidate cached stock counters so the next request recomputes accurate stock from SQL.
+                await redis_tool.invalidate_event_snapshot(event_id=ticket.event_id)
+            hyperion_error_logger.critical(
+                "Payment confirmed but Redis hold is missing; checkout marked paid directly in SQL; stock cache invalidated",
+                extra={"checkout_id": str(checkout_id)},
+            )
+            return
+        hyperion_error_logger.critical(
+            "Payment confirmed but both Redis hold and SQL checkout are missing; payment callback will fail for retry/manual reconciliation",
+            extra={"checkout_id": str(checkout_id)},
+        )
+        raise TicketCheckoutNotFoundError(checkout_id)
+
+    raise UnexpectedRedisConfirmationResultError(checkout_id, status)
 
 
 async def is_event_sold_out(
     event_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_event(event_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_event_id(
+                event_id=event_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_event_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
@@ -40,7 +130,6 @@ async def is_event_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_event_id >= quota
 
 
@@ -48,9 +137,28 @@ async def is_category_sold_out(
     category_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_category(category_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_category_id(
+                category_id=category_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_category_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
@@ -58,7 +166,6 @@ async def is_category_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_category_id >= quota
 
 
@@ -66,9 +173,28 @@ async def is_session_sold_out(
     session_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_session(session_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_session_id(
+                session_id=session_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_session_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_session_id(
@@ -76,14 +202,23 @@ async def is_session_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_session_id >= quota
 
 
 async def convert_to_event_admin(
     event: schemas_tickets.EventComplete,
     db: AsyncSession,
-):
+    redis_event_tool: RedisEventTool | None = None,
+) -> schemas_tickets.EventAdmin:
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.build_event_admin(event=event, db=db)
+
     return schemas_tickets.EventAdmin(
         id=event.id,
         name=event.name,
@@ -98,12 +233,12 @@ async def convert_to_event_admin(
                 start_datetime=session.start_datetime,
                 quota=session.quota,
                 disabled=session.disabled,
-                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
-                    event_id=event.id,
+                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_session_id(
+                    session_id=session.id,
                     db=db,
                 ),
-                tickets_sold=await cruds_tickets.count_tickets_by_event_id(
-                    event_id=event.id,
+                tickets_sold=await cruds_tickets.count_tickets_by_session_id(
+                    session_id=session.id,
                     db=db,
                 ),
             )
@@ -171,20 +306,48 @@ async def get_events_from_store(
     )
 
 
-async def check_answer_validity_and_calculate_price(
-    event_id: UUID,
+def raise_if_reservation_failed(
+    reservation: ReservationResult,
+) -> None:
+    """Translate the result code of the Lua reservation script into the historical HTTP errors."""
+    if reservation.status == LuaResult.RESERVED:
+        return
+    if reservation.status == LuaResult.USER_ALREADY_HAS_RESERVATION:
+        raise HTTPException(
+            400,
+            "User already has a pending reservation for this event",
+        )
+    if reservation.status == LuaResult.SOLD_OUT_OR_INSUFFICIENT_STOCK:
+        raise HTTPException(
+            400,
+            SOLD_OUT_MESSAGES.get(reservation.dimension or "", "Event is sold out"),
+        )
+    # STOCK_NOT_INITIALIZED (even after a warm-up): transient, the client can retry.
+    raise HTTPException(
+        503,
+        "Event stock is not ready, please retry",
+        headers={"Retry-After": "1"},
+    )
+
+
+def check_answer_validity_and_calculate_price(
+    questions: Sequence[schemas_tickets.Question],
     checkout: schemas_tickets.Checkout,
-    db: AsyncSession,
 ) -> int:
+    """
+    Validate the answers of a checkout and return the price of the paid questions.
+
+    Pure CPU function: `questions` comes from the Redis snapshot of the event, so there is no
+    database access (it used to run one SELECT per checkout).
+    """
     price = 0
 
-    questions = await cruds_tickets.get_questions_by_event_id(
-        event_id=event_id,
-        db=db,
-    )
     questions_dict = {question.id: question for question in questions}
+    # Ignore disabled questions even if they were marked as required.
     required_questions_ids = {
-        question.id for question in questions if question.required
+        question.id
+        for question in questions
+        if question.required and not question.disabled
     }
     answered_questions_ids = set()
 
@@ -225,3 +388,39 @@ async def check_answer_validity_and_calculate_price(
         )
 
     return price
+
+
+async def user_has_required_membership(
+    redis_event_tool: RedisEventTool,
+    association_membership_id: UUID,
+    user_id: str,
+    db: AsyncSession,
+) -> bool:
+    """
+    Membership check, cached in Redis.
+
+    This is the one remaining read that can reach PostgreSQL on the checkout path: only for
+    categories with `required_membership`, and only for the first request of a user (then served
+    from RAM for MEMBERSHIP_CACHE_TTL_SECONDS). It is a plain SELECT: no write, no commit.
+    """
+    cache_key = f"tickets:membership:{association_membership_id}:{user_id}"
+    cached = await redis_event_tool.redis_client.get(cache_key)
+    if cached is not None:
+        return utils_redis_tickets.to_str(cached) == "1"
+
+    membership = (
+        await utils_memberships.get_user_active_membership_to_association_membership(
+            association_membership_id=association_membership_id,
+            user_id=user_id,
+            db=db,
+        )
+    )
+    has_membership = membership is not None
+    await redis_event_tool.redis_client.set(
+        cache_key,
+        "1" if has_membership else "0",
+        ex=MEMBERSHIP_CACHE_TTL_SECONDS
+        if has_membership
+        else MEMBERSHIP_NEGATIVE_CACHE_TTL_SECONDS,
+    )
+    return has_membership

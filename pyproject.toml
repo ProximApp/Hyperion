@@ -207,3 +207,4 @@ all = "error"
 missing-override-decorator = "ignore"
 unsound-assignment = "ignore" # SQLAlchemy types are too complex for ty to handle, so we ignore unsound assignment errors
 unsound-return-statement = "ignore" # SQLAlchemy types are too complex for ty to handle, so we ignore unsound return statement errors
+missing-type-argument = "ignore"

@@ -17,13 +17,18 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.feed import schemas_feed, utils_feed
-from app.core.memberships import utils_memberships
 from app.core.mypayment import cruds_mypayment, schemas_mypayment, utils_mypayment
 from app.core.mypayment.mypayment_tool import MyPaymentTool
 from app.core.notification.schemas_notification import Message
 from app.core.permissions.type_permissions import ModulePermissions
-from app.core.tickets import cruds_tickets, schemas_tickets, utils_tickets
+from app.core.tickets import (
+    cruds_tickets,
+    schemas_tickets,
+    utils_tickets,
+)
 from app.core.tickets.factory_tickets import TicketsFactory
+from app.core.tickets.redis_event_tool import RedisEventTool, get_redis_event_tool
+from app.core.tickets.types_tickets import LuaResult
 from app.core.users import schemas_users
 from app.core.users.cruds_users import get_user_by_email
 from app.core.users.models_users import CoreUser
@@ -56,14 +61,13 @@ core_module = CoreModule(
     tag="Tickets",
     router=router,
     factory=TicketsFactory(),
-    mypayment_callback=utils_tickets.mypayment_callback_callback,
+    mypayment_callback=utils_tickets.ticket_mypayment_callback,
     permissions=TicketsPermissions,
 )
 
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
-hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 
 
 @router.get(
@@ -78,13 +82,14 @@ async def get_open_events(
         ),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
-    Return all open events.
+    Return all open events, served from the Redis snapshot cache.
 
     To be considered open, an event should have its opening date in the past and its closing date in the future or not defined. Moreover, we only return enabled events.
     """
-    return await cruds_tickets.get_open_and_enabled_events(db=db)
+    return await redis_event_tool.get_open_and_enabled_events(db=db)
 
 
 @router.get(
@@ -100,13 +105,14 @@ async def get_event(
         ),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
-    Get an event public details
+    Get an event public details, served from Redis (snapshot + real-time stock counters).
 
-    Only enabled sessions and categories are returned
+    Only enabled sessions and categories are returned.
     """
-    event = await cruds_tickets.get_event_complete_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_snapshot(event_id=event_id, db=db)
 
     if event is None:
         raise HTTPException(404, "Event not found")
@@ -115,64 +121,7 @@ async def get_event(
     if event.disabled:
         raise HTTPException(400, "Event is disabled")
 
-    return schemas_tickets.EventPublic(
-        id=event.id,
-        name=event.name,
-        store_id=event.store_id,
-        sessions=[
-            schemas_tickets.SessionPublic(
-                event_id=session.event_id,
-                id=session.id,
-                name=session.name,
-                start_datetime=session.start_datetime,
-                sold_out=await utils_tickets.is_session_sold_out(
-                    session_id=session.id,
-                    quota=session.quota,
-                    db=db,
-                ),
-                disabled=session.disabled,
-            )
-            for session in event.sessions
-            if not session.disabled
-        ],
-        categories=[
-            schemas_tickets.CategoryPublic(
-                event_id=category.event_id,
-                id=category.id,
-                name=category.name,
-                price=category.price,
-                required_membership=category.required_membership,
-                sold_out=await utils_tickets.is_category_sold_out(
-                    category_id=category.id,
-                    quota=category.quota,
-                    db=db,
-                ),
-                disabled=category.disabled,
-            )
-            for category in event.categories
-            if not category.disabled
-        ],
-        questions=[
-            schemas_tickets.QuestionPublic(
-                id=question.id,
-                event_id=question.event_id,
-                question=question.question,
-                answer_type=question.answer_type,
-                price=question.price,
-                required=question.required,
-                disabled=question.disabled,
-            )
-            for question in event.questions
-        ],
-        sold_out=await utils_tickets.is_event_sold_out(
-            event_id=event.id,
-            quota=event.quota,
-            db=db,
-        ),
-        open_datetime=event.open_datetime,
-        close_datetime=event.close_datetime,
-        disabled=event.disabled,
-    )
+    return await redis_event_tool.build_event_public(event=event, db=db)
 
 
 @router.post(
@@ -188,142 +137,191 @@ async def create_checkout(
             [TicketsPermissions.access_tickets],
         ),
     ),
+    # `db` is no longer touched on the fast path: it is only handed to the cold-cache fallbacks
+    # (event snapshot reload, first membership lookup of a user). No write, no commit.
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(
+        get_redis_event_tool,
+    ),
     mypayment_tool: MyPaymentTool = Depends(get_mypayment_tool),
 ):
     """
     Create a checkout for an open event
+
+    FAST PATH (RAM only, no session.commit()):
+      1. event / category / session / questions come from the Redis snapshot of the event,
+      2. one atomic Lua script (EVALSHA) checks the three stocks, decrements them and stores the hold,
+      3. the payment request is created (its deadline is already covered by the hold's TTL,
+         by the operational safety-margin invariant documented on CHECKOUT_HOLD_TTL_SECONDS),
+      4. an `ACTION: HOLD` event is appended to a Redis Stream and the response is returned.
+    PostgreSQL is updated later by the write-behind worker (worker_tickets.py), in batches.
     """
-    category = await cruds_tickets.get_category_by_id(
-        category_id=checkout.category_id,
+    now = datetime.now(UTC)
+
+    # 1. Configuration served from RAM. It replaces get_category_by_id, get_session_by_id,
+    #    get_questions_by_event_id and the SELECT ... FOR UPDATE lock on the event row.
+    event = await redis_event_tool.get_event_snapshot(
+        event_id=event_id,
         db=db,
+    )
+    if event is None:
+        raise HTTPException(404, "Event not found")
+    if event.disabled:
+        raise HTTPException(400, "Event is disabled")
+    if event.open_datetime > now:
+        raise HTTPException(400, "Event is not open yet")
+    if event.close_datetime is not None and event.close_datetime <= now:
+        raise HTTPException(400, "Event is closed")
+
+    # A category or a session that does not belong to this event is reported as not found.
+    category = next(
+        (c for c in event.categories if c.id == checkout.category_id),
+        None,
     )
     if category is None:
         raise HTTPException(404, "Category not found")
     if category.disabled:
         raise HTTPException(400, "Category is disabled")
-    session = await cruds_tickets.get_session_by_id(
-        session_id=checkout.session_id,
-        db=db,
+    session = next(
+        (s for s in event.sessions if s.id == checkout.session_id),
+        None,
     )
     if session is None:
         raise HTTPException(404, "Session not found")
     if session.disabled:
         raise HTTPException(400, "Session is disabled")
 
-    if category.event_id != event_id:
-        raise HTTPException(400, "Category does not belong to the event")
-    if session.event_id != event_id:
-        raise HTTPException(400, "Session does not belong to the event")
-
     if category.required_membership is not None:
-        membership = await utils_memberships.get_user_active_membership_to_association_membership(
+        has_membership = await utils_tickets.user_has_required_membership(
+            redis_event_tool=redis_event_tool,
             association_membership_id=category.required_membership,
             user_id=user.id,
             db=db,
         )
-        if membership is None:
+        if not has_membership:
             raise HTTPException(
                 400,
                 "User does not have required membership to choose this category",
             )
 
-    price = await utils_tickets.check_answer_validity_and_calculate_price(
-        event_id=event_id,
+    price = utils_tickets.check_answer_validity_and_calculate_price(
+        questions=event.questions,
         checkout=checkout,
-        db=db,
     )
-
-    # By putting this lock:
-    # - we unsure that if an other endpoint execution acquired the lock before, this one will wait.
-    # - we guarantee that any other endpoint execution that tries to acquire the lock will need to wait until the end of this transaction.
-    # Two endpoints require this lock: create a checkout and convert a checkout to ticket (in a payment callback)
-    event = await cruds_tickets.acquire_event_lock_for_update(
-        event_id=event_id,
-        db=db,
-    )
-
-    if event is None:
-        raise ObjectExpectedInDbNotFoundError(
-            object_name="Event",
-            object_id=event_id,
-        )
-
-    if event.disabled:
-        raise HTTPException(400, "Event is disabled")
-
-    if event.open_datetime > datetime.now(UTC):
-        raise HTTPException(400, "Event is not open yet")
-    if event.close_datetime is not None and event.close_datetime <= datetime.now(UTC):
-        raise HTTPException(400, "Event is closed")
-
     price += category.price
-
-    if await utils_tickets.is_event_sold_out(
-        event_id=event_id,
-        quota=event.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Event is sold out")
-    if await utils_tickets.is_category_sold_out(
-        category_id=category.id,
-        quota=category.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Category is sold out")
-    if await utils_tickets.is_session_sold_out(
-        session_id=session.id,
-        quota=session.quota,
-        db=db,
-    ):
-        raise HTTPException(400, "Session is sold out")
 
     checkout_id = uuid.uuid4()
 
-    if price == 0:
-        await cruds_tickets.mark_checkout_as_paid(
-            checkout_id=checkout_id,
+    # Everything the write-behind worker needs to persist this checkout later.
+    # Answer ids are generated here so that replaying an event never inserts a duplicate.
+    payload_json = schemas_tickets.CheckoutPayload(
+        event_id=event_id,
+        category_id=category.id,
+        session_id=session.id,
+        price=price,
+        answers=[
+            schemas_tickets.CheckoutPayloadAnswer(
+                id=uuid.uuid4(),
+                question_id=answer.question_id,
+                answer=answer.answer.answer_value,
+            )
+            for answer in checkout.answers
+        ],
+    ).model_dump_json()
+
+    # Compute this once, before the first reserve call. It includes the relevant MyPayment request window,
+    # observed HelloAsso callback delivery lag, request-creation allowance and safety margin.
+    hold_ttl_seconds = redis_event_tool.hold_ttl_for_request(
+        checkout.mypayment_request_method,
+    )
+
+    # Build checkout_id and payload_json as in the current endpoint, then reserve using the TTL above.
+    reservation = await redis_event_tool.reserve(
+        event=event,
+        category=category,
+        session=session,
+        user_id=user.id,
+        checkout_id=checkout_id,
+        payload_json=payload_json,
+        hold_ttl_seconds=hold_ttl_seconds,
+    )
+    if reservation.status == LuaResult.STOCK_NOT_INITIALIZED:
+        refreshed_event = await redis_event_tool.warm_up_event(
+            event_id=event_id,
             db=db,
         )
-        payment_request_info = None
-        expiration = datetime.now(UTC)
-        paid = True
-    else:
-        payment_request_info = await mypayment_tool.request_payment(
-            request_type=checkout.mypayment_request_method,
-            payment_info=schemas_mypayment.PaymentInfo(
-                store_id=event.store_id,
-                total=price,
-                request_name=f"Event {event.name}",
-                store_note=f"Ticket for {event.name} of {user.full_name}",
-                module=core_module.root,
-                object_id=checkout_id,
-                redirect_url=checkout.mypayment_transfer_redirect_url,
-            ),
-            user=schemas_users.CoreUser(
-                id=user.id,
-                name=user.name,
-                firstname=user.firstname,
-                account_type=user.account_type,
-                school_id=user.school_id,
-                email=user.email,
-            ),
+        if refreshed_event is not None:
+            event = refreshed_event
+            category = (
+                next(
+                    (c for c in event.categories if c.id == checkout.category_id),
+                    None,
+                )
+                or category
+            )
+            session = (
+                next((s for s in event.sessions if s.id == checkout.session_id), None)
+                or session
+            )
+        reservation = await redis_event_tool.reserve(
+            event=event,
+            category=category,
+            session=session,
+            user_id=user.id,
+            checkout_id=checkout_id,
+            payload_json=payload_json,
+            hold_ttl_seconds=hold_ttl_seconds,
         )
-        expiration = payment_request_info.end_date
-        paid = False
+    utils_tickets.raise_if_reservation_failed(reservation)
 
-    await cruds_tickets.create_checkout(
-        checkout_id=checkout_id,
-        event_id=event_id,
-        user_id=user.id,
-        category_id=checkout.category_id,
-        session_id=checkout.session_id,
-        expiration=expiration,
-        price=price,
-        answers=checkout.answers,
-        paid=paid,
-        db=db,
-    )
+    try:
+        if price == 0:
+            payment_request_info = None
+            expiration = now
+            await redis_event_tool.confirm_hold(
+                checkout_id=checkout_id,
+                raise_on_fail=True,
+            )
+        else:
+            payment_request_info = await mypayment_tool.request_payment(
+                request_type=checkout.mypayment_request_method,
+                payment_info=schemas_mypayment.PaymentInfo(
+                    store_id=event.store_id,
+                    total=price,
+                    request_name=f"Event {event.name}",
+                    store_note=f"Ticket for {event.name} of {user.full_name}",
+                    module=core_module.root,
+                    object_id=checkout_id,
+                    redirect_url=checkout.mypayment_transfer_redirect_url,
+                ),
+                user=schemas_users.CoreUser(
+                    id=user.id,
+                    name=user.name,
+                    firstname=user.firstname,
+                    account_type=user.account_type,
+                    school_id=user.school_id,
+                    email=user.email,
+                ),
+            )
+            expiration = payment_request_info.end_date
+    except Exception:
+        # release_hold is idempotent; if reserve actually ran but the response was lost, it compensates it.
+        # A late payment callback will be detected via the retained RELEASED tombstone.
+        try:
+            release_status = await redis_event_tool.release_hold(
+                checkout_id=checkout_id,
+            )
+            if release_status == "RELEASE_PUBLISH_FAILED":
+                hyperion_error_logger.critical(
+                    "Could not publish RELEASE during checkout compensation; checkout_id=%s",
+                    checkout_id,
+                )
+        except Exception:
+            hyperion_error_logger.exception(
+                "Could not release the hold for checkout %s; reaper/reconciliation may be needed",
+                checkout_id,
+            )
+        raise
 
     return schemas_tickets.CheckoutResponse(
         price=price,
@@ -371,6 +369,7 @@ async def ticket_request_change_over(
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     mail_templates: calypsso.MailTemplates = Depends(get_mail_templates),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Give its ticket to another user. The other user will receive an email with a link to accept the transfer.
@@ -388,7 +387,7 @@ async def ticket_request_change_over(
     if ticket.user_id != user.id:
         raise HTTPException(403, "User is not the owner of the ticket")
 
-    event = await cruds_tickets.get_event_simple_by_id(
+    event = await redis_event_tool.get_event_simple(
         event_id=ticket.event_id,
         db=db,
     )
@@ -458,6 +457,7 @@ async def ticket_accept_change_over(
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Accept a ticket transfer invitation. The user will become the new owner of the ticket.
@@ -481,7 +481,7 @@ async def ticket_accept_change_over(
     )
     if ticket is None:
         raise ObjectExpectedInDbNotFoundError("ticket", invitation.ticket_id)
-    event = await cruds_tickets.get_event_simple_by_id(
+    event = await redis_event_tool.get_event_simple(
         event_id=ticket.event_id,
         db=db,
     )
@@ -540,13 +540,14 @@ async def get_event_admin(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Get one event admin details
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_complete_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_snapshot(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -573,6 +574,7 @@ async def create_event(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create an event
@@ -598,6 +600,7 @@ async def create_event(
         event=event_create,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
     event_complete = await cruds_tickets.get_event_complete_by_id(
         event_id=event_id,
@@ -626,11 +629,12 @@ async def update_event(
     ),
     db: AsyncSession = Depends(get_db),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -663,6 +667,7 @@ async def update_event(
         event_update=event_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -675,11 +680,12 @@ async def delete_event(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one event for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -689,11 +695,9 @@ async def delete_event(
         db=db,
     )
 
-    nb_checkouts_and_tickets = (
-        await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
-            event_id=event_id,
-            db=db,
-        )
+    nb_checkouts_and_tickets = await redis_event_tool.count_used_stock_by_event_id(
+        event_id=event_id,
+        db=db,
     )
     if nb_checkouts_and_tickets > 0:
         raise HTTPException(
@@ -725,6 +729,7 @@ async def delete_event(
         event_id=event_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -739,13 +744,14 @@ async def create_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a session for an event
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -763,6 +769,7 @@ async def create_session(
         session=session_create,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
     return await cruds_tickets.get_session_by_id(
         session_id=session_id,
@@ -782,11 +789,12 @@ async def update_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -805,6 +813,7 @@ async def update_session(
         session_update=session_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -818,11 +827,12 @@ async def delete_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one session for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -836,11 +846,9 @@ async def delete_session(
     if session is None or session.event_id != event_id:
         raise HTTPException(404, "Session not found")
 
-    nb_checkouts_and_tickets = (
-        await cruds_tickets.count_valid_checkouts_and_tickets_by_session_id(
-            session_id=session_id,
-            db=db,
-        )
+    nb_checkouts_and_tickets = await redis_event_tool.count_used_stock_by_session_id(
+        session_id=session_id,
+        db=db,
     )
     if nb_checkouts_and_tickets > 0:
         raise HTTPException(
@@ -852,6 +860,7 @@ async def delete_session(
         session_id=session_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -866,13 +875,14 @@ async def create_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a category for an event
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -890,7 +900,7 @@ async def create_category(
         category=category_create,
         db=db,
     )
-
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
     return await cruds_tickets.get_category_by_id(
         category_id=category_id,
         db=db,
@@ -909,11 +919,12 @@ async def update_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -931,7 +942,7 @@ async def update_category(
     fields_to_update = category_update.model_dump(exclude_unset=True).keys()
     if "price" in fields_to_update:
         nb_checkouts_and_tickets = (
-            await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
+            await redis_event_tool.count_used_stock_by_category_id(
                 category_id=category_id,
                 db=db,
             )
@@ -947,6 +958,7 @@ async def update_category(
         category_update=category_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -960,11 +972,12 @@ async def delete_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one category for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -978,11 +991,9 @@ async def delete_category(
     if category is None or category.event_id != event_id:
         raise HTTPException(404, "Category not found")
 
-    nb_checkouts_and_tickets = (
-        await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
-            category_id=category_id,
-            db=db,
-        )
+    nb_checkouts_and_tickets = await redis_event_tool.count_used_stock_by_category_id(
+        category_id=category_id,
+        db=db,
     )
     if nb_checkouts_and_tickets > 0:
         raise HTTPException(
@@ -994,6 +1005,7 @@ async def delete_category(
         category_id=category_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -1008,13 +1020,14 @@ async def create_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a question for an event
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -1032,6 +1045,7 @@ async def create_question(
         question=question_create,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
     question = await cruds_tickets.get_question_by_id(
         question_id=question_id,
@@ -1057,11 +1071,12 @@ async def update_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -1078,7 +1093,7 @@ async def update_question(
     # Some fields cannot be updated if the question has answers
     fields_to_update = question_update.model_dump(exclude_unset=True).keys()
     if any(field in fields_to_update for field in ["answer_type", "price"]):
-        nb_answers = await cruds_tickets.count_answers_by_question_id(
+        nb_answers = await redis_event_tool.count_answers_by_question_id(
             question_id=question_id,
             db=db,
         )
@@ -1093,6 +1108,7 @@ async def update_question(
         question_update=question_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -1106,11 +1122,12 @@ async def delete_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one question for admin
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -1124,7 +1141,7 @@ async def delete_question(
     if question is None or question.event_id != event_id:
         raise HTTPException(404, "Question not found")
 
-    nb_answers = await cruds_tickets.count_answers_by_question_id(
+    nb_answers = await redis_event_tool.count_answers_by_question_id(
         question_id=question_id,
         db=db,
     )
@@ -1138,6 +1155,7 @@ async def delete_question(
         question_id=question_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.get(
@@ -1151,13 +1169,14 @@ async def get_event_tickets(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Get all tickets of an event
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_simple(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -1182,13 +1201,14 @@ async def get_event_tickets_csv(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Get all tickets of an event as csv
 
     **The user should have the right to manage the event seller**
     """
-    event = await cruds_tickets.get_event_simple_by_id(event_id=event_id, db=db)
+    event = await redis_event_tool.get_event_snapshot(event_id=event_id, db=db)
     if event is None:
         raise HTTPException(404, "Event not found")
 
@@ -1218,11 +1238,7 @@ async def get_event_tickets_csv(
         "User School ID",
     ]
 
-    questions = await cruds_tickets.get_questions_by_event_id(
-        event_id=event_id,
-        db=db,
-    )
-    for question in questions:
+    for question in event.questions:
         question_ids.append(question.id)
         csv_headers.append(f"Question: {question.question} ({question.price})")
 
@@ -1283,6 +1299,7 @@ async def check_ticket(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Check a ticket
@@ -1294,7 +1311,10 @@ async def check_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    event = await cruds_tickets.get_event_simple_by_id(event_id=ticket.event_id, db=db)
+    event = await redis_event_tool.get_event_simple(
+        event_id=ticket.event_id,
+        db=db,
+    )
     if event is None:
         raise ObjectExpectedInDbNotFoundError(
             object_name="Event",
@@ -1320,6 +1340,7 @@ async def scan_ticket(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Mark a ticket as scanned
@@ -1331,7 +1352,10 @@ async def scan_ticket(
     if ticket is None:
         raise HTTPException(404, "Ticket not found")
 
-    event = await cruds_tickets.get_event_simple_by_id(event_id=ticket.event_id, db=db)
+    event = await redis_event_tool.get_event_simple(
+        event_id=ticket.event_id,
+        db=db,
+    )
     if event is None:
         raise ObjectExpectedInDbNotFoundError(
             object_name="Event",

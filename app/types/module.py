@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import APIRouter
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout import schemas_checkout
@@ -24,7 +25,7 @@ class CoreModule:
         ]
         | None = None,
         mypayment_callback: Callable[
-            [UUID, AsyncSession],
+            [UUID, AsyncSession, Redis | None],
             Awaitable[None],
         ]
         | None = None,
@@ -50,7 +51,7 @@ class CoreModule:
             | None
         ) = checkout_callback
         self.mypayment_callback: (
-            Callable[[UUID, AsyncSession], Awaitable[None]] | None
+            Callable[[UUID, AsyncSession, Redis | None], Awaitable[None]] | None
         ) = mypayment_callback
         self.registred_topics = registred_topics
         self.factory = factory
