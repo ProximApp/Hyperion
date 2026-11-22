@@ -379,7 +379,7 @@ async def init_objects() -> None:
 
 async def test_payment_callback(client: TestClient):
     async with get_TestingSessionLocal()() as db:
-        await utils_tickets.mypayment_callback_callback(
+        await utils_tickets.ticket_mypayment_callback(
             checkout_id=ticket_for_user_with_answer.id,
             db=db,
         )

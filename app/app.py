@@ -1,5 +1,6 @@
 """File defining the Metadata. And the basic functions creating the database tables and calling the router"""
 
+import asyncio
 import logging
 import time
 import uuid
@@ -33,6 +34,7 @@ from app.core.groups.groups_type import AccountType, GroupType
 from app.core.notification.cruds_notification import get_notification_topic
 from app.core.schools import models_schools
 from app.core.schools.schools_type import SchoolType
+from app.core.tickets.worker_tickets import start_tickets_background_workers
 from app.core.utils.config import Settings
 from app.core.utils.log import LogConfig, RequestData
 from app.dependencies import (
@@ -40,6 +42,7 @@ from app.dependencies import (
     get_db,
     get_notification_manager,
     get_redis_client,
+    get_session_factory,
     init_state,
 )
 from app.module import all_modules, module_list, permissions_list
@@ -619,6 +622,8 @@ async def init_lifespan(
         settings=settings,
         hyperion_error_logger=hyperion_error_logger,
     )
+    # Even if a later initialization step fails, lifespan must close this process' resources.
+    app.state.core_state_initialized = True
 
     redis_client: Redis | None = app.dependency_overrides.get(
         get_redis_client,
@@ -626,7 +631,7 @@ async def init_lifespan(
     )()  # ty: ignore[unsound-assignment]
 
     number_of_workers = initialization.get_number_of_workers()
-    if number_of_workers > 1:
+    if number_of_workers > 1 and redis_client is None:
         hyperion_error_logger.warning(
             "Multiple workers and no Redis client is configured: using fallback lock instead for app init",
         )
@@ -703,6 +708,28 @@ async def init_lifespan(
             notification_manager=notification_manager,
         )
 
+    # Every FastAPI process joins the same Redis Streams consumer group. The Redis client
+    # and SessionLocal factory are created in this process by init_state().
+    # Run the reaper as a local task: it does not depend on a Scheduler job being executed
+    # in the same process that configured its in-memory runtime. Concurrent reapers are
+    # supported by the atomic Lua release script (with some redundant ZSET scans).
+    if redis_client is None:
+        hyperion_error_logger.warning(
+            "Tickets workers not started because Redis is unavailable; "
+            "tickets checkout endpoints will return 503",
+        )
+    else:
+        session_factory = app.dependency_overrides.get(
+            get_session_factory,
+            get_session_factory,
+        )()
+        app.state.tickets_background_workers = await start_tickets_background_workers(
+            redis_client=redis_client,
+            session_factory=session_factory,
+            scheduler=None,
+        )
+        hyperion_error_logger.info("Tickets background workers started")
+
     return LifespanState()
 
 
@@ -720,22 +747,49 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
     # https://fastapi.tiangolo.com/advanced/events/
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
-        state = await init_lifespan(
-            app=app,
-            settings=settings,
-            hyperion_error_logger=hyperion_error_logger,
-            drop_db=drop_db,
-        )
-
-        yield state
-
-        hyperion_error_logger.info("Shutting down")
-        await app.dependency_overrides.get(
-            disconnect_state,
-            disconnect_state,
-        )(
-            hyperion_error_logger=hyperion_error_logger,
-        )
+        # app.state belongs to one FastAPI worker process, not to all workers.
+        app.state.core_state_initialized = False
+        app.state.tickets_background_workers = None
+        try:
+            state = await init_lifespan(
+                app=app,
+                settings=settings,
+                hyperion_error_logger=hyperion_error_logger,
+                drop_db=drop_db,
+            )
+            yield state
+        finally:
+            hyperion_error_logger.info("Shutting down")
+            try:
+                handle = app.state.tickets_background_workers
+                if handle is not None:
+                    # Stop consumers, snapshot refresh and local reaper BEFORE closing Redis
+                    # or disposing the SQLAlchemy engine. This also runs on shutdown errors.
+                    try:
+                        await handle.stop(wait_timeout=15.0)
+                        # Compatibility with older worker_tickets.stop(), which cancels
+                        # remaining tasks but does not await their completion.
+                        if handle.tasks:
+                            _, pending = await asyncio.wait(handle.tasks, timeout=3.0)
+                            if pending:
+                                hyperion_error_logger.error(
+                                    "Tickets tasks still running after shutdown grace period",
+                                    extra={
+                                        "pending_tasks": [
+                                            t.get_name() for t in pending
+                                        ],
+                                    },
+                                )
+                    finally:
+                        app.state.tickets_background_workers = None
+            finally:
+                if app.state.core_state_initialized:
+                    await app.dependency_overrides.get(
+                        disconnect_state,
+                        disconnect_state,
+                    )(
+                        hyperion_error_logger=hyperion_error_logger,
+                    )
 
     # Initialize app
     app = FastAPI(

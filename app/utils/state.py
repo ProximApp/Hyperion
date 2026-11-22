@@ -4,7 +4,8 @@ from typing import Any, TypedDict
 
 import calypsso
 import redis.asyncio as redis
-from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -31,7 +32,7 @@ class GlobalState(TypedDict):
     # Database session creator
     SessionLocal: SessionLocalType
     # We may not have a Redis Client if it was not configured
-    redis_client: redis.Redis | None
+    redis_client: Redis | None
     scheduler: Scheduler
     ws_manager: WebsocketConnectionManager
     notification_manager: NotificationManager
@@ -80,32 +81,39 @@ def init_SessionLocal(engine: AsyncEngine) -> SessionLocalType:
 async def init_redis_client(
     settings: Settings,
     hyperion_error_logger: logging.Logger,
-) -> redis.Redis | None:
-    """
-    Initialize the Redis client if the settings specify a Redis connection.
-    Returns None if Redis is not configured.
-    """
-    redis_client: redis.Redis | None = None
-    if settings.REDIS_HOST is not None and settings.REDIS_HOST != "":
-        try:
-            redis_client = redis.Redis(
-                host=settings.REDIS_HOST,
-                port=settings.REDIS_PORT,
-                password=settings.REDIS_PASSWORD,
-                socket_keepalive=True,
-            )
-            await redis_client.ping()  # Test the connection
-        except RedisConnectionError:
-            hyperion_error_logger.exception(
-                "Redis connection error: Check the Redis configuration or the Redis server",
-            )
+) -> Redis | None:
+    """Create and test this process' Redis connection (or return None if unavailable).
 
+    Do not return a half-initialized client after a failed ping. Ticket endpoints depend
+    on Redis being reachable, and the background workers are started only if it is.
+    """
+    if not settings.REDIS_HOST:
+        return None
+
+    redis_client = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD,
+        socket_keepalive=True,
+    )
+    try:
+        await redis_client.ping()
+    except RedisError:
+        hyperion_error_logger.exception(
+            "Redis connection error: Check the Redis configuration or the Redis server",
+        )
+        await redis_client.aclose()
+        return None
     return redis_client
 
 
-async def disconnect_redis_client(redis_client: redis.Redis | None) -> None:
+async def disconnect_redis_client(redis_client: Redis | None) -> None:
+    """Close this worker's Redis connection WITHOUT modifying shared server data.
+
+    In particular, never FLUSHDB here: the Stream, stock counters and pending holds must
+    survive a FastAPI worker restart, including when another worker is still running.
+    """
     if redis_client is not None:
-        await redis_client.flushdb()
         await redis_client.close()
 
 
