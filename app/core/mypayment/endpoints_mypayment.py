@@ -18,6 +18,7 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import FileResponse, RedirectResponse
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.associations import cruds_associations
@@ -90,6 +91,7 @@ from app.dependencies import (
     get_db,
     get_mail_templates,
     get_notification_tool,
+    get_redis_client,
     get_request_id,
     get_settings,
     get_token_data,
@@ -2822,7 +2824,7 @@ async def accept_request(
     user: CoreUser = Depends(is_user_allowed_to([MyPaymentPermissions.access_payment])),
     http_request_id: str = Depends(get_request_id),
     notification_tool: NotificationTool = Depends(get_notification_tool),
-    settings: Settings = Depends(get_settings),
+    redis_client: Redis | None = Depends(get_redis_client),
 ):
     """
     Confirm a request.
@@ -2987,6 +2989,7 @@ async def accept_request(
         object_id=request.object_id,
         call_id=request.id,
         db=db,
+        redis_client=redis_client,
     )
 
 
