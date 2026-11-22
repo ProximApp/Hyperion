@@ -76,8 +76,15 @@ async def ticket_mypayment_callback(
             db=db,
         )
         if updated:
+            ticket = await cruds_tickets.get_ticket_by_id(
+                ticket_id=checkout_id,
+                db=db,
+            )
+            if ticket is not None:
+                # Invalidate cached stock counters so the next request recomputes accurate stock from SQL.
+                await redis_tool.invalidate_event_snapshot(event_id=ticket.event_id)
             hyperion_error_logger.critical(
-                "Payment confirmed but Redis hold is missing; checkout marked paid directly in SQL; stock may be inconsistent",
+                "Payment confirmed but Redis hold is missing; checkout marked paid directly in SQL; stock cache invalidated",
                 extra={"checkout_id": str(checkout_id)},
             )
             return
@@ -94,9 +101,28 @@ async def is_event_sold_out(
     event_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_event(event_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_event_id(
+                event_id=event_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_event_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_event_id(
@@ -104,7 +130,6 @@ async def is_event_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_event_id >= quota
 
 
@@ -112,9 +137,28 @@ async def is_category_sold_out(
     category_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_category(category_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_category_id(
+                category_id=category_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_category_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_category_id(
@@ -122,7 +166,6 @@ async def is_category_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_category_id >= quota
 
 
@@ -130,9 +173,28 @@ async def is_session_sold_out(
     session_id: UUID,
     quota: int | None,
     db: AsyncSession,
+    redis_event_tool: RedisEventTool | None = None,
 ) -> bool:
     if quota is None:
         return False
+    if quota <= 0:
+        return True
+
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.is_stock_key_sold_out(
+            key=utils_redis_tickets.stock_key_session(session_id),
+            quota=quota,
+            count_used_func=lambda: tool.count_used_stock_by_session_id(
+                session_id=session_id,
+                db=db,
+            ),
+        )
 
     nb_valid_checkouts_and_tickets_by_session_id = (
         await cruds_tickets.count_valid_checkouts_and_tickets_by_session_id(
@@ -140,14 +202,23 @@ async def is_session_sold_out(
             db=db,
         )
     )
-
     return nb_valid_checkouts_and_tickets_by_session_id >= quota
 
 
 async def convert_to_event_admin(
     event: schemas_tickets.EventComplete,
     db: AsyncSession,
-):
+    redis_event_tool: RedisEventTool | None = None,
+) -> schemas_tickets.EventAdmin:
+    tool = redis_event_tool
+    if tool is None:
+        redis_client = get_redis_client()
+        if redis_client is not None:
+            tool = RedisEventTool(redis_client)
+
+    if tool is not None:
+        return await tool.build_event_admin(event=event, db=db)
+
     return schemas_tickets.EventAdmin(
         id=event.id,
         name=event.name,
@@ -162,12 +233,12 @@ async def convert_to_event_admin(
                 start_datetime=session.start_datetime,
                 quota=session.quota,
                 disabled=session.disabled,
-                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_event_id(
-                    event_id=event.id,
+                tickets_in_checkout=await cruds_tickets.count_valid_checkouts_by_session_id(
+                    session_id=session.id,
                     db=db,
                 ),
-                tickets_sold=await cruds_tickets.count_tickets_by_event_id(
-                    event_id=event.id,
+                tickets_sold=await cruds_tickets.count_tickets_by_session_id(
+                    session_id=session.id,
                     db=db,
                 ),
             )
@@ -272,8 +343,11 @@ def check_answer_validity_and_calculate_price(
     price = 0
 
     questions_dict = {question.id: question for question in questions}
+    # Ignore disabled questions even if they were marked as required.
     required_questions_ids = {
-        question.id for question in questions if question.required
+        question.id
+        for question in questions
+        if question.required and not question.disabled
     }
     answered_questions_ids = set()
 
