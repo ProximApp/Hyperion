@@ -200,26 +200,23 @@ class EventUpdate(BaseModel):
 
 
 class AnswerValue(BaseModel):
-    answer_type: AnswerType
-    answer: str | int | bool
-
     @property
     def answer_value(self) -> str:
-        return str(self.answer)
+        return str(getattr(self, "answer", ""))
 
 
 class AnswerText(AnswerValue):
-    answer_type: Literal[AnswerType.TEXT]
+    answer_type: Literal[AnswerType.TEXT] = AnswerType.TEXT
     answer: str
 
 
 class AnswerNumber(AnswerValue):
-    answer_type: Literal[AnswerType.NUMBER]
+    answer_type: Literal[AnswerType.NUMBER] = AnswerType.NUMBER
     answer: int
 
 
 class AnswerBoolean(AnswerValue):
-    answer_type: Literal[AnswerType.BOOLEAN]
+    answer_type: Literal[AnswerType.BOOLEAN] = AnswerType.BOOLEAN
     answer: bool
 
 

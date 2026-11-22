@@ -68,7 +68,6 @@ core_module = CoreModule(
 
 hyperion_error_logger = logging.getLogger("hyperion.error")
 hyperion_security_logger = logging.getLogger("hyperion.security")
-hyperion_mypayment_logger = logging.getLogger("hyperion.mypayment")
 
 
 @router.get(
@@ -667,6 +666,7 @@ async def update_event(
     ),
     db: AsyncSession = Depends(get_db),
     notification_tool: NotificationTool = Depends(get_notification_tool),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
@@ -704,6 +704,7 @@ async def update_event(
         event_update=event_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -716,6 +717,7 @@ async def delete_event(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one event for admin
@@ -766,6 +768,7 @@ async def delete_event(
         event_id=event_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -780,6 +783,7 @@ async def create_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a session for an event
@@ -804,6 +808,7 @@ async def create_session(
         session=session_create,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
     return await cruds_tickets.get_session_by_id(
         session_id=session_id,
@@ -823,6 +828,7 @@ async def update_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
@@ -846,6 +852,7 @@ async def update_session(
         session_update=session_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -859,6 +866,7 @@ async def delete_session(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one session for admin
@@ -893,6 +901,7 @@ async def delete_session(
         session_id=session_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -907,6 +916,7 @@ async def create_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a category for an event
@@ -931,7 +941,7 @@ async def create_category(
         category=category_create,
         db=db,
     )
-
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
     return await cruds_tickets.get_category_by_id(
         category_id=category_id,
         db=db,
@@ -950,6 +960,7 @@ async def update_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
@@ -988,6 +999,7 @@ async def update_category(
         category_update=category_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -1001,6 +1013,7 @@ async def delete_category(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one category for admin
@@ -1035,6 +1048,7 @@ async def delete_category(
         category_id=category_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.post(
@@ -1049,6 +1063,7 @@ async def create_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Create a question for an event
@@ -1073,6 +1088,7 @@ async def create_question(
         question=question_create,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
     question = await cruds_tickets.get_question_by_id(
         question_id=question_id,
@@ -1098,6 +1114,7 @@ async def update_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Edit one event for admin
@@ -1134,6 +1151,7 @@ async def update_question(
         question_update=question_update,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.delete(
@@ -1147,6 +1165,7 @@ async def delete_question(
         is_user(),
     ),
     db: AsyncSession = Depends(get_db),
+    redis_event_tool: RedisEventTool = Depends(get_redis_event_tool),
 ):
     """
     Delete one question for admin
@@ -1179,6 +1198,7 @@ async def delete_question(
         question_id=question_id,
         db=db,
     )
+    await redis_event_tool.invalidate_event_snapshot(event_id=event_id)
 
 
 @router.get(
