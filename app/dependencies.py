@@ -42,6 +42,7 @@ from app.types.exceptions import (
     PaymentToolCredentialsNotSetException,
 )
 from app.types.scopes_type import ScopeType
+from app.types.sqlalchemy import SessionLocalType
 from app.types.websocket import WebsocketConnectionManager
 from app.utils.auth import auth_utils
 from app.utils.communication.notifications import NotificationManager, NotificationTool
@@ -145,9 +146,20 @@ async def disconnect_state(
     This methode should be called as a dependency as tests may need to run additional steps
     """
 
-    await disconnect_redis_client(GLOBAL_STATE["redis_client"])
-    await disconnect_scheduler(GLOBAL_STATE["scheduler"])
-    await disconnect_websocket_connection_manager(GLOBAL_STATE["ws_manager"])
+    # Close API-side resources after the tickets background tasks have stopped.
+    # Always dispose the database pool, even if another resource fails to close.
+    try:
+        try:
+            await disconnect_scheduler(GLOBAL_STATE["scheduler"])
+        finally:
+            try:
+                await disconnect_websocket_connection_manager(
+                    GLOBAL_STATE["ws_manager"],
+                )
+            finally:
+                await disconnect_redis_client(GLOBAL_STATE["redis_client"])
+    finally:
+        await GLOBAL_STATE["engine"].dispose()
 
     hyperion_error_logger.info("Application state disconnected successfully.")
 
@@ -246,6 +258,15 @@ def get_redis_client() -> redis.Redis | None:
     If the redis client is not available, it will return None.
     """
     return GLOBAL_STATE["redis_client"]
+
+
+def get_session_factory() -> SessionLocalType:
+    """Return the process-local async SQLAlchemy session maker for background workers.
+
+    This accessor is a dependency-overridable function, like get_redis_client.
+    Workers must create their own sessions; never share a request's AsyncSession.
+    """
+    return GLOBAL_STATE["SessionLocal"]
 
 
 def get_scheduler() -> "Scheduler":
