@@ -12,6 +12,8 @@ from redis.asyncio import Redis
 from redis.commands.core import AsyncScript
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
+from app.core.mypayment.types_mypayment import REQUEST_EXPIRATION, RequestType
 from app.core.tickets import cruds_tickets, schemas_tickets
 from app.core.tickets.schemas_tickets import ReservationResult
 from app.core.tickets.types_tickets import EventRedisKeys, LuaResult, StreamAction
@@ -78,7 +80,11 @@ class RedisEventTool:
     # creation latency as well as the callback-delivery delay; keep aligned with network timeouts.
     PAYMENT_REQUEST_CREATION_MARGIN_SECONDS = 5 * 60
     PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS = 2 * 60
-    CHECKOUT_HOLD_TTL_SECONDS = 15 * 60 + PAYMENT_CALLBACK_MAX_DELAY_SECONDS + PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+    CHECKOUT_HOLD_TTL_SECONDS = (
+        15 * 60
+        + PAYMENT_CALLBACK_MAX_DELAY_SECONDS
+        + PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+    )
     # The Redis TTL of a hold hash is only a memory safety net (ttl + margin). It must be larger than
     # any realistic reaper downtime: if the hash disappeared before the reaper ran, its stock would leak.
     HOLD_KEY_TTL_MARGIN_SECONDS = 60 * 60
@@ -364,13 +370,20 @@ class RedisEventTool:
         after payment confirmation. TRANSACTION_REQUEST uses MyPayment's own request expiration.
         A two-minute safety margin is added in both cases; the reaper grace is additional.
         """
-        from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
-        from app.core.mypayment.types_mypayment import REQUEST_EXPIRATION, RequestType
 
         if request_type == RequestType.TRANSFER_REQUEST:
-            return (CHECKOUT_EXPIRATION * 60) + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS + self.PAYMENT_CALLBACK_MAX_DELAY_SECONDS + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+            return (
+                (CHECKOUT_EXPIRATION * 60)
+                + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS
+                + self.PAYMENT_CALLBACK_MAX_DELAY_SECONDS
+                + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+            )
         if request_type == RequestType.TRANSACTION_REQUEST:
-            return (REQUEST_EXPIRATION * 60) + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+            return (
+                (REQUEST_EXPIRATION * 60)
+                + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS
+                + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+            )
         raise ValueError(f"Unsupported MyPayment request type: {request_type!r}")
 
     async def reserve(
@@ -410,8 +423,13 @@ class RedisEventTool:
                     EventRedisKeys.STREAM_KEY,
                 ],
                 args=[
-                    requested_qty, user_id, now_ts, ttl_seconds, str(checkout_id),
-                    self.HOLD_KEY_TTL_MARGIN_SECONDS, payload_json,
+                    requested_qty,
+                    user_id,
+                    now_ts,
+                    ttl_seconds,
+                    str(checkout_id),
+                    self.HOLD_KEY_TTL_MARGIN_SECONDS,
+                    payload_json,
                     "1" if event.quota is not None else "0",
                     "1" if category.quota is not None else "0",
                     "1" if session.quota is not None else "0",
@@ -428,12 +446,15 @@ class RedisEventTool:
                     )
             except Exception:
                 hyperion_error_logger.exception(
-                    "Could not compensate ambiguous Redis reservation %s", checkout_id,
+                    "Could not compensate ambiguous Redis reservation %s",
+                    checkout_id,
                 )
             raise
         status, _, dimension = raw.partition(":")
         if status == "REDIS_STATE_ERROR":
-            raise RuntimeError(f"Redis tickets state invalid ({dimension}); reservation was not changed")
+            raise RuntimeError(
+                f"Redis tickets state invalid ({dimension}); reservation was not changed"
+            )
         return ReservationResult(
             status=status,
             dimension=dimension or None,
@@ -452,8 +473,16 @@ class RedisEventTool:
             try:
                 status = await self.run_script(
                     self.CONFIRM_SCRIPT,
-                    keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
-                    args=[str(checkout_id), int(time.time()), self.CONFIRMED_HOLD_RETENTION_SECONDS],
+                    keys=[
+                        hold_key(checkout_id),
+                        EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+                        EventRedisKeys.STREAM_KEY,
+                    ],
+                    args=[
+                        str(checkout_id),
+                        int(time.time()),
+                        self.CONFIRMED_HOLD_RETENTION_SECONDS,
+                    ],
                 )
                 if status != "CONFIRM_PUBLISH_FAILED":
                     last_error = None
@@ -469,12 +498,18 @@ class RedisEventTool:
                 f"Redis could not confirm checkout {checkout_id} after retries"
             ) from last_error
         if status == "CONFIRM_PUBLISH_FAILED":
-            raise RuntimeError(f"Could not publish CONFIRM event for checkout {checkout_id}")
+            raise RuntimeError(
+                f"Could not publish CONFIRM event for checkout {checkout_id}"
+            )
         if raise_on_fail and status not in (
-            LuaResult.CONFIRMED, LuaResult.ALREADY_CONFIRMED, LuaResult.CONFIRMED_LATE,
+            LuaResult.CONFIRMED,
+            LuaResult.ALREADY_CONFIRMED,
+            LuaResult.CONFIRMED_LATE,
         ):
             # Use a non-HTTP exception: get_db commits on HTTPException by design.
-            raise RuntimeError(f"Reservation {checkout_id} could not be confirmed: {status}")
+            raise RuntimeError(
+                f"Reservation {checkout_id} could not be confirmed: {status}"
+            )
         return status
 
     async def release_hold(
@@ -497,15 +532,28 @@ class RedisEventTool:
         ]
         result = await self.run_script(
             self.RELEASE_SCRIPT,
-            keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
+            keys=[
+                hold_key(checkout_id),
+                EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+                EventRedisKeys.STREAM_KEY,
+            ],
             args=args,
         )
         if result == "RELEASE_PUBLISH_FAILED":
             # If XADD temporarily failed, the hold remains pending or retained as a tombstone. Retry once.
             result = await self.run_script(
                 self.RELEASE_SCRIPT,
-                keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
-                args=[str(checkout_id), int(time.time()) if now is None else now, grace_seconds, self.RELEASED_HOLD_RETENTION_SECONDS],
+                keys=[
+                    hold_key(checkout_id),
+                    EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+                    EventRedisKeys.STREAM_KEY,
+                ],
+                args=[
+                    str(checkout_id),
+                    int(time.time()) if now is None else now,
+                    grace_seconds,
+                    self.RELEASED_HOLD_RETENTION_SECONDS,
+                ],
             )
         return result
 
@@ -635,9 +683,12 @@ class RedisEventTool:
         lock_key = warmup_lock_key(event_id)
         lock_token = uuid4().hex
         acquired = await self.redis_client.set(
-            lock_key, lock_token, nx=True, ex=self.WARMUP_LOCK_TTL_SECONDS,
+            lock_key,
+            lock_token,
+            nx=True,
+            ex=self.WARMUP_LOCK_TTL_SECONDS,
         )
-        if not acquired:
+        if not bool(acquired):
             deadline = time.monotonic() + self.WARMUP_WAIT_SECONDS
             # This polls a DISTRIBUTED lock in Redis, not a local in-process condition: it may be
             # released by a coroutine in *this* process, but just as well by a different instance of
@@ -676,7 +727,9 @@ class RedisEventTool:
             # Do not delete a new owner's lock if our lease expired during a slow PostgreSQL read.
             await self.redis_client.eval(
                 "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
-                1, lock_key, lock_token,
+                1,
+                lock_key,
+                lock_token,
             )
 
     async def warm_up_active_events(self, db: AsyncSession) -> int:
