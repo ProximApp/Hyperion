@@ -1,9 +1,20 @@
 """File defining the functions called by the endpoints, making queries to the table using the models"""
 
+import unicodedata
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, and_, delete, func, not_, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    ForeignKey,
+    and_,
+    delete,
+    func,
+    not_,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy_utils import get_referencing_foreign_keys
@@ -12,33 +23,38 @@ from app.core.groups import models_groups
 from app.core.groups.groups_type import AccountType
 from app.core.schools.schools_type import SchoolType
 from app.core.users import models_users, schemas_users
+from app.core.users.utils_users import user_simple_model_to_schema
 
 
 async def count_users(db: AsyncSession) -> int:
     """Return the number of users in the database"""
-    return (await db.execute(select(func.count(models_users.CoreUser.id)))).scalar_one()
+    return int(
+        (await db.execute(select(func.count(models_users.CoreUser.id)))).scalar_one(),
+    )
 
 
 async def count_activation_tokens(db: AsyncSession) -> int:
     """Return the number of activation tokens in the database"""
-    return (
-        await db.execute(select(func.count(models_users.CoreUserUnconfirmed.id)))
-    ).scalar_one()
+    return int(
+        (
+            await db.execute(select(func.count(models_users.CoreUserUnconfirmed.id)))
+        ).scalar_one(),
+    )
 
 
-async def get_users(
-    db: AsyncSession,
-    included_account_types: list[AccountType] | None = None,
-    excluded_account_types: list[AccountType] | None = None,
-    included_groups: list[str] | None = None,
-    excluded_groups: list[str] | None = None,
-    schools_ids: list[UUID] | None = None,
-) -> Sequence[models_users.CoreUser]:
-    """
-    Return all users from database.
-
-    Parameters `excluded_account_types` and `excluded_groups` can be used to filter results.
-    """
+def construct_filter_conditions(
+    included_account_types: list[AccountType] | None,
+    excluded_account_types: list[AccountType] | None,
+    included_groups: list[str] | None,
+    excluded_groups: list[str] | None,
+    schools_ids: list[UUID] | None,
+) -> tuple[
+    list[ColumnElement[bool]],
+    ColumnElement[bool],
+    list[ColumnElement[bool]],
+    list[ColumnElement[bool]],
+    ColumnElement[bool],
+]:
     included_account_types = included_account_types or None
     excluded_account_types = excluded_account_types or []
     included_groups = included_groups or []
@@ -61,7 +77,7 @@ async def get_users(
                 for account_type in included_account_types
             ],
         )
-        if included_account_types
+        if included_account_types is not None
         else and_(True)
     )
     # We want, for each group that should not be included
@@ -88,8 +104,44 @@ async def get_users(
                 for school_id in schools_ids
             ],
         )
-        if schools_ids
+        if schools_ids is not None
         else and_(True)
+    )
+
+    return (
+        included_group_condition,
+        included_account_type_condition,
+        excluded_group_condition,
+        excluded_account_type_condition,
+        school_condition,
+    )
+
+
+async def get_users(
+    db: AsyncSession,
+    included_account_types: list[AccountType] | None = None,
+    excluded_account_types: list[AccountType] | None = None,
+    included_groups: list[str] | None = None,
+    excluded_groups: list[str] | None = None,
+    schools_ids: list[UUID] | None = None,
+) -> Sequence[models_users.CoreUser]:
+    """
+    Return all users from database.
+
+    Parameters `excluded_account_types` and `excluded_groups` can be used to filter results.
+    """
+    (
+        included_group_condition,
+        included_account_type_condition,
+        excluded_group_condition,
+        excluded_account_type_condition,
+        school_condition,
+    ) = construct_filter_conditions(
+        included_account_types,
+        excluded_account_types,
+        included_groups,
+        excluded_groups,
+        schools_ids,
     )
 
     result = await db.execute(
@@ -122,6 +174,67 @@ async def get_user_by_id(
         ),
     )
     return result.scalars().first()
+
+
+async def get_users_search(
+    db: AsyncSession,
+    query: str,
+    limit: int | None = 10,
+    included_account_types: list[AccountType] | None = None,
+    excluded_account_types: list[AccountType] | None = None,
+    included_groups: list[str] | None = None,
+    excluded_groups: list[str] | None = None,
+    schools_ids: list[UUID] | None = None,
+) -> list[schemas_users.CoreUserSimple]:
+    def unaccent(s: str) -> str:
+        return unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("utf8")
+
+    (
+        included_group_condition,
+        included_account_type_condition,
+        excluded_group_condition,
+        excluded_account_type_condition,
+        school_condition,
+    ) = construct_filter_conditions(
+        included_account_types,
+        excluded_account_types,
+        included_groups,
+        excluded_groups,
+        schools_ids,
+    )
+
+    query = unaccent(query).lower()
+
+    search_vector = func.lower(
+        func.f_unaccent(
+            models_users.CoreUser.firstname
+            + " "
+            + models_users.CoreUser.name
+            + " "
+            + func.coalesce(models_users.CoreUser.nickname, ""),
+        ),
+    )
+
+    similarity_score = func.similarity(search_vector, query).label("score")
+
+    stmt = (
+        select(models_users.CoreUser, similarity_score)
+        .where(
+            and_(
+                *included_group_condition,
+                included_account_type_condition,
+                *excluded_account_type_condition,
+                *excluded_group_condition,
+                school_condition,
+                similarity_score > 0.1,
+            ),
+        )
+        .order_by(similarity_score.desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    return [user_simple_model_to_schema(row[0]) for row in result.all()]
 
 
 async def get_user_by_email(
