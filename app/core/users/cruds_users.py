@@ -491,7 +491,7 @@ async def fusion_users(
     """
     foreign_keys: set[ForeignKey] = get_referencing_foreign_keys(
         models_users.CoreUser.__table__,
-    )  # ty: ignore[unsound-assignment]
+    )
     # We keep only the foreign keys that reference the user_id
     user_id_fks: list[ForeignKey] = [
         fk for fk in foreign_keys if fk.column == models_users.CoreUser.__table__.c.id
