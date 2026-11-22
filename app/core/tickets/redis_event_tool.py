@@ -3,14 +3,13 @@ import hashlib
 import logging
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
 from functools import partial
 from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
 from redis.asyncio import Redis
-from redis.exceptions import NoScriptError
+from redis.commands.core import AsyncScript
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.tickets import cruds_tickets, schemas_tickets
@@ -32,17 +31,6 @@ from app.types.exceptions import RedisScriptShaMismatchError
 hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
-@dataclass(frozen=True)
-class LuaScript:
-    name: str
-    body: str
-    sha: str  # SHA1 of the body, identical to what SCRIPT LOAD returns
-
-    @classmethod
-    def register(cls, name: str, body: str) -> "LuaScript":
-        return cls(name=name, body=body, sha=hashlib.sha1(body.encode()).hexdigest())  # noqa: S324 (not a security use)
-
-
 class RedisEventTool:
     """Redis operations for the tickets module, without any PostgreSQL access.
 
@@ -52,13 +40,13 @@ class RedisEventTool:
     PostgreSQL is an asynchronous projection of it (write-behind):
 
         HTTP request
-           | 1. EVALSHA reserve   (atomic: check 3 stocks, decrement, create the hold, register its expiration)
+           | 1. registered Lua script   (atomic: check 3 stocks, decrement, create the hold, register its expiration)
            | 2. XADD action=HOLD  (event sourcing)
            v
         HTTP response  ---> no PostgreSQL I/O on this path
 
-        payment callback  -> EVALSHA confirm -> XADD action=CONFIRM   (atomic with the state change)
-        reaper (periodic) -> EVALSHA release -> XADD action=RELEASE   (atomic with the stock restore)
+        payment callback  -> registered Lua script -> XADD action=CONFIRM   (atomic with the state change)
+        reaper (periodic) -> registered Lua script -> XADD action=RELEASE   (atomic with the stock restore)
 
         worker_tickets.py: XREADGROUP -> batch (N events / T seconds) -> ONE bulk SQL transaction -> XACK
 
@@ -105,12 +93,14 @@ class RedisEventTool:
     WARMUP_LOCK_TTL_SECONDS = 30
     WARMUP_WAIT_SECONDS = 3.0
 
-    def __init__(self, redis_client: Redis):
-        self.redis_client = redis_client
-
     # --------------------------------------------------------------------------------------
-    # Lua scripts. They are loaded once at startup (SCRIPT LOAD) and called with EVALSHA.
-    # Each script is atomic: Redis runs it without interleaving any other command.
+    # Lua scripts. The bodies below are wrapped as redis-py AsyncScript objects (register_script)
+    # in __init__, which is the API the redis-py docs recommend over raw EVALSHA/SCRIPT LOAD calls
+    # (https://redis.io/commands/evalsha: "In practice, use the object returned by register_script").
+    # An AsyncScript computes and caches its own sha, and self-heals a missing script (reloads via
+    # SCRIPT LOAD and retries) on every call, single or pipelined - see run_script and
+    # _release_expired_batch in worker_tickets.py. Each script is atomic: Redis runs it without
+    # interleaving any other command.
     # --------------------------------------------------------------------------------------
 
     _RESERVE_LUA = """
@@ -229,52 +219,74 @@ class RedisEventTool:
     return "RELEASED"
     """
 
-    RESERVE_SCRIPT = LuaScript.register("Reserve", _RESERVE_LUA)
-    CONFIRM_SCRIPT = LuaScript.register("Confirm", _CONFIRM_LUA)
-    RELEASE_SCRIPT = LuaScript.register("Release", _RELEASE_LUA)
-    ALL_SCRIPTS = (RESERVE_SCRIPT, CONFIRM_SCRIPT, RELEASE_SCRIPT)
+    def __init__(self, redis_client: Redis):
+        self.redis_client = redis_client
+        # register_script() is purely local (computes the sha from the script text with the
+        # client's own encoder; no network call), so building these per instance costs nothing -
+        # this tool is already constructed fresh per request/call site throughout this module.
+        self.RESERVE_SCRIPT: AsyncScript = redis_client.register_script(
+            self._RESERVE_LUA,
+        )
+        self.CONFIRM_SCRIPT: AsyncScript = redis_client.register_script(
+            self._CONFIRM_LUA,
+        )
+        self.RELEASE_SCRIPT: AsyncScript = redis_client.register_script(
+            self._RELEASE_LUA,
+        )
+        # Keep the source and expected SHA separately from AsyncScript: some redis-py
+        # type stubs expose AsyncScript as callable only, without its runtime .script/.sha attrs.
+        self._named_scripts: tuple[tuple[str, str, str], ...] = (
+            ("Reserve", self._RESERVE_LUA, self._script_sha(self._RESERVE_LUA)),
+            ("Confirm", self._CONFIRM_LUA, self._script_sha(self._CONFIRM_LUA)),
+            ("Release", self._RELEASE_LUA, self._script_sha(self._RELEASE_LUA)),
+        )
+
+    def _script_sha(self, source: str) -> str:
+        """Compute Redis' required SHA-1 using the same encoder as the Redis client."""
+        encoded_source = self.redis_client.connection_pool.get_encoder().encode(source)
+        # SHA-1 here is Redis' Lua-script cache identifier, not a security primitive.
+        return hashlib.sha1(encoded_source, usedforsecurity=False).hexdigest()
 
     async def load_scripts(self) -> None:
-        """SCRIPT LOAD every Lua script. Called once in the application startup event."""
-        for script in self.ALL_SCRIPTS:
-            sha = to_str(await self.redis_client.script_load(script.body))
-            if sha != script.sha:
+        """
+        SCRIPT LOAD every Lua script eagerly. Called once in the application startup event so the
+        checkout's critical path never pays for the extra round trip an AsyncScript would otherwise
+        spend self-healing on its first use after a Redis restart or SCRIPT FLUSH.
+        """
+        for name, source, expected_sha in self._named_scripts:
+            sha = to_str(await self.redis_client.script_load(source))
+            if sha != expected_sha:
                 raise RedisScriptShaMismatchError(
-                    name=script.name,
+                    name=name,
                     received_sha=sha,
-                    expected_sha=script.sha,
+                    expected_sha=expected_sha,
                 )
 
     async def ensure_scripts_loaded(self) -> None:
-        """Reload the scripts if Redis lost them (restart, SCRIPT FLUSH). Cheap: one SCRIPT EXISTS."""
+        """
+        Reload the scripts if Redis lost them (restart, SCRIPT FLUSH). Cheap: one SCRIPT EXISTS.
+        Belt-and-suspenders: every call below (single via run_script, or pipelined in
+        worker_tickets._release_expired_batch) already self-heals a missing script on its own, this
+        just avoids paying for that extra round trip on the very first call after a flush.
+        """
         exists = await self.redis_client.script_exists(
-            *(script.sha for script in self.ALL_SCRIPTS),
+            *(expected_sha for _, _, expected_sha in self._named_scripts),
         )
         if not all(exists):
             await self.load_scripts()
 
     async def run_script(
         self,
-        script: LuaScript,
+        script: AsyncScript,
         keys: Sequence[str],
         args: Sequence[Any],
     ) -> str:
-        """EVALSHA with a one-shot reload if the script cache was flushed."""
-        try:
-            result = await self.redis_client.evalsha(
-                script.sha,
-                len(keys),
-                *keys,
-                *args,
-            )
-        except NoScriptError:
-            await self.load_scripts()
-            result = await self.redis_client.evalsha(
-                script.sha,
-                len(keys),
-                *keys,
-                *args,
-            )
+        """
+        Call a registered Lua script. No manual script-loading/error-retry handling here:
+        AsyncScript (from register_script) already tries the cached SHA and, on a missing-script error,
+        reloads via SCRIPT LOAD and retries once automatically.
+        """
+        result = await script(keys=keys, args=args)
         return to_str(result)
 
     async def init_tickets_redis(self) -> None:
@@ -302,7 +314,7 @@ class RedisEventTool:
     ) -> ReservationResult:
         """
         Atomically check the event / category / session stocks, decrement them and create the hold.
-        A single EVALSHA round trip, no PostgreSQL access.
+        A single registered-Lua-script round trip, no PostgreSQL access.
         """
         now_ts = int(time.time())
         raw = await self.run_script(
