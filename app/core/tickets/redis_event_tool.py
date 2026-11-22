@@ -4,7 +4,7 @@ import logging
 import time
 from collections.abc import Sequence
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException
@@ -13,8 +13,16 @@ from redis.commands.core import AsyncScript
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
+from app.core.mypayment.exceptions_mypayment import InvalidRequestTypeError
 from app.core.mypayment.types_mypayment import REQUEST_EXPIRATION, RequestType
 from app.core.tickets import cruds_tickets, schemas_tickets
+from app.core.tickets.exceptions_tickets import (
+    InvalidRedisStateError,
+    InvalidTTLValueError,
+    RedisCheckoutConfirmationError,
+    RedisCheckoutConfirmationUnableError,
+    RedisCheckoutConfirmPublishError,
+)
 from app.core.tickets.schemas_tickets import ReservationResult
 from app.core.tickets.types_tickets import EventRedisKeys, LuaResult, StreamAction
 from app.core.tickets.utils_redis_tickets import (
@@ -93,7 +101,7 @@ class RedisEventTool:
     # Keep the payload after a RELEASE so that a delayed payment callback can still be reconciled.
     RELEASED_HOLD_RETENTION_SECONDS = 24 * 60 * 60
     # The reaper only releases holds that expired at least this long ago (clock skew, late callbacks).
-    REAPER_GRACE_SECONDS = 30
+    REAPER_GRACE_SECONDS = 2 * 60
     # Event configuration cache. Short TTL: admin changes (disabled, dates...) are visible after at most this delay.
     SNAPSHOT_TTL_SECONDS = 30
     WARMUP_LOCK_TTL_SECONDS = 30
@@ -149,20 +157,22 @@ class RedisEventTool:
         end
     end
 
-    local touched = { "", "", "" }
     for i = 1, 3 do
         if limited[i] then
             redis.call("DECRBY", stock_keys[i], requested_qty)
-            touched[i] = stock_keys[i]
         end
     end
+
     local expires_at = current_timestamp + ttl_seconds
     local key_ttl = ttl_seconds + key_ttl_margin
     redis.call("HSET", held_key,
         "qty", requested_qty, "timestamp", current_timestamp, "user_id", user_id,
         "checkout_id", checkout_id, "status", "pending", "expires_at", expires_at,
-        "user_hold_key", user_hold_key, "stock_event", touched[1],
-        "stock_category", touched[2], "stock_session", touched[3], "payload", payload,
+        "user_hold_key", user_hold_key,
+        "stock_event", stock_keys[1],
+        "stock_category", stock_keys[2],
+        "stock_session", stock_keys[3],
+        "payload", payload,
         "confirm_event_published", "0", "release_event_published", "0",
         "released_stock_applied", "0", "late_confirmed", "0")
     redis.call("EXPIRE", held_key, key_ttl)
@@ -270,7 +280,12 @@ class RedisEventTool:
         redis.call("HSET", held_key, "released_stock_applied", "1")
         local qty = tonumber(f[3])
         for i = 7, 9 do
-            if f[i] and f[i] ~= "" then redis.call("INCRBY", f[i], qty) end
+            if f[i] and f[i] ~= "" then
+                -- We give the stock back only if the counter still exists as inexistent means illimited.
+                if redis.call("EXISTS", f[i]) == 1 then
+                    redis.call("INCRBY", f[i], qty)
+                end
+            end
         end
     end
     redis.call("HSET", held_key, "status", "released", "released_at", now_ts)
@@ -384,7 +399,7 @@ class RedisEventTool:
                 + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS
                 + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
             )
-        raise ValueError(f"Unsupported MyPayment request type: {request_type!r}")
+        raise InvalidRequestTypeError(request_type=request_type)
 
     async def reserve(
         self,
@@ -409,7 +424,7 @@ class RedisEventTool:
             else hold_ttl_seconds
         )
         if ttl_seconds <= 0:
-            raise ValueError("hold_ttl_seconds must be positive")
+            raise InvalidTTLValueError(ttl_seconds)
         try:
             raw = await self.run_script(
                 self.RESERVE_SCRIPT,
@@ -452,9 +467,7 @@ class RedisEventTool:
             raise
         status, _, dimension = raw.partition(":")
         if status == "REDIS_STATE_ERROR":
-            raise RuntimeError(
-                f"Redis tickets state invalid ({dimension}); reservation was not changed"
-            )
+            raise InvalidRedisStateError(checkout_id=checkout_id, state=dimension)
         return ReservationResult(
             status=status,
             dimension=dimension or None,
@@ -494,22 +507,16 @@ class RedisEventTool:
             if attempt < 2:
                 await asyncio.sleep(0.05 * (attempt + 1))
         if last_error is not None:
-            raise RuntimeError(
-                f"Redis could not confirm checkout {checkout_id} after retries"
-            ) from last_error
+            raise RedisCheckoutConfirmationError(checkout_id) from last_error
         if status == "CONFIRM_PUBLISH_FAILED":
-            raise RuntimeError(
-                f"Could not publish CONFIRM event for checkout {checkout_id}"
-            )
+            raise RedisCheckoutConfirmPublishError(checkout_id)
         if raise_on_fail and status not in (
             LuaResult.CONFIRMED,
             LuaResult.ALREADY_CONFIRMED,
             LuaResult.CONFIRMED_LATE,
         ):
             # Use a non-HTTP exception: get_db commits on HTTPException by design.
-            raise RuntimeError(
-                f"Reservation {checkout_id} could not be confirmed: {status}"
-            )
+            raise RedisCheckoutConfirmationUnableError(checkout_id, status)
         return status
 
     async def release_hold(
@@ -621,24 +628,75 @@ class RedisEventTool:
         """To be called by admin endpoints after they modify an event, to make the change immediate."""
         await self.redis_client.delete(snapshot_key(event_id))
 
+    async def _get_redis_pending_stock(
+        self,
+        target_stock_key: str,
+        target_field: str,
+    ) -> tuple[int, list[UUID]]:
+        """
+        Count the total quantity of tickets held in Redis for a given stock key (event, category or session),
+        and return the list of checkout IDs that are holding them.
+        """
+        # Get all checkout IDs from the expiration ZSET, then read their holds in batch and filter by the target stock key.
+        checkout_ids_bytes = await self.redis_client.zrange(
+            EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+            0,
+            -1,
+        )
+        if not checkout_ids_bytes:
+            return 0, []
+
+        checkout_ids = [cid.decode("utf-8") for cid in checkout_ids_bytes]
+
+        # Read the holds in batch using a pipeline to minimize round trips to Redis.
+        pipe = self.redis_client.pipeline()
+        for cid in checkout_ids:
+            pipe.hmget(hold_key(cid), [target_field, "qty"])
+        results = await pipe.execute()
+
+        total_qty = 0
+        matching_checkout_ids = []
+
+        # Filter the results to only include holds that match the target stock key and sum their quantities.
+        for cid, data in zip(checkout_ids, results, strict=True):
+            if data and data[0] and data[0].decode("utf-8") == target_stock_key:
+                qty = int(data[1]) if data[1] else 0
+                total_qty += qty
+                matching_checkout_ids.append(UUID(cid))
+        return total_qty, matching_checkout_ids
+
     async def _initialize_counter(
         self,
         key: str,
         quota: int | None,
-        count_used: Any,
+        count_used_db_func: Any,
+        target_field: Literal["stock_event", "stock_category", "stock_session"],
     ) -> None:
         if quota is None or await self.redis_client.exists(key):
             return
-        used = await count_used()
-        # NX: never overwrite a counter that already contains live reservations.
-        await self.redis_client.set(key, max(quota - used, 0), nx=True)
+
+        # We load the pending stock from Redis
+        redis_qty, redis_checkout_ids = await self._get_redis_pending_stock(
+            target_stock_key=key,
+            target_field=target_field,
+        )
+
+        # We count the used stock from the database, excluding the checkouts that are still pending in Redis
+        db_used = await count_used_db_func(exclude_ids=redis_checkout_ids)
+
+        total_used = db_used + redis_qty
+
+        await self.redis_client.set(key, max(quota - total_used, 0), nx=True)
 
     async def _initialize_stock_counters(
         self,
         event: schemas_tickets.EventComplete,
         db: AsyncSession,
     ) -> None:
-        """remaining stock = quota - (paid tickets + non expired unpaid checkouts already in PostgreSQL)"""
+        """
+        Initialize the stock counters for the event, its categories and sessions in Redis.
+        Use the database to count the used stock, excluding the checkouts that are still pending in Redis.
+        """
         await self._initialize_counter(
             stock_key_event(event.id),
             event.quota,
@@ -647,6 +705,7 @@ class RedisEventTool:
                 event_id=event.id,
                 db=db,
             ),
+            target_field="stock_event",
         )
         for category in event.categories:
             await self._initialize_counter(
@@ -657,6 +716,7 @@ class RedisEventTool:
                     category_id=category.id,
                     db=db,
                 ),
+                target_field="stock_category",
             )
         for session in event.sessions:
             await self._initialize_counter(
@@ -667,6 +727,7 @@ class RedisEventTool:
                     session_id=session.id,
                     db=db,
                 ),
+                target_field="stock_session",
             )
 
     async def warm_up_event(

@@ -879,6 +879,7 @@ async def count_valid_checkouts_by_event_id(
 async def count_valid_checkouts_and_tickets_by_event_id(
     event_id: UUID,
     db: AsyncSession,
+    exclude_ids: list[UUID] | None = None,
 ) -> int:
     """
     Count unpaid checkouts that are not expired and paid tickets
@@ -890,6 +891,9 @@ async def count_valid_checkouts_and_tickets_by_event_id(
                 models_tickets.Checkout.paid,
                 models_tickets.Checkout.expiration >= datetime.now(UTC),
             ),
+            models_tickets.Checkout.id.not_in(exclude_ids)
+            if bool(exclude_ids)
+            else and_(True),
         ),
     )
 
@@ -903,6 +907,7 @@ async def count_valid_checkouts_and_tickets_by_event_id(
 async def count_valid_checkouts_and_tickets_by_session_id(
     session_id: UUID,
     db: AsyncSession,
+    exclude_ids: list[UUID] | None = None,
 ) -> int:
     """
     Count unpaid checkouts that are not expired and paid tickets
@@ -914,6 +919,9 @@ async def count_valid_checkouts_and_tickets_by_session_id(
                 models_tickets.Checkout.paid,
                 models_tickets.Checkout.expiration >= datetime.now(UTC),
             ),
+            models_tickets.Checkout.id.not_in(exclude_ids)
+            if bool(exclude_ids)
+            else and_(True),
         ),
     )
 
@@ -927,6 +935,7 @@ async def count_valid_checkouts_and_tickets_by_session_id(
 async def count_valid_checkouts_and_tickets_by_category_id(
     category_id: UUID,
     db: AsyncSession,
+    exclude_ids: list[UUID] | None = None,
 ) -> int:
     """
     Count unpaid checkouts that are not expired and paid tickets
@@ -938,6 +947,9 @@ async def count_valid_checkouts_and_tickets_by_category_id(
                 models_tickets.Checkout.paid,
                 models_tickets.Checkout.expiration >= datetime.now(UTC),
             ),
+            models_tickets.Checkout.id.not_in(exclude_ids)
+            if bool(exclude_ids)
+            else and_(True),
         ),
     )
 
