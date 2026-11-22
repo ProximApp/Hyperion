@@ -5,7 +5,7 @@ import time
 from collections.abc import Sequence
 from functools import partial
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException
 from redis.asyncio import Redis
@@ -41,7 +41,7 @@ class RedisEventTool:
 
         HTTP request
            | 1. registered Lua script   (atomic: check 3 stocks, decrement, create the hold, register its expiration)
-           | 2. XADD action=HOLD  (event sourcing)
+           | HOLD event is appended inside the same Lua script
            v
         HTTP response  ---> no PostgreSQL I/O on this path
 
@@ -69,23 +69,23 @@ class RedisEventTool:
     # Tunables
     # --------------------------------------------------------------------------------------
 
-    # How long a user has to pay before the hold is reclaimed.
-    #
-    # CONFIRMED OPERATIONAL INVARIANT: this value is set (by configuration, outside this code) with a
-    # safety margin over MyPayment's own payment-window timeout, so a payment can never be confirmed
-    # after this TTL has elapsed. Concretely: payment_request_info.end_date <= now + CHECKOUT_HOLD_TTL_SECONDS,
-    # always. There is therefore no need to ever push a hold's expiration further out to "catch up" with
-    # the payment provider's deadline (an `extend_hold` EVALSHA call used to sit on the checkout's critical
-    # path for exactly that purpose; it was removed as dead weight once this invariant was confirmed - it
-    # could never have extended anything, so it was only an extra Redis round trip and an extra failure
-    # surface). If the relationship between this constant and MyPayment's window ever changes operationally
-    # (e.g. a slower payment method is added), this constant must be raised accordingly.
-    CHECKOUT_HOLD_TTL_SECONDS = 15 * 60
+    # A hold must cover the provider-side payment window PLUS the observed callback-delivery delay.
+    # HelloAsso may call us up to 5 minutes after the payer sees a confirmed payment. The route should
+    # pass a TTL based on the actual RequestType; this value is only a conservative backwards-compatible
+    # default for call sites that have not yet been updated.
+    PAYMENT_CALLBACK_MAX_DELAY_SECONDS = 5 * 60
+    # Reserve happens before MyPayment creates the HelloAsso checkout. This covers bounded API/DB
+    # creation latency as well as the callback-delivery delay; keep aligned with network timeouts.
+    PAYMENT_REQUEST_CREATION_MARGIN_SECONDS = 5 * 60
+    PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS = 2 * 60
+    CHECKOUT_HOLD_TTL_SECONDS = 15 * 60 + PAYMENT_CALLBACK_MAX_DELAY_SECONDS + PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
     # The Redis TTL of a hold hash is only a memory safety net (ttl + margin). It must be larger than
     # any realistic reaper downtime: if the hash disappeared before the reaper ran, its stock would leak.
     HOLD_KEY_TTL_MARGIN_SECONDS = 60 * 60
     # A confirmed hold is kept for a while so that a duplicated payment callback stays idempotent.
     CONFIRMED_HOLD_RETENTION_SECONDS = 24 * 60 * 60
+    # Keep the payload after a RELEASE so that a delayed payment callback can still be reconciled.
+    RELEASED_HOLD_RETENTION_SECONDS = 24 * 60 * 60
     # The reaper only releases holds that expired at least this long ago (clock skew, late callbacks).
     REAPER_GRACE_SECONDS = 30
     # Event configuration cache. Short TTL: admin changes (disabled, dates...) are visible after at most this delay.
@@ -104,118 +104,173 @@ class RedisEventTool:
     # --------------------------------------------------------------------------------------
 
     _RESERVE_LUA = """
-    -- Atomic reservation ("hold") of requested_qty tickets.
-    -- KEYS[1] event stock      KEYS[2] category stock     KEYS[3] session stock
-    -- KEYS[4] user_hold_key    guard: at most one pending hold per user and per event
-    -- KEYS[5] held_key         hash describing the hold (addressed by checkout id)
-    -- KEYS[6] exp_zset_key     ZSET: checkout id -> hold expiration timestamp
-    local event_stock_key    = KEYS[1]
-    local category_stock_key = KEYS[2]
-    local session_stock_key  = KEYS[3]
-    local user_hold_key      = KEYS[4]
-    local held_key           = KEYS[5]
-    local exp_zset_key       = KEYS[6]
-
-    local requested_qty     = tonumber(ARGV[1])
-    local user_id           = ARGV[2]
-    local current_timestamp = tonumber(ARGV[3])
-    local ttl_seconds       = tonumber(ARGV[4])
-    local checkout_id       = ARGV[5]
-    local key_ttl_margin    = tonumber(ARGV[6])
-    local payload           = ARGV[7]
-    -- ARGV[8..10]: "1" if the event / category / session has a quota ("0" = unlimited)
-    local limited    = { ARGV[8] == "1", ARGV[9] == "1", ARGV[10] == "1" }
+    -- Atomic reservation plus HOLD publication.
+    -- KEYS[1..3] event/category/session stock; KEYS[4] user guard; KEYS[5] hold hash;
+    -- KEYS[6] expiration ZSET; KEYS[7] stream.
+    local event_stock_key, category_stock_key, session_stock_key = KEYS[1], KEYS[2], KEYS[3]
+    local user_hold_key, held_key, exp_zset_key, stream_key = KEYS[4], KEYS[5], KEYS[6], KEYS[7]
+    local requested_qty, user_id = tonumber(ARGV[1]), ARGV[2]
+    local current_timestamp, ttl_seconds = tonumber(ARGV[3]), tonumber(ARGV[4])
+    local checkout_id, key_ttl_margin, payload = ARGV[5], tonumber(ARGV[6]), ARGV[7]
+    local limited = { ARGV[8] == "1", ARGV[9] == "1", ARGV[10] == "1" }
     local stock_keys = { event_stock_key, category_stock_key, session_stock_key }
-    local labels     = { "EVENT", "CATEGORY", "SESSION" }
+    local labels = { "EVENT", "CATEGORY", "SESSION" }
+
+    local function keytype(key)
+        local t = redis.call("TYPE", key)
+        if type(t) == "table" then return t.ok end
+        return t
+    end
+    -- Validate key types before the first mutation; Lua scripts are atomic but do NOT roll back
+    -- earlier writes when a later Redis command errors.
+    for i = 1, 3 do
+        local t = keytype(stock_keys[i])
+        if t ~= "none" and t ~= "string" then return "REDIS_STATE_ERROR:stock_type_" .. labels[i] end
+    end
+    local user_type, hold_type = keytype(user_hold_key), keytype(held_key)
+    local exp_type, stream_type = keytype(exp_zset_key), keytype(stream_key)
+    if user_type ~= "none" and user_type ~= "string" then return "REDIS_STATE_ERROR:user_guard_type" end
+    if hold_type ~= "none" then return "REDIS_STATE_ERROR:hold_key_already_exists" end
+    if exp_type ~= "none" and exp_type ~= "zset" then return "REDIS_STATE_ERROR:expirations_type" end
+    if stream_type ~= "none" and stream_type ~= "stream" then return "REDIS_STATE_ERROR:stream_type" end
 
     if redis.call("EXISTS", user_hold_key) == 1 then return "USER_ALREADY_HAS_RESERVATION" end
-
-    -- 1) Check every limited stock before touching anything (all-or-nothing).
     for i = 1, 3 do
-    if limited[i] then
-        local raw = redis.call("GET", stock_keys[i])
-        if raw == false then return "STOCK_NOT_INITIALIZED:" .. labels[i] end
-        if tonumber(raw) < requested_qty then return "SOLD_OUT_OR_INSUFFICIENT_STOCK:" .. labels[i] end
-    end
+        if limited[i] then
+            local raw = redis.call("GET", stock_keys[i])
+            if raw == false then return "STOCK_NOT_INITIALIZED:\" .. labels[i] end
+            if tonumber(raw) < requested_qty then return "SOLD_OUT_OR_INSUFFICIENT_STOCK:\" .. labels[i] end
+        end
     end
 
-    -- 2) Decrement, remembering which counters were touched so RELEASE can give the stock back.
     local touched = { "", "", "" }
     for i = 1, 3 do
-    if limited[i] then
-        redis.call("DECRBY", stock_keys[i], requested_qty)
-        touched[i] = stock_keys[i]
+        if limited[i] then
+            redis.call("DECRBY", stock_keys[i], requested_qty)
+            touched[i] = stock_keys[i]
+        end
     end
-    end
-
-    -- 3) Record the hold, its TTL, and register it in the expiration ZSET.
     local expires_at = current_timestamp + ttl_seconds
     local key_ttl = ttl_seconds + key_ttl_margin
     redis.call("HSET", held_key,
-    "qty", requested_qty, "timestamp", current_timestamp, "user_id", user_id,
-    "checkout_id", checkout_id, "status", "pending", "expires_at", expires_at,
-    "user_hold_key", user_hold_key, "stock_event", touched[1], "stock_category", touched[2],
-    "stock_session", touched[3], "payload", payload)
+        "qty", requested_qty, "timestamp", current_timestamp, "user_id", user_id,
+        "checkout_id", checkout_id, "status", "pending", "expires_at", expires_at,
+        "user_hold_key", user_hold_key, "stock_event", touched[1],
+        "stock_category", touched[2], "stock_session", touched[3], "payload", payload,
+        "confirm_event_published", "0", "release_event_published", "0",
+        "released_stock_applied", "0", "late_confirmed", "0")
     redis.call("EXPIRE", held_key, key_ttl)
     redis.call("SET", user_hold_key, checkout_id, "EX", key_ttl)
     redis.call("ZADD", exp_zset_key, expires_at, checkout_id)
+    -- HOLD is emitted inside the reservation script: there is no request-path dual-write gap.
+    redis.call("XADD", stream_key, "*",
+        "action", "HOLD", "checkout_id", checkout_id, "user_id", user_id,
+        "qty", requested_qty, "ts", current_timestamp, "expires_at", expires_at,
+        "payload", payload)
     return "RESERVED"
     """
 
     _CONFIRM_LUA = """
-    -- Payment received: the hold becomes a definitive ticket. The stock stays consumed.
-    -- KEYS[1] held_key  KEYS[2] exp_zset_key  KEYS[3] stream_key
-    -- ARGV[1] checkout_id  ARGV[2] current_timestamp  ARGV[3] confirmed_retention_seconds
+    -- Idempotently confirm a hold; repair a previous missing CONFIRM XADD on retries.
+    -- A released hold is retained as a tombstone so a late, real payment can still be represented.
     local held_key, exp_zset_key, stream_key = KEYS[1], KEYS[2], KEYS[3]
+    local checkout_id, now_ts, retention = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[3])
     if redis.call("EXISTS", held_key) == 0 then return "HOLD_NOT_FOUND" end
-    if redis.call("HGET", held_key, "status") == "paid" then return "ALREADY_CONFIRMED" end
-
+    local status = redis.call("HGET", held_key, "status")
+    local late = redis.call("HGET", held_key, "late_confirmed") == "1"
+    if status == "paid" then
+        if redis.call("HGET", held_key, "confirm_event_published") ~= "1" then
+            local f = redis.call("HMGET", held_key, "user_id", "qty", "expires_at", "payload")
+            local result = redis.pcall("XADD", stream_key, "*",
+                "action", "CONFIRM", "checkout_id", checkout_id, "user_id", f[1],
+                "qty", f[2], "ts", now_ts, "expires_at", f[3], "payload", f[4])
+            if type(result) == "table" and result.err then return "CONFIRM_PUBLISH_FAILED" end
+            redis.call("HSET", held_key, "confirm_event_published", "1")
+        end
+        if late then return "CONFIRMED_LATE" end
+        return "ALREADY_CONFIRMED"
+    end
+    if status ~= "pending" and status ~= "released" then return "HOLD_NOT_FOUND" end
+    local was_released = status == "released"
     local f = redis.call("HMGET", held_key, "user_id", "qty", "expires_at", "user_hold_key", "payload")
-    redis.call("HSET", held_key, "status", "paid")
-    redis.call("EXPIRE", held_key, tonumber(ARGV[3]))
-    -- Out of the ZSET: the reaper will never give this stock back.
-    redis.call("ZREM", exp_zset_key, ARGV[1])
-    if redis.call("GET", f[4]) == ARGV[1] then redis.call("DEL", f[4]) end
-    -- Published in the same atomic step as the state change: no dual-write gap.
-    redis.call("XADD", stream_key, "*",
-    "action", "CONFIRM", "checkout_id", ARGV[1], "user_id", f[1], "qty", f[2],
-    "ts", ARGV[2], "expires_at", f[3], "payload", f[5])
+    -- If it was released, payment is authoritative but stock may already have been sold again.
+    redis.call("HSET", held_key, "status", "paid", "late_confirmed", was_released and "1" or "0")
+    redis.call("EXPIRE", held_key, retention)
+    redis.call("ZREM", exp_zset_key, checkout_id)
+    if redis.call("GET", f[4]) == checkout_id then redis.call("DEL", f[4]) end
+    local result = redis.pcall("XADD", stream_key, "*",
+        "action", "CONFIRM", "checkout_id", checkout_id, "user_id", f[1],
+        "qty", f[2], "ts", now_ts, "expires_at", f[3], "payload", f[5])
+    if type(result) == "table" and result.err then return "CONFIRM_PUBLISH_FAILED" end
+    redis.call("HSET", held_key, "confirm_event_published", "1")
+    if was_released then return "CONFIRMED_LATE" end
     return "CONFIRMED"
     """
 
     _RELEASE_LUA = """
-    -- Give the stock of an abandoned hold back (reaper, or compensation when the payment request failed).
-    -- KEYS[1] held_key  KEYS[2] exp_zset_key  KEYS[3] stream_key
-    -- ARGV[1] checkout_id  ARGV[2] current_timestamp
-    -- ARGV[3] grace_seconds: only release if expires_at + grace <= now; a negative value releases unconditionally
+    -- Release a pending hold once. Keep a tombstone and retry stream publication when necessary.
     local held_key, exp_zset_key, stream_key = KEYS[1], KEYS[2], KEYS[3]
-    local checkout_id       = ARGV[1]
-    local current_timestamp = tonumber(ARGV[2])
-    local grace             = tonumber(ARGV[3])
-
+    local checkout_id, now_ts, grace = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[3])
     if redis.call("EXISTS", held_key) == 0 then
-    redis.call("ZREM", exp_zset_key, checkout_id)  -- orphan ZSET member
-    return "HOLD_NOT_FOUND"
+        redis.call("ZREM", exp_zset_key, checkout_id)
+        return "HOLD_NOT_FOUND"
     end
-    local f = redis.call("HMGET", held_key, "status", "user_id", "qty", "expires_at", "user_hold_key",
-                        "payload", "stock_event", "stock_category", "stock_session")
-    if f[1] ~= "pending" then
-    redis.call("ZREM", exp_zset_key, checkout_id)
-    return "NOT_PENDING"  -- a paid hold is never released
+    local f = redis.call("HMGET", held_key, "status", "user_id", "qty", "expires_at",
+        "user_hold_key", "payload", "stock_event", "stock_category", "stock_session",
+        "release_event_published", "released_stock_applied", "released_at")
+    if f[1] == "paid" then
+        redis.call("ZREM", exp_zset_key, checkout_id)
+        return "NOT_PENDING"
     end
-    -- Re-checked here (not only in the reaper's ZRANGEBYSCORE): the hold may have been extended or confirmed meanwhile.
-    if grace >= 0 and tonumber(f[4]) + grace > current_timestamp then return "NOT_EXPIRED" end
+    if f[1] == "released" then
+        if f[10] ~= "1" then
+            local published_at = tonumber(f[12]) or now_ts
+            local result = redis.pcall("XADD", stream_key, "*",
+                "action", "RELEASE", "checkout_id", checkout_id, "user_id", f[2],
+                "qty", f[3], "ts", published_at, "expires_at", f[4], "payload", f[6])
+            if type(result) == "table" and result.err then return "RELEASE_PUBLISH_FAILED" end
+            redis.call("HSET", held_key, "release_event_published", "1")
+        end
+        return "NOT_PENDING"
+    end
+    if f[1] ~= "pending" then return "HOLD_NOT_FOUND" end
+    if grace >= 0 and tonumber(f[4]) + grace > now_ts then return "NOT_EXPIRED" end
 
-    local qty = tonumber(f[3])
-    for i = 7, 9 do
-    if f[i] and f[i] ~= "" then redis.call("INCRBY", f[i], qty) end
+    local function keytype(key)
+        local t = redis.call("TYPE", key)
+        if type(t) == "table" then return t.ok end
+        return t
     end
-    redis.call("DEL", held_key)
+    local exp_type, stream_type = keytype(exp_zset_key), keytype(stream_key)
+    if exp_type ~= "none" and exp_type ~= "zset" then return "RELEASE_PUBLISH_FAILED" end
+    if stream_type ~= "none" and stream_type ~= "stream" then return "RELEASE_PUBLISH_FAILED" end
+    for i = 7, 9 do
+        if f[i] and f[i] ~= "" then
+            local t = keytype(f[i])
+            if t ~= "string" then return "RELEASE_PUBLISH_FAILED" end
+        end
+    end
+    -- Publish first. If XADD fails, stock remains held and the ZSET will trigger another attempt.
+    if f[10] ~= "1" then
+        local result = redis.pcall("XADD", stream_key, "*",
+            "action", "RELEASE", "checkout_id", checkout_id, "user_id", f[2],
+            "qty", f[3], "ts", now_ts, "expires_at", f[4], "payload", f[6])
+        if type(result) == "table" and result.err then return "RELEASE_PUBLISH_FAILED" end
+        redis.call("HSET", held_key, "release_event_published", "1", "released_at", now_ts)
+    end
+    -- Set the marker before INCRBY: in the exceptional case of a later command error, prefer a
+    -- capacity leak (fail-closed) over restoring the same stock twice. Reconciliation must monitor it.
+    if f[11] ~= "1" then
+        redis.call("HSET", held_key, "released_stock_applied", "1")
+        local qty = tonumber(f[3])
+        for i = 7, 9 do
+            if f[i] and f[i] ~= "" then redis.call("INCRBY", f[i], qty) end
+        end
+    end
+    redis.call("HSET", held_key, "status", "released", "released_at", now_ts)
     redis.call("ZREM", exp_zset_key, checkout_id)
     if redis.call("GET", f[5]) == checkout_id then redis.call("DEL", f[5]) end
-    redis.call("XADD", stream_key, "*",
-    "action", "RELEASE", "checkout_id", checkout_id, "user_id", f[2], "qty", f[3],
-    "ts", ARGV[2], "expires_at", f[4], "payload", f[6])
+    redis.call("EXPIRE", held_key, tonumber(ARGV[4]))
     return "RELEASED"
     """
 
@@ -292,14 +347,31 @@ class RedisEventTool:
     async def init_tickets_redis(self) -> None:
         """
         To be called in the application startup event.
-        Loads the Lua scripts and registers the client for code that has no FastAPI dependency
-        injection (the MyPayment callback, which has a fixed signature).
+        Loads Lua scripts. The MyPayment callback obtains the current client from app.dependencies.get_redis_client();
+        script registration itself does not store a process-global client.
         """
         await self.load_scripts()
 
     # --------------------------------------------------------------------------------------
     # Fast path operations (RAM only)
     # --------------------------------------------------------------------------------------
+
+    def hold_ttl_for_request(self, request_type: Any) -> int:
+        """
+        Return a hold TTL that covers the provider deadline and callback delivery lag.
+
+        The TRANSFER_REQUEST flow uses HelloAsso and is known to deliver callbacks up to five minutes
+        after payment confirmation. TRANSACTION_REQUEST uses MyPayment's own request expiration.
+        A two-minute safety margin is added in both cases; the reaper grace is additional.
+        """
+        from app.core.checkout.utils_checkout import CHECKOUT_EXPIRATION
+        from app.core.mypayment.types_mypayment import REQUEST_EXPIRATION, RequestType
+
+        if request_type == RequestType.TRANSFER_REQUEST:
+            return (CHECKOUT_EXPIRATION * 60) + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS + self.PAYMENT_CALLBACK_MAX_DELAY_SECONDS + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+        if request_type == RequestType.TRANSACTION_REQUEST:
+            return (REQUEST_EXPIRATION * 60) + self.PAYMENT_REQUEST_CREATION_MARGIN_SECONDS + self.PAYMENT_CALLBACK_SAFETY_MARGIN_SECONDS
+        raise ValueError(f"Unsupported MyPayment request type: {request_type!r}")
 
     async def reserve(
         self,
@@ -311,40 +383,61 @@ class RedisEventTool:
         checkout_id: UUID,
         payload_json: str,
         requested_qty: int = 1,
+        hold_ttl_seconds: int | None = None,
     ) -> ReservationResult:
         """
         Atomically check the event / category / session stocks, decrement them and create the hold.
         A single registered-Lua-script round trip, no PostgreSQL access.
         """
         now_ts = int(time.time())
-        raw = await self.run_script(
-            self.RESERVE_SCRIPT,
-            keys=[
-                stock_key_event(event.id),
-                stock_key_category(category.id),
-                stock_key_session(session.id),
-                user_hold_key(event.id, user_id),
-                hold_key(checkout_id),
-                EventRedisKeys.EXPIRATIONS_ZSET_KEY,
-            ],
-            args=[
-                requested_qty,
-                user_id,
-                now_ts,
-                self.CHECKOUT_HOLD_TTL_SECONDS,
-                str(checkout_id),
-                self.HOLD_KEY_TTL_MARGIN_SECONDS,
-                payload_json,
-                "1" if event.quota is not None else "0",
-                "1" if category.quota is not None else "0",
-                "1" if session.quota is not None else "0",
-            ],
+        ttl_seconds = (
+            self.CHECKOUT_HOLD_TTL_SECONDS
+            if hold_ttl_seconds is None
+            else hold_ttl_seconds
         )
+        if ttl_seconds <= 0:
+            raise ValueError("hold_ttl_seconds must be positive")
+        try:
+            raw = await self.run_script(
+                self.RESERVE_SCRIPT,
+                keys=[
+                    stock_key_event(event.id),
+                    stock_key_category(category.id),
+                    stock_key_session(session.id),
+                    user_hold_key(event.id, user_id),
+                    hold_key(checkout_id),
+                    EventRedisKeys.EXPIRATIONS_ZSET_KEY,
+                    EventRedisKeys.STREAM_KEY,
+                ],
+                args=[
+                    requested_qty, user_id, now_ts, ttl_seconds, str(checkout_id),
+                    self.HOLD_KEY_TTL_MARGIN_SECONDS, payload_json,
+                    "1" if event.quota is not None else "0",
+                    "1" if category.quota is not None else "0",
+                    "1" if session.quota is not None else "0",
+                ],
+            )
+        except Exception:
+            # A Redis timeout can mean the script ran but its reply was lost. Compensate by checkout id.
+            try:
+                compensation = await self.release_hold(checkout_id)
+                if compensation == "RELEASE_PUBLISH_FAILED":
+                    hyperion_error_logger.critical(
+                        "Could not publish RELEASE while compensating checkout %s; stock may remain held",
+                        checkout_id,
+                    )
+            except Exception:
+                hyperion_error_logger.exception(
+                    "Could not compensate ambiguous Redis reservation %s", checkout_id,
+                )
+            raise
         status, _, dimension = raw.partition(":")
+        if status == "REDIS_STATE_ERROR":
+            raise RuntimeError(f"Redis tickets state invalid ({dimension}); reservation was not changed")
         return ReservationResult(
             status=status,
             dimension=dimension or None,
-            expires_at=now_ts + self.CHECKOUT_HOLD_TTL_SECONDS,
+            expires_at=now_ts + ttl_seconds,
         )
 
     async def confirm_hold(
@@ -352,26 +445,36 @@ class RedisEventTool:
         checkout_id: UUID,
         raise_on_fail: bool = False,
     ) -> str:
-        """Payment received. Atomically marks the hold as paid and publishes the CONFIRM event."""
-        status = await self.run_script(
-            self.CONFIRM_SCRIPT,
-            keys=[
-                hold_key(checkout_id),
-                EventRedisKeys.EXPIRATIONS_ZSET_KEY,
-                EventRedisKeys.STREAM_KEY,
-            ],
-            args=[
-                str(checkout_id),
-                int(time.time()),
-                self.CONFIRMED_HOLD_RETENTION_SECONDS,
-            ],
-        )
-
+        """Confirm a hold and retry the Lua transition if a partial Redis error is surfaced."""
+        last_error: Exception | None = None
+        status = "CONFIRM_PUBLISH_FAILED"
+        for attempt in range(3):
+            try:
+                status = await self.run_script(
+                    self.CONFIRM_SCRIPT,
+                    keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
+                    args=[str(checkout_id), int(time.time()), self.CONFIRMED_HOLD_RETENTION_SECONDS],
+                )
+                if status != "CONFIRM_PUBLISH_FAILED":
+                    last_error = None
+                    break
+            except Exception as exc:
+                # A script can have changed status before an error surfaced. Replaying by checkout id
+                # repairs the publication marker; the Lua script is idempotent for already-paid holds.
+                last_error = exc
+            if attempt < 2:
+                await asyncio.sleep(0.05 * (attempt + 1))
+        if last_error is not None:
+            raise RuntimeError(
+                f"Redis could not confirm checkout {checkout_id} after retries"
+            ) from last_error
+        if status == "CONFIRM_PUBLISH_FAILED":
+            raise RuntimeError(f"Could not publish CONFIRM event for checkout {checkout_id}")
         if raise_on_fail and status not in (
-            LuaResult.CONFIRMED,
-            LuaResult.ALREADY_CONFIRMED,
+            LuaResult.CONFIRMED, LuaResult.ALREADY_CONFIRMED, LuaResult.CONFIRMED_LATE,
         ):
-            raise HTTPException(503, "Reservation lost, please retry")
+            # Use a non-HTTP exception: get_db commits on HTTPException by design.
+            raise RuntimeError(f"Reservation {checkout_id} could not be confirmed: {status}")
         return status
 
     async def release_hold(
@@ -382,23 +485,29 @@ class RedisEventTool:
         now: int | None = None,
     ) -> str:
         """
-        Atomically restore the stock, delete the hold and publish the RELEASE event.
+        Atomically restore stock, publish RELEASE, and retain a short-lived tombstone for late callbacks.
         `grace_seconds < 0` releases unconditionally (compensation); otherwise the hold is only
         released if it expired at least `grace_seconds` ago (reaper).
         """
-        return await self.run_script(
+        args = [
+            str(checkout_id),
+            now if now is not None else int(time.time()),
+            grace_seconds,
+            self.RELEASED_HOLD_RETENTION_SECONDS,
+        ]
+        result = await self.run_script(
             self.RELEASE_SCRIPT,
-            keys=[
-                hold_key(checkout_id),
-                EventRedisKeys.EXPIRATIONS_ZSET_KEY,
-                EventRedisKeys.STREAM_KEY,
-            ],
-            args=[
-                str(checkout_id),
-                now if now is not None else int(time.time()),
-                grace_seconds,
-            ],
+            keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
+            args=args,
         )
+        if result == "RELEASE_PUBLISH_FAILED":
+            # If XADD temporarily failed, the hold remains pending or retained as a tombstone. Retry once.
+            result = await self.run_script(
+                self.RELEASE_SCRIPT,
+                keys=[hold_key(checkout_id), EventRedisKeys.EXPIRATIONS_ZSET_KEY, EventRedisKeys.STREAM_KEY],
+                args=[str(checkout_id), int(time.time()) if now is None else now, grace_seconds, self.RELEASED_HOLD_RETENTION_SECONDS],
+            )
+        return result
 
     async def publish_hold_event(
         self,
@@ -410,12 +519,8 @@ class RedisEventTool:
         payload_json: str,
     ) -> None:
         """
-        Event sourcing: publish `ACTION: HOLD` so that the write-behind worker persists the checkout.
-
-        This XADD is the only non-atomic step (it happens after the payment request, because the event
-        carries the final expiration). If it is lost, nothing is corrupted: the CONFIRM event published
-        by the Lua script carries the same full payload and creates the row itself, and an abandoned hold
-        is simply released by the reaper.
+        Legacy helper retained for compatibility only. New checkout code must NOT call it: reserve()
+        now publishes HOLD atomically with the reservation, avoiding duplicate events and the dual-write gap.
         """
         try:
             await self.redis_client.xadd(
@@ -528,11 +633,9 @@ class RedisEventTool:
         the others wait for it (bounded) instead of stampeding the database.
         """
         lock_key = warmup_lock_key(event_id)
+        lock_token = uuid4().hex
         acquired = await self.redis_client.set(
-            lock_key,
-            "1",
-            nx=True,
-            ex=self.WARMUP_LOCK_TTL_SECONDS,
+            lock_key, lock_token, nx=True, ex=self.WARMUP_LOCK_TTL_SECONDS,
         )
         if not acquired:
             deadline = time.monotonic() + self.WARMUP_WAIT_SECONDS
@@ -570,7 +673,11 @@ class RedisEventTool:
             )
             return event
         finally:
-            await self.redis_client.delete(lock_key)
+            # Do not delete a new owner's lock if our lease expired during a slow PostgreSQL read.
+            await self.redis_client.eval(
+                "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+                1, lock_key, lock_token,
+            )
 
     async def warm_up_active_events(self, db: AsyncSession) -> int:
         """Pre-warm every open or upcoming event at startup, before the first flash sale request."""

@@ -486,16 +486,17 @@ async def create_checkout(
 async def mark_checkout_as_paid(
     checkout_id: UUID,
     db: AsyncSession,
-):
-    await db.execute(
+) -> bool:
+    """Mark a checkout paid and report whether a row existed. Safe to replay."""
+    result = await db.execute(
         update(models_tickets.Checkout)
         .where(models_tickets.Checkout.id == checkout_id)
         .values(paid=True),
     )
+    return result.scalar_one_or_none() is not None
 
-    # ----------------------------------------------------------------------------------------
 
-
+# ----------------------------------------------------------------------------------------
 # Write-behind bulk operations (called by worker_tickets.py, one transaction per batch)
 #
 # All of them are idempotent: the worker gets each stream event at least once, possibly

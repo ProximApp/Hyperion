@@ -176,12 +176,15 @@ async def webhook(
                                 },
                             )
                             return
-            except Exception:
+            except Exception as exc:
                 hyperion_error_logger.exception(
-                    "Payment: call to module payment callback failed",
+                    "Payment: call to module payment callback failed; returning 5xx so the webhook can be retried",
                     extra={
                         "callback_module": checkout.module,
                         "hyperion_checkout_id": checkout.id,
                         "hello_asso_checkout_id": checkout.hello_asso_checkout_id,
                     },
                 )
+                # get_db() deliberately commits on HTTPException; wrap callback failures in a non-HTTP
+                # exception so the transfer/wallet/payment changes in this request are rolled back.
+                raise RuntimeError("Payment module callback failed") from exc

@@ -61,7 +61,7 @@ core_module = CoreModule(
     tag="Tickets",
     router=router,
     factory=TicketsFactory(),
-    mypayment_callback=utils_tickets.mypayment_callback_callback,
+    mypayment_callback=utils_tickets.ticket_mypayment_callback,
     permissions=TicketsPermissions,
 )
 
@@ -285,11 +285,13 @@ async def create_checkout(
         ],
     ).model_dump_json()
 
-    # 2. Atomic reservation in Redis. This single call replaces:
-    #    - the row lock on the event (acquire_event_lock_for_update),
-    #    - is_event_sold_out / is_category_sold_out / is_session_sold_out (3 COUNT queries),
-    #    - cruds_tickets.create_checkout + the commit done at the end of the request.
-    # No lock is held between the check and the decrement: Redis runs the script atomically.
+    # Compute this once, before the first reserve call. It includes the relevant MyPayment request window,
+    # observed HelloAsso callback delivery lag, request-creation allowance and safety margin.
+    hold_ttl_seconds = redis_event_tool.hold_ttl_for_request(
+        checkout.mypayment_request_method,
+    )
+
+    # Build checkout_id and payload_json as in the current endpoint, then reserve using the TTL above.
     reservation = await redis_event_tool.reserve(
         event=event,
         category=category,
@@ -297,14 +299,10 @@ async def create_checkout(
         user_id=user.id,
         checkout_id=checkout_id,
         payload_json=payload_json,
+        hold_ttl_seconds=hold_ttl_seconds,
     )
     if reservation.status == LuaResult.STOCK_NOT_INITIALIZED:
-        # Cold start (counters never initialised, or lost by Redis): initialise them from
-        # PostgreSQL once (single-flight) and retry. Pre-warming at startup makes this path rare.
-        await redis_event_tool.warm_up_event(
-            event_id=event_id,
-            db=db,
-        )
+        await redis_event_tool.warm_up_event(event_id=event_id, db=db)
         reservation = await redis_event_tool.reserve(
             event=event,
             category=category,
@@ -312,15 +310,15 @@ async def create_checkout(
             user_id=user.id,
             checkout_id=checkout_id,
             payload_json=payload_json,
+            hold_ttl_seconds=hold_ttl_seconds,
         )
     utils_tickets.raise_if_reservation_failed(reservation)
 
-    # From here the stock is held. Any failure must give it back immediately instead of leaving
-    # it blocked until the hold expires.
+    # IMPORTANT: reserve() now appends HOLD in the same Lua script as the stock decrement.
+    # Delete the old trailing call to redis_event_tool.publish_hold_event(...), otherwise HOLD is duplicated.
+
     try:
         if price == 0:
-            # Free ticket: confirm the hold right away. The CONFIRM event is published atomically
-            # by the Lua script and carries the whole checkout, so the worker persists it as paid.
             payment_request_info = None
             expiration = now
             await redis_event_tool.confirm_hold(
@@ -349,39 +347,24 @@ async def create_checkout(
                 ),
             )
             expiration = payment_request_info.end_date
-            # NOTE: no hold-extension step here. Per the confirmed invariant, `expiration`
-            # (MyPayment's own deadline) is always <= `reservation.expires_at` (the Redis hold's
-            # TTL, set once by the Lua reserve script above), so there is nothing to align: the
-            # hold already outlives the payment window by construction. An `extend_hold` EVALSHA
-            # call used to sit here defensively; it was removed as dead code once this was
-            # confirmed (see the comment on CHECKOUT_HOLD_TTL_SECONDS in utils_redis_tickets.py) -
-            # every call would have been a no-op, at the cost of one Redis round trip per checkout
-            # and one extra failure mode to compensate for on the critical path.
     except Exception:
-        # Compensation: atomically restore the stock, delete the hold and publish RELEASE.
+        # release_hold is idempotent; if reserve actually ran but the response was lost, it compensates it.
+        # A late payment callback will be detected via the retained RELEASED tombstone.
         try:
-            await redis_event_tool.release_hold(
+            release_status = await redis_event_tool.release_hold(
                 checkout_id=checkout_id,
             )
+            if release_status == "RELEASE_PUBLISH_FAILED":
+                hyperion_error_logger.critical(
+                    "Could not publish RELEASE during checkout compensation; checkout_id=%s",
+                    checkout_id,
+                )
         except Exception:
-            # Redis is unreachable: the reaper will release the hold once it expires.
             hyperion_error_logger.exception(
-                "Could not release the hold of checkout %s",
+                "Could not release the hold for checkout %s; reaper/reconciliation may be needed",
                 checkout_id,
             )
         raise
-
-    # 3. Event sourcing. The write-behind worker consumes it and inserts the checkout and its
-    #    answers into PostgreSQL in a batch. Nothing waits for that write.
-    #    (Free tickets are persisted through the CONFIRM event published by the Lua script.)
-    if payment_request_info is not None:
-        await redis_event_tool.publish_hold_event(
-            checkout_id=checkout_id,
-            user_id=user.id,
-            qty=1,
-            expires_at=reservation.expires_at,
-            payload_json=payload_json,
-        )
 
     return schemas_tickets.CheckoutResponse(
         price=price,

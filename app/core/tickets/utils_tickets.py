@@ -16,9 +16,15 @@ from app.core.tickets import (
     schemas_tickets,
     utils_redis_tickets,
 )
+from app.core.tickets.exceptions_tickets import (
+    RedisUnavailableError,
+    TicketCheckoutNotFoundError,
+    UnexpectedRedisConfirmationResultError,
+)
 from app.core.tickets.redis_event_tool import RedisEventTool
 from app.core.tickets.schemas_tickets import ReservationResult
 from app.core.tickets.types_tickets import SOLD_OUT_MESSAGES, LuaResult
+from app.dependencies import get_redis_client
 
 MEMBERSHIP_CACHE_TTL_SECONDS = 300
 MEMBERSHIP_NEGATIVE_CACHE_TTL_SECONDS = 30
@@ -27,54 +33,61 @@ MEMBERSHIP_NEGATIVE_CACHE_TTL_SECONDS = 30
 hyperion_error_logger = logging.getLogger("hyperion.error")
 
 
-async def mypayment_callback_callback(
+async def ticket_mypayment_callback(
     checkout_id: UUID,
     db: AsyncSession,
     redis_client: Redis | None = None,
 ) -> None:
+    """Confirm a ticket checkout after MyPayment has verified the payment.
+
+    Redis is the normal source of truth for the hold. SQL is only a safety fallback when the
+    hold has disappeared but the write-behind projection already contains the checkout.
+    A missing SQL row is an operational failure, not a successful payment acknowledgement.
     """
-    Callback called by MyPayment when the payment status of a checkout changes.
-
-    It will update the checkout and the associated tickets status according to the payment status.
-
-    ASYNC FLOW: the confirmation is done in Redis by an atomic Lua script (the hold leaves the
-    expiration ZSET, so the reaper can never give this stock back) which also publishes a CONFIRM
-    event. PostgreSQL is updated later by the write-behind worker. `db` is only used by the fallbacks.
-
-    The signature is imposed by the MyPayment callback contract, so the Redis client can not be
-    injected: it is the one registered by `utils_redis_tickets.init_tickets_redis` at startup.
-    """
-
+    redis_client = redis_client if redis_client is not None else get_redis_client()
     if redis_client is None:
-        # Redis is not configured (development / tests): historical synchronous behaviour.
-        await cruds_tickets.mark_checkout_as_paid(
+        # Do not silently use the old direct-SQL path: it cannot restore/validate Redis stock.
+        # Raising a non-HTTP exception makes the MyPayment webhook transaction roll back.
+        raise RedisUnavailableError(checkout_id)
+
+    redis_tool = RedisEventTool(redis_client)
+    status = await redis_tool.confirm_hold(checkout_id=checkout_id)
+
+    if status in (
+        LuaResult.CONFIRMED,
+        LuaResult.ALREADY_CONFIRMED,
+    ):
+        return
+
+    if status == LuaResult.CONFIRMED_LATE:
+        # The payment is authoritative, but the hold was already released and its stock may have
+        # been sold again. No automatic refund is available: persist the paid ticket and alert ops.
+        hyperion_error_logger.critical(
+            "PAYMENT CONFIRMED AFTER TICKET HOLD RELEASED; possible overbooking; manual reconciliation required",
+            extra={"checkout_id": str(checkout_id)},
+        )
+        return
+
+    if status == LuaResult.HOLD_NOT_FOUND:
+        # This can happen after Redis data loss/expiry. Only accept the SQL fallback if the checkout
+        # row already exists. The worker's CONFIRM event cannot be reconstructed without the payload.
+        updated = await cruds_tickets.mark_checkout_as_paid(
             checkout_id=checkout_id,
             db=db,
         )
-        return
-
-    status = await RedisEventTool(redis_client).confirm_hold(checkout_id=checkout_id)
-    if status in (LuaResult.CONFIRMED, LuaResult.ALREADY_CONFIRMED):
-        # ALREADY_CONFIRMED: MyPayment called us twice, nothing to do.
-        return
-
-    # HOLD_NOT_FOUND: the payment reached us after the hold was released (payment window plus grace
-    # period elapsed) or Redis lost it. The money has been taken, so the payment wins: fall back to
-    # the historical behaviour and make it visible to the operators.
-    hyperion_error_logger.error(
-        "Payment received for checkout but Redis has no pending hold. "
-        "Marking it as paid in the database; the Redis stock may be off by one.",
-        extra={"checkout_id": checkout_id, "status": status},
-    )
-    updated = await cruds_tickets.mark_checkout_as_paid(
-        checkout_id=checkout_id,
-        db=db,
-    )
-    if not updated:
+        if updated:
+            hyperion_error_logger.critical(
+                "Payment confirmed but Redis hold is missing; checkout marked paid directly in SQL; stock may be inconsistent",
+                extra={"checkout_id": str(checkout_id)},
+            )
+            return
         hyperion_error_logger.critical(
-            "Payment received for unknown checkout: a refund is probably required",
-            extra={"checkout_id": checkout_id},
+            "Payment confirmed but both Redis hold and SQL checkout are missing; payment callback will fail for retry/manual reconciliation",
+            extra={"checkout_id": str(checkout_id)},
         )
+        raise TicketCheckoutNotFoundError(checkout_id)
+
+    raise UnexpectedRedisConfirmationResultError(checkout_id, status)
 
 
 async def is_event_sold_out(
