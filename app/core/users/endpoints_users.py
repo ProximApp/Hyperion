@@ -1,5 +1,4 @@
 import logging
-import string
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -50,7 +49,6 @@ from app.utils.tools import (
     compress_and_save_image_file,
     create_and_send_email_migration,
     get_file_from_data,
-    sort_user,
 )
 
 router = APIRouter(tags=["Users"])
