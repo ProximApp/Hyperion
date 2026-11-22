@@ -28,14 +28,18 @@ from app.core.users.utils_users import user_simple_model_to_schema
 
 async def count_users(db: AsyncSession) -> int:
     """Return the number of users in the database"""
-    return (await db.execute(select(func.count(models_users.CoreUser.id)))).scalar_one()
+    return int(
+        (await db.execute(select(func.count(models_users.CoreUser.id)))).scalar_one(),
+    )
 
 
 async def count_activation_tokens(db: AsyncSession) -> int:
     """Return the number of activation tokens in the database"""
-    return (
-        await db.execute(select(func.count(models_users.CoreUserUnconfirmed.id)))
-    ).scalar_one()
+    return int(
+        (
+            await db.execute(select(func.count(models_users.CoreUserUnconfirmed.id)))
+        ).scalar_one(),
+    )
 
 
 def construct_filter_conditions(
@@ -73,7 +77,7 @@ def construct_filter_conditions(
                 for account_type in included_account_types
             ],
         )
-        if included_account_types
+        if included_account_types is not None
         else and_(True)
     )
     # We want, for each group that should not be included
@@ -100,7 +104,7 @@ def construct_filter_conditions(
                 for school_id in schools_ids
             ],
         )
-        if schools_ids
+        if schools_ids is not None
         else and_(True)
     )
 
@@ -491,7 +495,7 @@ async def fusion_users(
     """
     foreign_keys: set[ForeignKey] = get_referencing_foreign_keys(
         models_users.CoreUser.__table__,
-    )
+    )  # ty: ignore[unsound-assignment]
     # We keep only the foreign keys that reference the user_id
     user_id_fks: list[ForeignKey] = [
         fk for fk in foreign_keys if fk.column == models_users.CoreUser.__table__.c.id
