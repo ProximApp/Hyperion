@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
 import calypsso
-import fitz
+import pymupdf
 from anyio import Path
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -508,7 +508,7 @@ async def generate_pdf_from_template(
 async def concat_pdf(
     source_directory: str,
     source_filename: str | UUID,
-    output_pdf: fitz.Document,
+    output_pdf: pymupdf.Document,
 ) -> None:
     """
     Add the content of the PDF file located in data to
@@ -518,7 +518,7 @@ async def concat_pdf(
         directory=source_directory,
         filename=source_filename,
     )
-    with fitz.open(source_file_path) as source:
+    with pymupdf.open(source_file_path) as source:
         output_pdf.insert_pdf(source)
 
 
@@ -542,13 +542,12 @@ async def save_pdf_first_page_as_image(
         default_pdf_path,
     )
 
-    paper_pdf: fitz.Document
-    with fitz.open(pdf_file_path) as paper_pdf:
-        page: fitz.Page = paper_pdf.load_page(0)
+    with pymupdf.Document(pdf_file_path) as paper_pdf:
+        page = paper_pdf.load_page(0)
 
-        cover: fitz.Pixmap = page.get_pixmap()
+        cover = page.get_pixmap()
 
-        cover_bytes: bytes = cover.tobytes(
+        cover_bytes = cover.tobytes(
             output="jpeg",
             jpg_quality=jpg_quality,
         )

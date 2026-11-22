@@ -1,5 +1,4 @@
 import uuid
-from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -26,9 +25,6 @@ from tests.commons import (
     create_user_with_groups,
     get_TestingSessionLocal,
 )
-
-if TYPE_CHECKING:
-    from app.core.utils.config import Settings
 
 checkout_with_existing_checkout_payment: models_checkout.Checkout
 existing_checkout_payment: models_checkout.CheckoutPayment
@@ -420,7 +416,7 @@ async def test_payment_tool_init_checkout(
 ):
     redirect_url = "https://example.com"
     # We create a mocked settings object with the required HelloAsso API credentials
-    settings: Settings = mocker.MagicMock()
+    settings = mocker.MagicMock()
     settings.HELLOASSO_API_BASE = "https://example.com"
     settings.HELLOASSO_CONFIGURATIONS = {
         HelloAssoConfigName.CDR: HelloAssoConfig(
@@ -483,7 +479,7 @@ async def test_payment_tool_init_checkout_with_one_failure(
     """
     redirect_url = "https://example.com"
     # We create a mocked settings object with the required HelloAsso API credentials
-    settings: Settings = mocker.MagicMock()
+    settings = mocker.MagicMock()
     settings.HELLOASSO_API_BASE = "https://example.com"
     settings.HELLOASSO_CONFIGURATIONS = {
         HelloAssoConfigName.CDR: HelloAssoConfig(
@@ -559,7 +555,7 @@ async def test_payment_tool_init_checkout_fail(
 
     redirect_url = "https://example.com"
     # We create a mocked settings object with the required HelloAsso API credentials
-    settings: Settings = mocker.MagicMock()
+    settings = mocker.MagicMock()
     settings.HELLOASSO_API_BASE = "https://example.com"
     settings.HELLOASSO_CONFIGURATIONS = {
         HelloAssoConfigName.CDR: HelloAssoConfig(

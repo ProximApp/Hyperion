@@ -7,7 +7,7 @@ from app.core.mypayment import models_mypayment, schemas_mypayment
 
 def generate_store_history_csv(
     transactions_with_sellers: list[tuple[models_mypayment.Transaction, str | None]],
-    refunds_map: dict[UUID, tuple[models_mypayment.Refund, str | None]],
+    refunds_map: dict[UUID, tuple[models_mypayment.Refund, str]],
     direct_transfers: list[schemas_mypayment.Transfer],
     store_wallet_id,
 ) -> str:

@@ -112,7 +112,7 @@ def test_add_sections(client: TestClient) -> None:
     )
     assert response.status_code == 201
     global section2id
-    section2id = response.json()["id"]
+    section2id = str(response.json()["id"])
 
 
 def test_delete_section(client: TestClient) -> None:
@@ -188,7 +188,7 @@ def test_add_list(client: TestClient) -> None:
     )
     assert response.status_code == 201
     global list2id
-    list2id = response.json()["id"]
+    list2id = str(response.json()["id"])
 
 
 def test_delete_list(client: TestClient) -> None:

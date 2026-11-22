@@ -6,8 +6,10 @@ from app.modules.sport_competition import schemas_sport_competition
 from app.modules.sport_competition.types_sport_competition import ExcelExportParams
 from app.modules.sport_competition.utils.data_exporter.commons import (
     FormatStructure,
+    ProductDetail,
     ProductStructure,
     SheetData,
+    VariantInfo,
     autosize_columns,
     generate_format,
     get_user_types,
@@ -23,15 +25,15 @@ PAYMENTS_COLUMNS = ["Total à payer", "Total payé", "Tout payé"]
 def build_product_structure(
     products: list[schemas_sport_competition.ProductComplete],
     users_purchases: dict[str, list[schemas_sport_competition.PurchaseComplete]],
-):
+) -> tuple[ProductStructure, int]:
     # Filter products to only keep variants that have been purchased
-    variant_purcased = {
+    variant_purchased = {
         p.product_variant_id
         for purchases in users_purchases.values()
         for p in purchases
     }
     for product in products:
-        product.variants = [v for v in product.variants if v.id in variant_purcased]
+        product.variants = [v for v in product.variants if v.id in variant_purchased]
     products = [p for p in products if p.variants]
 
     col_idx = 0
@@ -47,18 +49,17 @@ def build_product_structure(
             valid_col = col_idx + 1
             col_idx += 2
             variants_info.append(
-                {
-                    "variant": variant,
-                    "qty_col": qty_col,
-                    "valid_col": valid_col,
-                },
+                VariantInfo(
+                    variant=variant,
+                    qty_col=qty_col,
+                    valid_col=valid_col,
+                ),
             )
-
         product_structure.append(
-            {
-                "product": product,
-                "variants_info": variants_info,
-            },
+            ProductDetail(
+                product=product,
+                variants_info=variants_info,
+            ),
         )
 
     return product_structure, col_idx

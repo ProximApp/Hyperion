@@ -598,7 +598,7 @@ async def init_lifespan(
     redis_client: Redis | None = app.dependency_overrides.get(
         get_redis_client,
         get_redis_client,
-    )()
+    )()  # ty: ignore[unsound-assignment]
 
     number_of_workers = initialization.get_number_of_workers()
     if number_of_workers > 1:
@@ -770,7 +770,7 @@ def get_application(settings: Settings, drop_db: bool = False) -> FastAPI:
         )  # host can be an Object of type IPv4Address or IPv6Address and would be refused by redis
         port = request.client.port
 
-        redis_client: Redis | None = get_redis_client_dependency()
+        redis_client: Redis | None = get_redis_client_dependency()  # ty: ignore[unsound-assignment]
 
         # We test the ip address with the redis limiter
         process = True

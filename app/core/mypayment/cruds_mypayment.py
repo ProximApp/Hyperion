@@ -705,8 +705,8 @@ async def get_transactions_and_sellers_by_wallet_id(
 
     transactions_with_sellers = []
     for row in result.all():
-        transaction = row[0]
-        user = row[1]
+        transaction = row.tuple()[0]
+        user = row.tuple()[1]
 
         transactions_with_sellers.append((transaction, user.full_name))
 
@@ -808,42 +808,6 @@ async def get_transfers_by_wallet_id(
         )
         for transfer in result.scalars().all()
     ]
-
-
-async def get_transfers_and_sellers_by_wallet_id(
-    wallet_id: UUID,
-    db: AsyncSession,
-    start_datetime: datetime | None = None,
-    end_datetime: datetime | None = None,
-) -> list[tuple[models_mypayment.Transfer, str | None]]:
-    result = await db.execute(
-        select(
-            models_mypayment.Transfer,
-            models_users.CoreUser,
-        )
-        .outerjoin(
-            models_users.CoreUser,
-            models_users.CoreUser.id == models_mypayment.Transfer.approver_user_id,
-        )
-        .where(
-            models_mypayment.Transfer.wallet_id == wallet_id,
-            models_mypayment.Transfer.creation >= start_datetime
-            if start_datetime
-            else and_(True),
-            models_mypayment.Transfer.creation <= end_datetime
-            if end_datetime
-            else and_(True),
-        ),
-    )
-
-    transfers_with_users = []
-    for row in result.all():
-        transfer = row[0]
-        user = row[1]
-
-        transfers_with_users.append((transfer, user.full_name))
-
-    return transfers_with_users
 
 
 async def get_transfer_by_transfer_identifier(
@@ -985,7 +949,7 @@ async def get_refunds_and_sellers_by_wallet_id(
     db: AsyncSession,
     start_datetime: datetime | None = None,
     end_datetime: datetime | None = None,
-) -> Sequence[tuple[models_mypayment.Refund, str | None]]:
+) -> Sequence[tuple[models_mypayment.Refund, str]]:
     result = await db.execute(
         select(
             models_mypayment.Refund,
@@ -1015,8 +979,8 @@ async def get_refunds_and_sellers_by_wallet_id(
 
     refunds_with_sellers = []
     for row in result.all():
-        refund = row[0]
-        user = row[1]
+        refund = row.tuple()[0]
+        user = row.tuple()[1]
 
         refunds_with_sellers.append((refund, user.full_name))
 

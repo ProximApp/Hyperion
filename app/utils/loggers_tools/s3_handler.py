@@ -29,9 +29,13 @@ class S3LogHandler(StreamHandler[TextIO]):
 
     @override
     def emit(self, record: LogRecord) -> None:
-        filename: str | None = getattr(record, "s3_filename", None)
-        subfolder: str | None = getattr(record, "s3_subfolder", None)
-        retention: int = getattr(record, "s3_retention", 0)
+        filename = getattr(record, "s3_filename", None)
+        subfolder = getattr(record, "s3_subfolder", None)
+        retention = getattr(record, "s3_retention", 0)
+
+        filename = str(filename) if filename is not None else None
+        subfolder = str(subfolder) if subfolder is not None else None
+        retention = int(retention) if retention is not None else 0
 
         if filename is None:
             now = datetime.now(UTC)

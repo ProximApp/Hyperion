@@ -117,7 +117,7 @@ async def get_all_validated_teams(
     teams_found = teams.scalars().all()
     # We can not use a where clause because the validation_progress is a Python property
     # and is not usable in a SQL query
-    return list(filter(lambda team: team.validation_progress == 100, teams_found))
+    return [team for team in teams_found if team.validation_progress == 100]
 
 
 async def get_team_by_id(

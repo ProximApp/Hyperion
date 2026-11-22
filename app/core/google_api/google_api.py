@@ -61,7 +61,7 @@ class GoogleAPI:
             client_config,
             GoogleAPI.SCOPES,
             redirect_uri=settings.CLIENT_URL + "google-api/oauth2callback",
-        )
+        )  # ty: ignore[unsound-return-statement]
 
     async def _start_authentication(
         self,
@@ -247,7 +247,7 @@ class DriveGoogleAPI:
             "parents": [parent_folder_id],
         }
         response = self._drive.files().create(body=file_metadata).execute()  # ty:ignore[unresolved-attribute]
-        folder_id: GoogleId = response.get("id")
+        folder_id: GoogleId = response.get("id")  # ty: ignore[unsound-assignment]
         return folder_id
 
     async def upload_file(
@@ -272,7 +272,7 @@ class DriveGoogleAPI:
         response = (
             self._drive.files().create(body=file_metadata, media_body=media).execute()  # ty:ignore[unresolved-attribute]
         )
-        uploaded_file_id: GoogleId = response.get("id")
+        uploaded_file_id: GoogleId = response.get("id")  # ty: ignore[unsound-assignment]
         return uploaded_file_id
 
     def replace_file(
@@ -292,7 +292,7 @@ class DriveGoogleAPI:
             .update(fileId=file_id, body=file_metadata, media_body=media)
             .execute()
         )
-        result: GoogleId = response.get("id")
+        result: GoogleId = response.get("id")  # ty: ignore[unsound-assignment]
         return result
 
     def delete_file(self, file_id: GoogleId) -> None:
